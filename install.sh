@@ -1,0 +1,1425 @@
+#!/usr/bin/env bash
+# install.sh — 99-root Personal AI Agent / Kişisel AI Ajan — Setup Script
+#
+# Usage / Kullanım:
+#   ./install.sh                         # Interactive wizard / İnteraktif sihirbaz
+#   sudo ./install.sh                    # With systemd unit install / Systemd kurulumu ile
+#   ./install.sh --no-systemd            # Dependencies + .env only / Yalnızca bağımlılıklar
+#   ./install.sh --pm2                   # PM2 process manager
+#   ./install.sh --no-wizard             # Skip .env wizard (CI) / .env sihirbazını atla
+#   ./install.sh --reconfigure-capabilities  # Re-run capability wizard only / Yalnızca yetenek sihirbazı
+#   INSTALL_LANG=en ./install.sh         # Force language / Dil seç (tr|en)
+#
+# Messengers:  whatsapp | telegram | cli
+# LLM:         anthropic | ollama | gemini
+# Proxy:       none | ngrok | cloudflared | external
+# Deployment:  systemd | pm2 | docker
+
+set -euo pipefail
+
+# ── Constants / Sabitler ──────────────────────────────────────────────────────
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPTS_DIR="$ROOT_DIR/scripts"
+BACKEND_DIR="$SCRIPTS_DIR/backend"
+BRIDGE_DIR="$SCRIPTS_DIR/claude-code-bridge"
+SYSTEMD_DIR="$ROOT_DIR/systemd"
+SYSTEM_UNIT_DIR="/etc/systemd/system"
+
+CURRENT_USER="${SUDO_USER:-$USER}"
+NODE_PATH="$(command -v node 2>/dev/null || echo /usr/bin/node)"
+API_PORT="${PORT:-8010}"
+BRIDGE_PORT="${BRIDGE_PORT:-8013}"
+
+NO_SYSTEMD=false
+USE_PM2=false
+NO_WIZARD=false
+RECONFIGURE_CAPS=false
+
+for arg in "$@"; do
+  [[ "$arg" == "--no-systemd"              ]] && NO_SYSTEMD=true
+  [[ "$arg" == "--pm2"                     ]] && USE_PM2=true && NO_SYSTEMD=true
+  [[ "$arg" == "--no-wizard"               ]] && NO_WIZARD=true
+  [[ "$arg" == "--reconfigure-capabilities" ]] && RECONFIGURE_CAPS=true
+done
+
+# ── Language selection / Dil seçimi ──────────────────────────────────────────
+
+INSTALL_LANG="${INSTALL_LANG:-}"  # override via env; empty = ask
+
+_select_language() {
+  # Already set via env var
+  if [[ "$INSTALL_LANG" == "tr" || "$INSTALL_LANG" == "en" ]]; then return; fi
+
+  # Non-interactive: default Turkish / Etkileşimsiz: Türkçe varsayılan
+  if [ ! -t 0 ]; then INSTALL_LANG="tr"; return; fi
+
+  if command -v whiptail &>/dev/null && [ -t 2 ]; then
+    local choice
+    choice=$(whiptail --title "Language / Dil" \
+      --radiolist "Select language / Dil seçin:" 12 50 2 \
+      "tr" "Türkçe" ON \
+      "en" "English" OFF \
+      3>&1 1>&2 2>&3) || choice="tr"
+    INSTALL_LANG="${choice:-tr}"
+  else
+    echo ""
+    echo "  Language / Dil:"
+    echo "  1) Türkçe (varsayılan / default)"
+    echo "  2) English"
+    read -rp "  [1]: " _lang_choice
+    case "${_lang_choice:-1}" in
+      2|en|EN) INSTALL_LANG="en" ;;
+      *)        INSTALL_LANG="tr" ;;
+    esac
+  fi
+}
+
+# ── i18n string loader / Dil dizisi yükleyici ─────────────────────────────────
+
+_load_strings() {
+  if [[ "$INSTALL_LANG" == "en" ]]; then
+
+    # ── General
+    _S_BANNER_TITLE="Personal AI Agent — Setup"
+    _S_DONE="Done"
+    _S_WARNING="Warning"
+    _S_ERROR="Error"
+    _S_REQUIRED="Required field."
+    _S_URL_HTTPS="URL must start with https://"
+    _S_OPTIONAL="(optional)"
+    _S_CONTINUE="OK to continue"
+    _S_CANCEL="Setup cancelled."
+    _S_SKIP="Skipped"
+
+    # ── Prereqs
+    _S_PRE_PY_MISSING="python3 not found. Install Python 3.11+."
+    _S_PRE_PY_OLD="Python 3.11+ required (current: "
+    _S_PRE_PY_OLD2="). Upgrade and rerun."
+    _S_PRE_NODE_MISSING="node not found. Install Node.js 18+ (https://nodejs.org)."
+    _S_PRE_NODE_OLD="Node.js 18+ required (current: "
+    _S_PRE_NODE_OLD2="). Upgrade and rerun."
+    _S_PRE_CLAUDE_MISSING="Claude CLI not found — bridge will not work!"
+    _S_PRE_CLAUDE_HINT="Install with: npm install -g @anthropic-ai/claude-code"
+    _S_PRE_CLAUDE_CONT="(Continuing setup — install Claude CLI before starting services)"
+
+    # ── Steps
+    _S_STEP_VENV="Creating Python venv →"
+    _S_STEP_VENV_DONE="Python dependencies installed"
+    _S_STEP_NPM="Installing Node dependencies →"
+    _S_STEP_NPM_DONE="npm dependencies installed"
+    _S_STEP_DIRS="Creating data directories..."
+    _S_STEP_DIRS_DONE="Data directories ready"
+    _S_STEP_DOCKER_OK="Docker: user already has access"
+    _S_STEP_DOCKER_ADDED="Docker: user added to 'docker' group (re-login to activate)"
+    _S_STEP_DOCKER_WARN="Docker installed but user is not in 'docker' group."
+    _S_STEP_DOCKER_FIX="Fix with: sudo usermod -aG docker"
+    _S_STEP_SYSTEMD_SKIP="--no-systemd flag set, skipping systemd step"
+    _S_STEP_SYSTEMD_MISSING="systemd not found, skipping unit files"
+    _S_STEP_SYSTEMD_RENDER="Creating systemd unit files..."
+    _S_STEP_SYSTEMD_DONE="Unit files rendered:"
+    _S_STEP_SYSTEMD_INSTALLED="Systemd services installed and enabled"
+    _S_STEP_SYSTEMD_START="To start: sudo systemctl start personal-agent personal-agent-bridge"
+    _S_STEP_SYSTEMD_NOROOT="No root access; unit files created at"
+    _S_STEP_SYSTEMD_MANUAL="To install manually:"
+    _S_STEP_PM2_START="Installing PM2 and starting services..."
+    _S_STEP_PM2_INSTALLED="PM2 installed"
+    _S_STEP_PM2_EXISTS="PM2 already installed:"
+    _S_STEP_PM2_DONE="PM2 services started"
+    _S_STEP_PM2_STARTUP="pm2 startup may require root — run the printed command"
+    _S_STEP_SYNTAX="Running syntax checks..."
+
+    # ── Wizard — whiptail
+    _S_WIZ_WELCOME_TITLE="99-root Setup Wizard"
+    _S_WIZ_WELCOME_MSG="Welcome! This wizard will configure your .env file step by step.
+
+Press Enter to confirm each step, ESC to cancel.
+
+Press OK to begin."
+    _S_WIZ_ENV_EXISTS_TITLE=".env Already Exists"
+    _S_WIZ_ENV_EXISTS_MSG=".env appears to be already filled.\nRun the wizard again?"
+    _S_WIZ_ENV_SKIP_CI="Non-interactive terminal — .env wizard skipped. Fill in manually:"
+    _S_WIZ_ENV_SKIP_FLAG=".env skipped (--no-wizard)"
+    _S_WIZ_ENV_EXIST_OK=".env already exists, skipped"
+
+    # ── Messenger
+    _S_WIZ_MSG_TITLE="Messenger Platform"
+    _S_WIZ_MSG_MSG="Which platform will receive messages?"
+    _S_WIZ_MSG_WA="WhatsApp (Meta Cloud API)"
+    _S_WIZ_MSG_TG="Telegram (BotFather token)"
+    _S_WIZ_MSG_CLI="CLI — Terminal output only (testing)"
+
+    # ── LLM
+    _S_WIZ_LLM_TITLE="LLM Backend"
+    _S_WIZ_LLM_MSG="Which AI model do you want to use?"
+    _S_WIZ_LLM_AN="Anthropic Claude (claude.ai API key)"
+    _S_WIZ_LLM_OL="Ollama — Local, open-source model"
+    _S_WIZ_LLM_GE="Google Gemini (AI Studio API key)"
+
+    # ── Proxy
+    _S_WIZ_PRX_TITLE="Webhook Proxy"
+    _S_WIZ_PRX_MSG="How will Meta/Telegram reach your server?
+(The webhook endpoint must be publicly accessible)"
+    _S_WIZ_PRX_NONE="None — Local dev / VPS with static IP"
+    _S_WIZ_PRX_NGROK="ngrok — Temporary tunnel (URL changes on restart)"
+    _S_WIZ_PRX_CF="Cloudflare Tunnel — Persistent option (free)"
+    _S_WIZ_PRX_EXT="External URL — You have your own domain"
+
+    # ── WhatsApp credentials
+    _S_WIZ_WA_INFO_TITLE="WhatsApp Credentials"
+    _S_WIZ_WA_INFO_MSG="Get the following from Meta Developer Console:
+  developers.facebook.com → WhatsApp → API Setup
+
+Press OK when ready."
+    _S_WIZ_WA_TOKEN="(*) Access Token:"
+    _S_WIZ_WA_PHONE="(*) Phone Number ID:"
+    _S_WIZ_WA_SECRET="(*) App Secret (HMAC verification):"
+    _S_WIZ_WA_VERIFY="(*) Verify Token (choose a random string):"
+    _S_WIZ_WA_OWNER="(*) Owner number (+1XXXXXXXXXX):"
+
+    # ── Telegram credentials
+    _S_WIZ_TG_INFO_TITLE="Telegram Credentials"
+    _S_WIZ_TG_INFO_MSG="Create a bot with @BotFather on Telegram:
+  1. /newbot — create bot, get token
+  2. Send a message to your bot, then get chat_id:
+     t.me/userinfobot or API: api.telegram.org/bot<TOKEN>/getUpdates
+
+Press OK when ready."
+    _S_WIZ_TG_TOKEN="(*) Bot Token (123456:ABC-DEF...):"
+    _S_WIZ_TG_CHAT="(*) Chat ID (owner's chat_id):"
+    _S_WIZ_TG_WSECRET="Webhook Secret Token (optional — recommended for production):"
+
+    # ── Anthropic
+    _S_WIZ_AN_KEY="(*) API Key (sk-ant-...):"
+
+    # ── Ollama
+    _S_WIZ_OL_INFO_TITLE="Ollama"
+    _S_WIZ_OL_INFO_MSG="Ollama must be running locally.
+Install: curl -fsSL https://ollama.com/install.sh | sh"
+    _S_WIZ_OL_URL="Base URL:"
+    _S_WIZ_OL_MODEL="Model name:"
+
+    # ── Gemini
+    _S_WIZ_GE_INFO_TITLE="Google Gemini"
+    _S_WIZ_GE_INFO_MSG="Get your API key from Google AI Studio:
+  aistudio.google.com → Get API Key"
+    _S_WIZ_GE_KEY="(*) Gemini API Key:"
+    _S_WIZ_GE_MODEL="Model name:"
+
+    # ── Proxy details
+    _S_WIZ_CF_INFO_TITLE="Cloudflare Tunnel"
+    _S_WIZ_CF_INFO_MSG="cloudflared binary must be installed:
+  curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+  chmod +x /usr/local/bin/cloudflared
+
+For a persistent tunnel: cloudflared tunnel login && cloudflared tunnel create personal-agent
+(Can be done after setup)"
+    _S_WIZ_CF_MISSING="cloudflared not found — can be installed after setup."
+    _S_WIZ_NGROK_INFO_TITLE="ngrok"
+    _S_WIZ_NGROK_INFO_MSG="Auth token is optional for free tier.
+A paid account is required for persistent subdomains."
+    _S_WIZ_NGROK_TOKEN="ngrok Auth Token (optional):"
+    _S_WIZ_EXT_URL="(*) Public URL (https://...):"
+
+    # ── Security keys
+    _S_WIZ_SEC_TITLE="Security Keys"
+    _S_WIZ_SEC_MSG="The following keys were auto-generated.
+Leave them as-is or change them.
+
+Store these keys somewhere safe!
+(A password manager is recommended)"
+    _S_WIZ_SEC_APIKEY="API_KEY (internal access):"
+    _S_WIZ_SEC_TOTP="TOTP_SECRET (owner commands):"
+    _S_WIZ_SEC_ADMIN="TOTP_SECRET_ADMIN (destructive commands):"
+
+    # ── Timezone
+    _S_WIZ_TZ_TITLE="Timezone"
+    _S_WIZ_TZ_MSG="Select the timezone for APScheduler and cron expressions:"
+    _S_WIZ_TZ_TRT="Europe/Istanbul (UTC+3, Turkey)"
+    _S_WIZ_TZ_LON="Europe/London (UTC+0/+1)"
+    _S_WIZ_TZ_PAR="Europe/Paris (UTC+1/+2)"
+    _S_WIZ_TZ_NYC="America/New_York (UTC-5/-4)"
+    _S_WIZ_TZ_LAX="America/Los_Angeles (UTC-8/-7)"
+    _S_WIZ_TZ_TYO="Asia/Tokyo (UTC+9)"
+    _S_WIZ_TZ_UTC="UTC"
+    _S_WIZ_TZ_OTH="Other (type manually)"
+    _S_WIZ_TZ_CUSTOM="IANA timezone name (e.g. America/Chicago):"
+
+    # ── Summary
+    _S_WIZ_SUM_TITLE="Setup Summary"
+    _S_WIZ_SUM_MSG_AUTO="Security keys were auto-generated."
+    _S_WIZ_SUM_MSG_CONF="Press OK to write .env file."
+    _S_WIZ_ENV_DONE=".env written:"
+
+    # ── Text mode labels
+    _S_TXT_TITLE="99-root Setup Wizard (text mode)"
+    _S_TXT_HINT="Leave blank for [default]."
+    _S_TXT_MESSENGER="▶ Messenger Platform"
+    _S_TXT_M1="1) whatsapp  — Meta Cloud API (default)"
+    _S_TXT_M2="2) telegram  — Telegram Bot"
+    _S_TXT_M3="3) cli       — Terminal output (testing)"
+    _S_TXT_LLM="▶ LLM Backend"
+    _S_TXT_L1="1) anthropic — Anthropic Claude (default)"
+    _S_TXT_L2="2) ollama    — Local Ollama"
+    _S_TXT_L3="3) gemini    — Google Gemini"
+    _S_TXT_PROXY="▶ Webhook Proxy"
+    _S_TXT_P1="1) none        — None (default)"
+    _S_TXT_P2="2) ngrok       — ngrok tunnel"
+    _S_TXT_P3="3) cloudflared — Cloudflare Tunnel"
+    _S_TXT_P4="4) external    — Your own URL"
+    _S_TXT_WA="▶ WhatsApp Credentials (Meta Developer Console)"
+    _S_TXT_TG="▶ Telegram Credentials (@BotFather)"
+    _S_TXT_AN="▶ Anthropic (claude.ai/settings → API Keys)"
+    _S_TXT_OL="▶ Ollama"
+    _S_TXT_GE="▶ Google Gemini (aistudio.google.com)"
+    _S_TXT_SEC="▶ Security Keys (Enter = auto-generate)"
+    _S_TXT_NOWHIPTAIL="whiptail not found or terminal not compatible — using text mode."
+    _S_TXT_RERUN="[?] .env already filled. Run wizard again? [y/N]: "
+    _S_TXT_RERUN_Y="y"
+
+    # ── TOTP
+    _S_TOTP_TITLE="TOTP Setup — Google Authenticator / Authy"
+    _S_TOTP_SUBTITLE="Scan QR code or enter secret manually"
+    _S_TOTP_SECRET="Secret"
+    _S_TOTP_URI="URI"
+    _S_TOTP_QR_HINT="(For QR code: sudo apt install qrencode)"
+    _S_TOTP_OWNER="owner TOTP"
+    _S_TOTP_ADMIN="admin TOTP"
+    _S_TOTP_WARN="Store these secrets somewhere safe — they won't be shown again."
+
+    # ── Webhook URL
+    _S_WH_TITLE="Next Step: Webhook Setup"
+    _S_WH_WA_URL="WhatsApp Webhook URL:"
+    _S_WH_WA_CONSOLE="Register this URL in Meta Developer Console:"
+    _S_WH_WA_PATH="developers.facebook.com → WhatsApp → Configuration → Webhook URL"
+    _S_WH_WA_PROXY_WARN="Local IP won't work for webhooks. Set up ngrok/cloudflared/external proxy."
+    _S_WH_TG_SETUP="Telegram Webhook setup (after starting services):"
+    _S_WH_TG_NO_URL="A Public URL is required. Set PUBLIC_URL in .env, then:"
+    _S_WH_TG_SETWEBHOOK="curl -s \"https://api.telegram.org/bot<TOKEN>/setWebhook?url=<URL>/telegram/webhook\""
+    _S_WH_CLI="CLI mode — no webhook setup needed."
+    _S_WH_CLI_HINT="Start FastAPI and test from terminal."
+    _S_WH_HEALTH="Health checks (after starting services):"
+
+    # ── Completion
+    _S_DONE_TITLE="Setup complete."
+    _S_DONE_PM2="Service status: pm2 status"
+    _S_DONE_SYSTEMD="To start services: sudo systemctl start personal-agent personal-agent-bridge"
+    _S_DONE_DOCKER="To start with Docker: docker compose up -d --build"
+
+    # ── Capability configuration (FEAT-3)
+    _S_CAP_TITLE="Capability Configuration"
+    _S_CAP_DESC="Which capabilities should be ENABLED?\n(Unchecked items will be disabled)"
+    _S_CAP_SKIP="Capability configuration skipped (RESTRICT_* already set)."
+    _S_CAP_RECONFIG="Resetting existing capability settings..."
+    _S_CAP_FS="Filesystem access outside project root"
+    _S_CAP_NET="External network / HTTP requests"
+    _S_CAP_SHELL="Shell command execution"
+    _S_CAP_SVC="Service management (systemd/tmux)"
+    _S_CAP_MEDIA="Media download/upload"
+    _S_CAP_CAL="Calendar & scheduled tasks"
+    _S_CAP_WIZ="Project creation wizard"
+    _S_CAP_SS="Headless browser / screenshots"
+    _S_CAP_SCHED="Scheduled tasks / APScheduler (cron, reminders)"
+    _S_CAP_PDF="PDF import (document upload pipeline)"
+    _S_CAP_HIST="Conversation history logging (privacy)"
+    _S_CAP_PLANS="Work plan creation and management"
+    _S_CAP_IC="Natural language intent classification (LLM call per message)"
+    _S_CAP_WIZ_LLM="Wizard LLM scaffold (auto architecture preview)"
+    _S_CAP_DESKTOP="Desktop automation (xdotool, screenshot, vision)"
+    _S_CAP_BROWSER="Browser automation (Playwright, headless Chrome)"
+
+  else  # ── Turkish / Türkçe (default) ──────────────────────────────────────
+
+    # ── Genel
+    _S_BANNER_TITLE="Kişisel AI Ajan — Kurulum"
+    _S_DONE="Tamam"
+    _S_WARNING="Uyarı"
+    _S_ERROR="Hata"
+    _S_REQUIRED="Zorunlu alan."
+    _S_URL_HTTPS="URL https:// ile başlamalıdır."
+    _S_OPTIONAL="(opsiyonel)"
+    _S_CONTINUE="Devam etmek için OK"
+    _S_CANCEL="Kurulum iptal edildi."
+    _S_SKIP="Atlandı"
+
+    # ── Önkoşullar
+    _S_PRE_PY_MISSING="python3 bulunamadı. Python 3.11+ kur."
+    _S_PRE_PY_OLD="Python 3.11+ gerekli (mevcut: "
+    _S_PRE_PY_OLD2="). Yükselttikten sonra tekrar çalıştır."
+    _S_PRE_NODE_MISSING="node bulunamadı. Node.js 18+ kur (https://nodejs.org)."
+    _S_PRE_NODE_OLD="Node.js 18+ gerekli (mevcut: "
+    _S_PRE_NODE_OLD2="). Yükselttikten sonra tekrar çalıştır."
+    _S_PRE_CLAUDE_MISSING="Claude CLI bulunamadı — bridge çalışmaz!"
+    _S_PRE_CLAUDE_HINT="Kurmak için: npm install -g @anthropic-ai/claude-code"
+    _S_PRE_CLAUDE_CONT="(Kurulum devam ediyor — servisleri başlatmadan önce mutlaka kur)"
+
+    # ── Adımlar
+    _S_STEP_VENV="Python venv oluşturuluyor →"
+    _S_STEP_VENV_DONE="Python bağımlılıkları kuruldu"
+    _S_STEP_NPM="Node bağımlılıkları kuruluyor →"
+    _S_STEP_NPM_DONE="npm bağımlılıkları kuruldu"
+    _S_STEP_DIRS="Veri dizinleri oluşturuluyor..."
+    _S_STEP_DIRS_DONE="Veri dizinleri hazır"
+    _S_STEP_DOCKER_OK="Docker: kullanıcı zaten erişebiliyor"
+    _S_STEP_DOCKER_ADDED="Docker: kullanıcı 'docker' grubuna eklendi (yeniden giriş sonrası aktif)"
+    _S_STEP_DOCKER_WARN="Docker kurulu ama kullanıcı 'docker' grubunda değil."
+    _S_STEP_DOCKER_FIX="Düzeltmek için: sudo usermod -aG docker"
+    _S_STEP_SYSTEMD_SKIP="--no-systemd belirtildi, systemd adımı atlandı"
+    _S_STEP_SYSTEMD_MISSING="systemd bulunamadı, unit dosyaları atlandı"
+    _S_STEP_SYSTEMD_RENDER="Systemd unit dosyaları oluşturuluyor..."
+    _S_STEP_SYSTEMD_DONE="Unit dosyaları render edildi:"
+    _S_STEP_SYSTEMD_INSTALLED="Systemd servisleri kuruldu ve etkinleştirildi"
+    _S_STEP_SYSTEMD_START="Başlatmak için: sudo systemctl start personal-agent personal-agent-bridge"
+    _S_STEP_SYSTEMD_NOROOT="Root yetkisi yok; unit dosyaları oluşturuldu:"
+    _S_STEP_SYSTEMD_MANUAL="Kurmak için:"
+    _S_STEP_PM2_START="PM2 kuruluyor ve servisler başlatılıyor..."
+    _S_STEP_PM2_INSTALLED="PM2 kuruldu"
+    _S_STEP_PM2_EXISTS="PM2 zaten kurulu:"
+    _S_STEP_PM2_DONE="PM2 servisleri başlatıldı"
+    _S_STEP_PM2_STARTUP="pm2 startup root yetkisi gerektirebilir — çıktıdaki komutu çalıştır"
+    _S_STEP_SYNTAX="Sözdizimi kontrolleri yapılıyor..."
+
+    # ── Sihirbaz — whiptail
+    _S_WIZ_WELCOME_TITLE="99-root Kurulum Sihirbazı"
+    _S_WIZ_WELCOME_MSG="Hoş geldiniz! Bu sihirbaz .env dosyanızı adım adım oluşturacak.
+
+Her adımı onaylamak için Enter, iptal için ESC kullanabilirsiniz.
+
+Başlamak için OK'a basın."
+    _S_WIZ_ENV_EXISTS_TITLE=".env Mevcut"
+    _S_WIZ_ENV_EXISTS_MSG=".env zaten dolu görünüyor.\nSihirbazı tekrar çalıştırmak istiyor musunuz?"
+    _S_WIZ_ENV_SKIP_CI="Etkileşimsiz terminal — .env sihirbazı atlandı. Değerleri elle doldur:"
+    _S_WIZ_ENV_SKIP_FLAG=".env atlandı (--no-wizard)"
+    _S_WIZ_ENV_EXIST_OK=".env zaten mevcut, atlandı"
+
+    # ── Messenger
+    _S_WIZ_MSG_TITLE="Messenger Platformu"
+    _S_WIZ_MSG_MSG="Hangi platform üzerinden mesaj alınacak?"
+    _S_WIZ_MSG_WA="WhatsApp (Meta Cloud API)"
+    _S_WIZ_MSG_TG="Telegram (BotFather token)"
+    _S_WIZ_MSG_CLI="CLI — Sadece terminal çıktı (test)"
+
+    # ── LLM
+    _S_WIZ_LLM_TITLE="LLM Backend"
+    _S_WIZ_LLM_MSG="Hangi yapay zeka modelini kullanmak istiyorsunuz?"
+    _S_WIZ_LLM_AN="Anthropic Claude (claude.ai API key)"
+    _S_WIZ_LLM_OL="Ollama — Yerel, açık kaynak model"
+    _S_WIZ_LLM_GE="Google Gemini (AI Studio API key)"
+
+    # ── Proxy
+    _S_WIZ_PRX_TITLE="Webhook Proxy"
+    _S_WIZ_PRX_MSG="Dış erişim için hangi yöntem kullanılacak?
+(Meta/Telegram'ın webhook'u bu adrese mesaj gönderir)"
+    _S_WIZ_PRX_NONE="Yok — Yerel geliştirme / VPS sabit IP"
+    _S_WIZ_PRX_NGROK="ngrok — Geçici tünel (her başlatmada URL değişir)"
+    _S_WIZ_PRX_CF="Cloudflare Tunnel — Kalıcı seçenek (ücretsiz)"
+    _S_WIZ_PRX_EXT="Harici URL — Kendi domainin var"
+
+    # ── WhatsApp bilgileri
+    _S_WIZ_WA_INFO_TITLE="WhatsApp Bilgileri"
+    _S_WIZ_WA_INFO_MSG="Meta Developer Console'dan aşağıdaki bilgileri alın:
+  developers.facebook.com → WhatsApp → API Setup
+
+Hazır olduğunuzda OK'a basın."
+    _S_WIZ_WA_TOKEN="(*) Access Token:"
+    _S_WIZ_WA_PHONE="(*) Phone Number ID:"
+    _S_WIZ_WA_SECRET="(*) App Secret (HMAC doğrulama):"
+    _S_WIZ_WA_VERIFY="(*) Verify Token (kendin belirle, rastgele string):"
+    _S_WIZ_WA_OWNER="(*) Owner numarası (+90XXXXXXXXXX):"
+
+    # ── Telegram bilgileri
+    _S_WIZ_TG_INFO_TITLE="Telegram Bilgileri"
+    _S_WIZ_TG_INFO_MSG="Telegram'da @BotFather'a yazarak bot oluşturun:
+  1. /newbot — bot oluştur, token al
+  2. Bota bir mesaj gönder, chat_id'yi öğren:
+     t.me/userinfobot veya API: api.telegram.org/bot<TOKEN>/getUpdates
+
+Hazır olduğunuzda OK'a basın."
+    _S_WIZ_TG_TOKEN="(*) Bot Token (123456:ABC-DEF...):"
+    _S_WIZ_TG_CHAT="(*) Chat ID (Owner'ın chat_id'si):"
+    _S_WIZ_TG_WSECRET="Webhook Secret Token (opsiyonel — production için önerilir):"
+
+    # ── Anthropic
+    _S_WIZ_AN_KEY="(*) API Key (sk-ant-...):"
+
+    # ── Ollama
+    _S_WIZ_OL_INFO_TITLE="Ollama Bilgileri"
+    _S_WIZ_OL_INFO_MSG="Ollama yerel kurulumunuzda çalışıyor olmalı.
+Kurmak için: curl -fsSL https://ollama.com/install.sh | sh"
+    _S_WIZ_OL_URL="Base URL:"
+    _S_WIZ_OL_MODEL="Model adı:"
+
+    # ── Gemini
+    _S_WIZ_GE_INFO_TITLE="Google Gemini Bilgileri"
+    _S_WIZ_GE_INFO_MSG="Google AI Studio'dan API key alın:
+  aistudio.google.com → Get API Key"
+    _S_WIZ_GE_KEY="(*) Gemini API Key:"
+    _S_WIZ_GE_MODEL="Model adı:"
+
+    # ── Proxy detayları
+    _S_WIZ_CF_INFO_TITLE="Cloudflare Tunnel"
+    _S_WIZ_CF_INFO_MSG="cloudflared binary kurulu olmalı:
+  curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+  chmod +x /usr/local/bin/cloudflared
+
+Kalıcı tunnel için: cloudflared tunnel login && cloudflared tunnel create personal-agent
+(Kurulum sonrası yapılabilir)"
+    _S_WIZ_CF_MISSING="cloudflared bulunamadı — kurulum sonrası elle kurulabilir."
+    _S_WIZ_NGROK_INFO_TITLE="ngrok Bilgileri"
+    _S_WIZ_NGROK_INFO_MSG="Ücretsiz hesap için token opsiyoneldir.
+Kalıcı subdomain için ngrok.com hesabı gerekir."
+    _S_WIZ_NGROK_TOKEN="ngrok Auth Token (opsiyonel):"
+    _S_WIZ_EXT_URL="(*) Public URL (https://...):"
+
+    # ── Güvenlik anahtarları
+    _S_WIZ_SEC_TITLE="Güvenlik Anahtarları"
+    _S_WIZ_SEC_MSG="Aşağıdaki anahtarlar otomatik üretildi.
+Değiştirmek istemiyorsanız olduğu gibi bırakın.
+
+Bu anahtarları güvenli bir yerde saklayın!
+(Parola yöneticisi önerilir)"
+    _S_WIZ_SEC_APIKEY="API_KEY (dahili erişim):"
+    _S_WIZ_SEC_TOTP="TOTP_SECRET (owner komutları):"
+    _S_WIZ_SEC_ADMIN="TOTP_SECRET_ADMIN (yıkıcı komutlar):"
+
+    # ── Saat dilimi
+    _S_WIZ_TZ_TITLE="Saat Dilimi"
+    _S_WIZ_TZ_MSG="APScheduler ve cron ifadeleri için saat dilimi seçin:"
+    _S_WIZ_TZ_TRT="Europe/Istanbul (UTC+3, Türkiye)"
+    _S_WIZ_TZ_LON="Europe/London (UTC+0/+1)"
+    _S_WIZ_TZ_PAR="Europe/Paris (UTC+1/+2)"
+    _S_WIZ_TZ_NYC="America/New_York (UTC-5/-4)"
+    _S_WIZ_TZ_LAX="America/Los_Angeles (UTC-8/-7)"
+    _S_WIZ_TZ_TYO="Asia/Tokyo (UTC+9)"
+    _S_WIZ_TZ_UTC="UTC"
+    _S_WIZ_TZ_OTH="Diğer (elle gir)"
+    _S_WIZ_TZ_CUSTOM="IANA saat dilimi adı (ör. America/Chicago):"
+
+    # ── Özet
+    _S_WIZ_SUM_TITLE="Kurulum Özeti"
+    _S_WIZ_SUM_MSG_AUTO="Güvenlik anahtarları otomatik üretildi."
+    _S_WIZ_SUM_MSG_CONF="Tamam'a basarsanız .env dosyası oluşturulacak."
+    _S_WIZ_ENV_DONE=".env dolduruldu:"
+
+    # ── Metin modu etiketleri
+    _S_TXT_TITLE="99-root Kurulum Sihirbazı (metin modu)"
+    _S_TXT_HINT="Boş bırakırsan [varsayılan] kullanılır."
+    _S_TXT_MESSENGER="▶ Messenger Platformu"
+    _S_TXT_M1="1) whatsapp  — Meta Cloud API (varsayılan)"
+    _S_TXT_M2="2) telegram  — Telegram Bot"
+    _S_TXT_M3="3) cli       — Terminal çıktı (test)"
+    _S_TXT_LLM="▶ LLM Backend"
+    _S_TXT_L1="1) anthropic — Anthropic Claude (varsayılan)"
+    _S_TXT_L2="2) ollama    — Yerel Ollama"
+    _S_TXT_L3="3) gemini    — Google Gemini"
+    _S_TXT_PROXY="▶ Webhook Proxy"
+    _S_TXT_P1="1) none        — Yok (varsayılan)"
+    _S_TXT_P2="2) ngrok       — ngrok tüneli"
+    _S_TXT_P3="3) cloudflared — Cloudflare Tunnel"
+    _S_TXT_P4="4) external    — Kendi URL'in"
+    _S_TXT_WA="▶ WhatsApp Bilgileri (Meta Developer Console)"
+    _S_TXT_TG="▶ Telegram Bilgileri (@BotFather)"
+    _S_TXT_AN="▶ Anthropic (claude.ai/settings → API Keys)"
+    _S_TXT_OL="▶ Ollama"
+    _S_TXT_GE="▶ Google Gemini (aistudio.google.com)"
+    _S_TXT_SEC="▶ Güvenlik Anahtarları (Enter = otomatik üret)"
+    _S_TXT_NOWHIPTAIL="whiptail bulunamadı veya terminal uygun değil — metin modu kullanılıyor."
+    _S_TXT_RERUN="[?] .env zaten dolu. Sihirbazı tekrar çalıştır? [e/H]: "
+    _S_TXT_RERUN_Y="e"
+
+    # ── TOTP
+    _S_TOTP_TITLE="TOTP Kurulumu — Google Authenticator / Authy"
+    _S_TOTP_SUBTITLE="QR kodu tara veya secret'ı elle gir"
+    _S_TOTP_SECRET="Secret"
+    _S_TOTP_URI="URI"
+    _S_TOTP_QR_HINT="(QR kodu için: sudo apt install qrencode)"
+    _S_TOTP_OWNER="owner TOTP"
+    _S_TOTP_ADMIN="admin TOTP"
+    _S_TOTP_WARN="Bu secret'ları güvenli bir yere kaydet — bir daha gösterilmez."
+
+    # ── Webhook URL
+    _S_WH_TITLE="Sonraki Adım: Webhook Ayarı"
+    _S_WH_WA_URL="WhatsApp Webhook URL:"
+    _S_WH_WA_CONSOLE="Bu URL'yi Meta Developer Console'a gir:"
+    _S_WH_WA_PATH="developers.facebook.com → WhatsApp → Configuration → Webhook URL"
+    _S_WH_WA_PROXY_WARN="Yerel IP ile webhook çalışmaz. ngrok/cloudflared/external proxy kur."
+    _S_WH_TG_SETUP="Telegram Webhook kurulumu (servis başlatıldıktan sonra):"
+    _S_WH_TG_NO_URL="Public URL gerekli. .env içinde PUBLIC_URL ayarla, ardından:"
+    _S_WH_TG_SETWEBHOOK="curl -s \"https://api.telegram.org/bot<TOKEN>/setWebhook?url=<URL>/telegram/webhook\""
+    _S_WH_CLI="CLI modu — webhook kurulumu gerekmez."
+    _S_WH_CLI_HINT="FastAPI'yi başlat ve terminalden test et."
+    _S_WH_HEALTH="Sağlık kontrolü (servis başlatıldıktan sonra):"
+
+    # ── Tamamlama
+    _S_DONE_TITLE="Kurulum tamamlandı."
+    _S_DONE_PM2="Servis durumu: pm2 status"
+    _S_DONE_SYSTEMD="Servisleri başlatmak için: sudo systemctl start personal-agent personal-agent-bridge"
+    _S_DONE_DOCKER="Docker ile başlatmak için: docker compose up -d --build"
+
+    # ── Yetenek yapılandırması (FEAT-3)
+    _S_CAP_TITLE="Yetenek Yapılandırması"
+    _S_CAP_DESC="Hangi yeteneklerin AKTİF olmasını istiyorsunuz?\n(İşaretsiz bırakılanlar devre dışı kalır)"
+    _S_CAP_SKIP="Yetenek yapılandırması atlandı (RESTRICT_* zaten tanımlı)."
+    _S_CAP_RECONFIG="Mevcut yetenek ayarları sıfırlanıyor..."
+    _S_CAP_FS="Proje kökü dışı dosya sistemi erişimi"
+    _S_CAP_NET="Dış ağ / HTTP istekleri"
+    _S_CAP_SHELL="Kabuk komutu çalıştırma"
+    _S_CAP_SVC="Servis yönetimi (systemd/tmux)"
+    _S_CAP_MEDIA="Medya indirme/yükleme"
+    _S_CAP_CAL="Takvim ve zamanlanmış görevler"
+    _S_CAP_WIZ="Proje oluşturma wizard'ı"
+    _S_CAP_SS="Headless browser / ekran görüntüsü"
+    _S_CAP_SCHED="Zamanlanmış görevler / APScheduler (cron, hatırlatıcı)"
+    _S_CAP_PDF="PDF içe aktarma (belge yükleme hattı)"
+    _S_CAP_HIST="Konuşma geçmişi kaydı (gizlilik)"
+    _S_CAP_PLANS="İş planı oluşturma ve yönetimi"
+    _S_CAP_IC="Doğal dil niyet tespiti (mesaj başına LLM çağrısı)"
+    _S_CAP_WIZ_LLM="Wizard LLM scaffold (otomatik mimari önizlemesi)"
+    _S_CAP_DESKTOP="Masaüstü otomasyonu (xdotool, ekran görüntüsü, vision)"
+    _S_CAP_BROWSER="Tarayıcı otomasyonu (Playwright, headless Chrome)"
+
+  fi
+}
+
+# ── Helpers / Yardımcılar ─────────────────────────────────────────────────────
+
+log()  { echo "[install] $*"; }
+ok()   { echo "[✓] $*"; }
+warn() { echo "[!] $*"; }
+die()  { echo "[✗] $*" >&2; exit 1; }
+
+_env_set() {
+  local key="$1" val="$2" file="$3"
+  if grep -q "^${key}=" "$file" 2>/dev/null; then
+    sed -i "s@^${key}=.*@${key}=${val}@" "$file"
+  else
+    echo "${key}=${val}" >> "$file"
+  fi
+}
+
+# ── whiptail helpers ──────────────────────────────────────────────────────────
+
+_wt_available() {
+  command -v whiptail &>/dev/null && [ -t 0 ] && [ -t 2 ]
+}
+
+_wt_radio() {
+  local title="$1" msg="$2"; shift 2
+  whiptail --title "$title" --radiolist "$msg" 20 70 10 "$@" 3>&1 1>&2 2>&3
+}
+
+_wt_input() {
+  local title="$1" msg="$2" default="${3:-}"
+  whiptail --title "$title" --inputbox "$msg" 10 70 "$default" 3>&1 1>&2 2>&3
+}
+
+_wt_password() {
+  local title="$1" msg="$2"
+  whiptail --title "$title" --passwordbox "$msg" 10 70 3>&1 1>&2 2>&3
+}
+
+_wt_yesno() {
+  local title="$1" msg="$2"
+  whiptail --title "$title" --yesno "$msg" 10 70 3>&1 1>&2 2>&3
+}
+
+_wt_msg() {
+  local title="$1" msg="$2"
+  whiptail --title "$title" --msgbox "$msg" 20 70 3>&1 1>&2 2>&3
+}
+
+# ── Prerequisites / Önkoşullar ────────────────────────────────────────────────
+
+check_prereqs() {
+  if ! command -v python3 &>/dev/null; then die "$_S_PRE_PY_MISSING"; fi
+  local py_major py_minor
+  py_major="$(python3 -c 'import sys; print(sys.version_info.major)' 2>/dev/null || echo 0)"
+  py_minor="$(python3 -c 'import sys; print(sys.version_info.minor)' 2>/dev/null || echo 0)"
+  if [[ "$py_major" -lt 3 ]] || [[ "$py_major" -eq 3 && "$py_minor" -lt 11 ]]; then
+    die "${_S_PRE_PY_OLD}$(python3 --version)${_S_PRE_PY_OLD2}"
+  fi
+  ok "Python: $(python3 --version)"
+
+  if ! command -v node &>/dev/null; then die "$_S_PRE_NODE_MISSING"; fi
+  local node_major
+  node_major="$(node --version 2>/dev/null | tr -d 'v' | cut -d. -f1)"
+  if [[ "${node_major:-0}" -lt 18 ]]; then
+    die "${_S_PRE_NODE_OLD}$(node --version)${_S_PRE_NODE_OLD2}"
+  fi
+  ok "Node: $(node --version)"
+
+  if command -v claude &>/dev/null; then
+    ok "Claude CLI: $(claude --version 2>/dev/null | head -1 || echo 'installed')"
+  else
+    warn "$_S_PRE_CLAUDE_MISSING"
+    warn "$_S_PRE_CLAUDE_HINT"
+    warn "$_S_PRE_CLAUDE_CONT"
+  fi
+}
+
+# ── Step 1: Python venv ───────────────────────────────────────────────────────
+
+step_venv() {
+  log "$_S_STEP_VENV $BACKEND_DIR/venv"
+  if [ ! -d "$BACKEND_DIR/venv" ]; then python3 -m venv "$BACKEND_DIR/venv"; fi
+  "$BACKEND_DIR/venv/bin/pip" install --quiet --upgrade pip
+  "$BACKEND_DIR/venv/bin/pip" install --quiet -r "$BACKEND_DIR/requirements.txt"
+  ok "$_S_STEP_VENV_DONE"
+}
+
+# ── Step 2: npm ───────────────────────────────────────────────────────────────
+
+step_npm() {
+  log "$_S_STEP_NPM $BRIDGE_DIR/node_modules"
+  (cd "$BRIDGE_DIR" && npm install --silent)
+  ok "$_S_STEP_NPM_DONE"
+}
+
+# ── Step 3: Data directories / Veri dizinleri ────────────────────────────────
+
+step_data_dirs() {
+  log "$_S_STEP_DIRS"
+  mkdir -p \
+    "$ROOT_DIR/data/projects" \
+    "$ROOT_DIR/data/media" \
+    "$ROOT_DIR/data/claude_sessions" \
+    "$ROOT_DIR/data/conv_history" \
+    "$ROOT_DIR/outputs/logs"
+  ok "$_S_STEP_DIRS_DONE"
+}
+
+# ── Step 4: Docker group ──────────────────────────────────────────────────────
+
+step_docker_group() {
+  if ! command -v docker &>/dev/null; then return; fi
+  if docker info &>/dev/null 2>&1; then
+    ok "$_S_STEP_DOCKER_OK"; return
+  fi
+  if [ "$EUID" -eq 0 ]; then
+    usermod -aG docker "$CURRENT_USER"
+    ok "$_S_STEP_DOCKER_ADDED"
+  else
+    warn "$_S_STEP_DOCKER_WARN"
+    warn "$_S_STEP_DOCKER_FIX $CURRENT_USER && newgrp docker"
+  fi
+}
+
+# ── Step 5: Systemd ───────────────────────────────────────────────────────────
+
+render_template() {
+  local template="$1" output="$2"
+  sed \
+    -e "s|{{USER}}|$CURRENT_USER|g" \
+    -e "s|{{ROOT_DIR}}|$ROOT_DIR|g" \
+    -e "s|{{NODE_PATH}}|$NODE_PATH|g" \
+    -e "s|{{API_PORT}}|$API_PORT|g" \
+    -e "s|{{BRIDGE_PORT}}|$BRIDGE_PORT|g" \
+    "$template" > "$output"
+}
+
+step_systemd() {
+  if $NO_SYSTEMD; then log "$_S_STEP_SYSTEMD_SKIP"; return; fi
+  if ! command -v systemctl &>/dev/null; then warn "$_S_STEP_SYSTEMD_MISSING"; return; fi
+
+  log "$_S_STEP_SYSTEMD_RENDER"
+  render_template "$SYSTEMD_DIR/personal-agent.service.template"        "$SYSTEMD_DIR/personal-agent.service"
+  render_template "$SYSTEMD_DIR/personal-agent-bridge.service.template" "$SYSTEMD_DIR/personal-agent-bridge.service"
+  ok "$_S_STEP_SYSTEMD_DONE $SYSTEMD_DIR/*.service"
+
+  if [ "$EUID" -eq 0 ]; then
+    cp "$SYSTEMD_DIR/personal-agent.service"        "$SYSTEM_UNIT_DIR/"
+    cp "$SYSTEMD_DIR/personal-agent-bridge.service" "$SYSTEM_UNIT_DIR/"
+    systemctl daemon-reload
+    systemctl enable personal-agent.service personal-agent-bridge.service
+    ok "$_S_STEP_SYSTEMD_INSTALLED"
+    warn "$_S_STEP_SYSTEMD_START"
+  else
+    warn "$_S_STEP_SYSTEMD_NOROOT $SYSTEMD_DIR/"
+    echo "      $_S_STEP_SYSTEMD_MANUAL"
+    echo "        sudo cp $SYSTEMD_DIR/personal-agent*.service $SYSTEM_UNIT_DIR/"
+    echo "        sudo systemctl daemon-reload"
+    echo "        sudo systemctl enable --now personal-agent personal-agent-bridge"
+  fi
+}
+
+# ── Step 6: PM2 ───────────────────────────────────────────────────────────────
+
+step_pm2() {
+  if ! $USE_PM2; then return; fi
+  log "$_S_STEP_PM2_START"
+  if ! command -v pm2 &>/dev/null; then
+    npm install -g pm2; ok "$_S_STEP_PM2_INSTALLED"
+  else
+    ok "$_S_STEP_PM2_EXISTS $(pm2 --version)"
+  fi
+  pm2 start "$ROOT_DIR/ecosystem.config.js"
+  pm2 save
+  pm2 startup || warn "$_S_STEP_PM2_STARTUP"
+  ok "$_S_STEP_PM2_DONE"
+}
+
+# ── Security key generators ───────────────────────────────────────────────────
+
+_gen_api_key() {
+  if command -v openssl &>/dev/null; then openssl rand -hex 32
+  else date +%s%N | sha256sum | head -c 64; fi
+}
+
+_gen_totp() {
+  if "$BACKEND_DIR/venv/bin/python" -c "import pyotp" 2>/dev/null; then
+    "$BACKEND_DIR/venv/bin/python" -c 'import pyotp; print(pyotp.random_base32())'
+  else
+    echo "TOTP_KURULUM_SONRASI_DOLDUR_$(date +%s)"
+  fi
+}
+
+# ── whiptail wizard ───────────────────────────────────────────────────────────
+
+_wizard_whiptail() {
+  local env_dst="$1"
+
+  _wt_msg "$_S_WIZ_WELCOME_TITLE" "$_S_WIZ_WELCOME_MSG" || { warn "$_S_CANCEL"; return 1; }
+
+  local messenger
+  messenger=$(_wt_radio "$_S_WIZ_MSG_TITLE" "$_S_WIZ_MSG_MSG" \
+    "whatsapp" "$_S_WIZ_MSG_WA"  ON  \
+    "telegram" "$_S_WIZ_MSG_TG"  OFF \
+    "cli"      "$_S_WIZ_MSG_CLI" OFF \
+  ) || { warn "$_S_CANCEL"; return 1; }
+
+  local llm
+  llm=$(_wt_radio "$_S_WIZ_LLM_TITLE" "$_S_WIZ_LLM_MSG" \
+    "anthropic" "$_S_WIZ_LLM_AN" ON  \
+    "ollama"    "$_S_WIZ_LLM_OL" OFF \
+    "gemini"    "$_S_WIZ_LLM_GE" OFF \
+  ) || { warn "$_S_CANCEL"; return 1; }
+
+  local proxy
+  proxy=$(_wt_radio "$_S_WIZ_PRX_TITLE" "$_S_WIZ_PRX_MSG" \
+    "none"        "$_S_WIZ_PRX_NONE"  ON  \
+    "ngrok"       "$_S_WIZ_PRX_NGROK" OFF \
+    "cloudflared" "$_S_WIZ_PRX_CF"    OFF \
+    "external"    "$_S_WIZ_PRX_EXT"   OFF \
+  ) || { warn "$_S_CANCEL"; return 1; }
+
+  local wa_token="" wa_phone_id="" wa_secret="" wa_verify="" wa_owner=""
+  local tg_token="" tg_chat_id="" tg_webhook_secret=""
+
+  if [[ "$messenger" == "whatsapp" ]]; then
+    _wt_msg "$_S_WIZ_WA_INFO_TITLE" "$_S_WIZ_WA_INFO_MSG" || return 1
+    while true; do
+      wa_token=$(_wt_password "$_S_WIZ_WA_INFO_TITLE" "$_S_WIZ_WA_TOKEN") || return 1
+      [[ -n "$wa_token" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+    done
+    while true; do
+      wa_phone_id=$(_wt_input "$_S_WIZ_WA_INFO_TITLE" "$_S_WIZ_WA_PHONE") || return 1
+      [[ -n "$wa_phone_id" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+    done
+    while true; do
+      wa_secret=$(_wt_password "$_S_WIZ_WA_INFO_TITLE" "$_S_WIZ_WA_SECRET") || return 1
+      [[ -n "$wa_secret" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+    done
+    while true; do
+      wa_verify=$(_wt_input "$_S_WIZ_WA_INFO_TITLE" "$_S_WIZ_WA_VERIFY") || return 1
+      [[ -n "$wa_verify" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+    done
+    while true; do
+      wa_owner=$(_wt_input "$_S_WIZ_WA_INFO_TITLE" "$_S_WIZ_WA_OWNER") || return 1
+      [[ -n "$wa_owner" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+    done
+
+  elif [[ "$messenger" == "telegram" ]]; then
+    _wt_msg "$_S_WIZ_TG_INFO_TITLE" "$_S_WIZ_TG_INFO_MSG" || return 1
+    while true; do
+      tg_token=$(_wt_password "$_S_WIZ_TG_INFO_TITLE" "$_S_WIZ_TG_TOKEN") || return 1
+      [[ -n "$tg_token" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+    done
+    while true; do
+      tg_chat_id=$(_wt_input "$_S_WIZ_TG_INFO_TITLE" "$_S_WIZ_TG_CHAT") || return 1
+      [[ -n "$tg_chat_id" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+    done
+    tg_webhook_secret=$(_wt_password "$_S_WIZ_TG_INFO_TITLE" "$_S_WIZ_TG_WSECRET") || return 1
+  fi
+
+  local anthropic_key="" ollama_url="" ollama_model="" gemini_key="" gemini_model=""
+
+  if [[ "$llm" == "anthropic" ]]; then
+    while true; do
+      anthropic_key=$(_wt_password "Anthropic" "$_S_WIZ_AN_KEY") || return 1
+      [[ -n "$anthropic_key" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+    done
+  elif [[ "$llm" == "ollama" ]]; then
+    _wt_msg "$_S_WIZ_OL_INFO_TITLE" "$_S_WIZ_OL_INFO_MSG" || return 1
+    ollama_url=$(_wt_input "$_S_WIZ_OL_INFO_TITLE"   "$_S_WIZ_OL_URL"   "http://localhost:11434") || return 1
+    ollama_model=$(_wt_input "$_S_WIZ_OL_INFO_TITLE" "$_S_WIZ_OL_MODEL" "llama3") || return 1
+  elif [[ "$llm" == "gemini" ]]; then
+    _wt_msg "$_S_WIZ_GE_INFO_TITLE" "$_S_WIZ_GE_INFO_MSG" || return 1
+    while true; do
+      gemini_key=$(_wt_password "$_S_WIZ_GE_INFO_TITLE" "$_S_WIZ_GE_KEY") || return 1
+      [[ -n "$gemini_key" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+    done
+    gemini_model=$(_wt_input "$_S_WIZ_GE_INFO_TITLE" "$_S_WIZ_GE_MODEL" "gemini-2.0-flash") || return 1
+  fi
+
+  local public_url="" ngrok_token=""
+
+  if [[ "$proxy" == "external" ]]; then
+    while true; do
+      public_url=$(_wt_input "$_S_WIZ_PRX_TITLE" "$_S_WIZ_EXT_URL") || return 1
+      [[ "$public_url" == https://* ]] && break; _wt_msg "$_S_ERROR" "$_S_URL_HTTPS"
+    done
+  elif [[ "$proxy" == "ngrok" ]]; then
+    _wt_msg "$_S_WIZ_NGROK_INFO_TITLE" "$_S_WIZ_NGROK_INFO_MSG" || return 1
+    ngrok_token=$(_wt_password "$_S_WIZ_NGROK_INFO_TITLE" "$_S_WIZ_NGROK_TOKEN") || return 1
+  elif [[ "$proxy" == "cloudflared" ]]; then
+    _wt_msg "$_S_WIZ_CF_INFO_TITLE" "$_S_WIZ_CF_INFO_MSG" || return 1
+    if ! command -v cloudflared &>/dev/null; then warn "$_S_WIZ_CF_MISSING"; fi
+  fi
+
+  # ── Timezone / Saat Dilimi
+  local tz_choice tz_value
+  tz_choice=$(_wt_radio "$_S_WIZ_TZ_TITLE" "$_S_WIZ_TZ_MSG" \
+    "Europe/Istanbul"    "$_S_WIZ_TZ_TRT" ON  \
+    "Europe/London"      "$_S_WIZ_TZ_LON" OFF \
+    "Europe/Paris"       "$_S_WIZ_TZ_PAR" OFF \
+    "America/New_York"   "$_S_WIZ_TZ_NYC" OFF \
+    "America/Los_Angeles" "$_S_WIZ_TZ_LAX" OFF \
+    "Asia/Tokyo"         "$_S_WIZ_TZ_TYO" OFF \
+    "UTC"                "$_S_WIZ_TZ_UTC" OFF \
+    "other"              "$_S_WIZ_TZ_OTH" OFF \
+  ) || { warn "$_S_CANCEL"; return 1; }
+  if [[ "$tz_choice" == "other" ]]; then
+    tz_value=$(_wt_input "$_S_WIZ_TZ_TITLE" "$_S_WIZ_TZ_CUSTOM" "Europe/Istanbul") || return 1
+    tz_value="${tz_value:-Europe/Istanbul}"
+  else
+    tz_value="$tz_choice"
+  fi
+
+  local auto_api_key auto_totp auto_totp_admin
+  auto_api_key="$(_gen_api_key)"
+  auto_totp="$(_gen_totp)"
+  auto_totp_admin="$(_gen_totp)"
+
+  _wt_msg "$_S_WIZ_SEC_TITLE" "$_S_WIZ_SEC_MSG" || return 1
+
+  local api_key totp_secret totp_admin
+  api_key=$(_wt_input "$_S_WIZ_SEC_TITLE"    "$_S_WIZ_SEC_APIKEY" "$auto_api_key")       || return 1
+  totp_secret=$(_wt_input "$_S_WIZ_SEC_TITLE" "$_S_WIZ_SEC_TOTP"  "$auto_totp")          || return 1
+  totp_admin=$(_wt_input "$_S_WIZ_SEC_TITLE"  "$_S_WIZ_SEC_ADMIN" "$auto_totp_admin")     || return 1
+
+  local summary="Messenger  : $messenger\nLLM Backend: $llm\nProxy      : $proxy\nTimezone   : $tz_value"
+  [[ -n "$public_url" ]] && summary+="\nPublic URL : $public_url"
+  [[ -n "$wa_owner"   ]] && summary+="\nWA Owner   : $wa_owner"
+  [[ -n "$tg_chat_id" ]] && summary+="\nTG Chat ID : $tg_chat_id"
+  summary+="\n\n$_S_WIZ_SUM_MSG_AUTO\n$_S_WIZ_SUM_MSG_CONF"
+  _wt_msg "$_S_WIZ_SUM_TITLE" "$summary" || return 1
+
+  _write_env "$env_dst" "$messenger" "$llm" "$proxy" \
+    "$wa_token" "$wa_phone_id" "$wa_secret" "$wa_verify" "$wa_owner" \
+    "$tg_token" "$tg_chat_id" "$tg_webhook_secret" \
+    "$anthropic_key" "$ollama_url" "$ollama_model" "$gemini_key" "$gemini_model" \
+    "$public_url" "$ngrok_token" \
+    "$api_key" "$totp_secret" "$totp_admin" \
+    "$tz_value"
+}
+
+# ── Text fallback wizard / Metin modu ────────────────────────────────────────
+
+_wizard_text() {
+  local env_dst="$1"
+  echo ""
+  echo "════════════════════════════════════════════"
+  echo " $_S_TXT_TITLE"
+  echo " $_S_TXT_HINT"
+  echo "════════════════════════════════════════════"
+
+  echo ""; echo "$_S_TXT_MESSENGER"
+  echo "  $_S_TXT_M1"; echo "  $_S_TXT_M2"; echo "  $_S_TXT_M3"
+  read -rp "  [1]: " _m
+  local messenger
+  case "${_m:-1}" in 2) messenger="telegram";; 3) messenger="cli";; *) messenger="whatsapp";; esac
+
+  echo ""; echo "$_S_TXT_LLM"
+  echo "  $_S_TXT_L1"; echo "  $_S_TXT_L2"; echo "  $_S_TXT_L3"
+  read -rp "  [1]: " _l
+  local llm
+  case "${_l:-1}" in 2) llm="ollama";; 3) llm="gemini";; *) llm="anthropic";; esac
+
+  echo ""; echo "$_S_TXT_PROXY"
+  echo "  $_S_TXT_P1"; echo "  $_S_TXT_P2"; echo "  $_S_TXT_P3"; echo "  $_S_TXT_P4"
+  read -rp "  [1]: " _p
+  local proxy
+  case "${_p:-1}" in 2) proxy="ngrok";; 3) proxy="cloudflared";; 4) proxy="external";; *) proxy="none";; esac
+
+  local wa_token="" wa_phone_id="" wa_secret="" wa_verify="" wa_owner=""
+  local tg_token="" tg_chat_id="" tg_webhook_secret=""
+
+  if [[ "$messenger" == "whatsapp" ]]; then
+    echo ""; echo "$_S_TXT_WA"
+    while true; do read -rsp "  $_S_WIZ_WA_TOKEN " wa_token; echo; [[ -n "$wa_token" ]] && break; warn "$_S_REQUIRED"; done
+    while true; do read -rp  "  $_S_WIZ_WA_PHONE " wa_phone_id;       [[ -n "$wa_phone_id" ]] && break; warn "$_S_REQUIRED"; done
+    while true; do read -rsp "  $_S_WIZ_WA_SECRET " wa_secret; echo;  [[ -n "$wa_secret"   ]] && break; warn "$_S_REQUIRED"; done
+    while true; do read -rp  "  $_S_WIZ_WA_VERIFY " wa_verify;        [[ -n "$wa_verify"   ]] && break; warn "$_S_REQUIRED"; done
+    while true; do read -rp  "  $_S_WIZ_WA_OWNER "  wa_owner;         [[ -n "$wa_owner"    ]] && break; warn "$_S_REQUIRED"; done
+  elif [[ "$messenger" == "telegram" ]]; then
+    echo ""; echo "$_S_TXT_TG"
+    while true; do read -rsp "  $_S_WIZ_TG_TOKEN " tg_token; echo; [[ -n "$tg_token"   ]] && break; warn "$_S_REQUIRED"; done
+    while true; do read -rp  "  $_S_WIZ_TG_CHAT "  tg_chat_id;      [[ -n "$tg_chat_id" ]] && break; warn "$_S_REQUIRED"; done
+    read -rsp "  $_S_WIZ_TG_WSECRET " tg_webhook_secret; echo
+  fi
+
+  local anthropic_key="" ollama_url="" ollama_model="" gemini_key="" gemini_model=""
+
+  if [[ "$llm" == "anthropic" ]]; then
+    echo ""; echo "$_S_TXT_AN"
+    while true; do read -rsp "  $_S_WIZ_AN_KEY " anthropic_key; echo; [[ -n "$anthropic_key" ]] && break; warn "$_S_REQUIRED"; done
+  elif [[ "$llm" == "ollama" ]]; then
+    echo ""; echo "$_S_TXT_OL"
+    read -rp "  $_S_WIZ_OL_URL [http://localhost:11434]: " ollama_url
+    ollama_url="${ollama_url:-http://localhost:11434}"
+    read -rp "  $_S_WIZ_OL_MODEL [llama3]: " ollama_model
+    ollama_model="${ollama_model:-llama3}"
+  elif [[ "$llm" == "gemini" ]]; then
+    echo ""; echo "$_S_TXT_GE"
+    while true; do read -rsp "  $_S_WIZ_GE_KEY " gemini_key; echo; [[ -n "$gemini_key" ]] && break; warn "$_S_REQUIRED"; done
+    read -rp "  $_S_WIZ_GE_MODEL [gemini-2.0-flash]: " gemini_model
+    gemini_model="${gemini_model:-gemini-2.0-flash}"
+  fi
+
+  local public_url="" ngrok_token=""
+  if [[ "$proxy" == "external" ]]; then
+    while true; do read -rp "  $_S_WIZ_EXT_URL " public_url; [[ "$public_url" == https://* ]] && break; warn "$_S_URL_HTTPS"; done
+  elif [[ "$proxy" == "ngrok" ]]; then
+    read -rsp "  $_S_WIZ_NGROK_TOKEN " ngrok_token; echo
+  fi
+
+  # ── Timezone / Saat Dilimi
+  echo ""; echo "▶ $_S_WIZ_TZ_TITLE"
+  echo "  1) Europe/Istanbul (varsayılan)"
+  echo "  2) Europe/London"
+  echo "  3) Europe/Paris"
+  echo "  4) America/New_York"
+  echo "  5) America/Los_Angeles"
+  echo "  6) Asia/Tokyo"
+  echo "  7) UTC"
+  echo "  8) $_S_WIZ_TZ_OTH"
+  read -rp "  [1]: " _tz
+  local tz_value
+  case "${_tz:-1}" in
+    2) tz_value="Europe/London" ;;
+    3) tz_value="Europe/Paris" ;;
+    4) tz_value="America/New_York" ;;
+    5) tz_value="America/Los_Angeles" ;;
+    6) tz_value="Asia/Tokyo" ;;
+    7) tz_value="UTC" ;;
+    8) read -rp "  $_S_WIZ_TZ_CUSTOM " tz_value; tz_value="${tz_value:-Europe/Istanbul}" ;;
+    *) tz_value="Europe/Istanbul" ;;
+  esac
+
+  echo ""; echo "$_S_TXT_SEC"
+  local auto_api_key auto_totp auto_totp_admin
+  auto_api_key="$(_gen_api_key)"; auto_totp="$(_gen_totp)"; auto_totp_admin="$(_gen_totp)"
+  local api_key totp_secret totp_admin
+  read -rp "  API_KEY [$auto_api_key]: "                  api_key;      api_key="${api_key:-$auto_api_key}"
+  read -rp "  TOTP_SECRET [$auto_totp]: "                 totp_secret;  totp_secret="${totp_secret:-$auto_totp}"
+  read -rp "  TOTP_SECRET_ADMIN [$auto_totp_admin]: "     totp_admin;   totp_admin="${totp_admin:-$auto_totp_admin}"
+
+  _write_env "$env_dst" "$messenger" "$llm" "$proxy" \
+    "$wa_token" "$wa_phone_id" "$wa_secret" "$wa_verify" "$wa_owner" \
+    "$tg_token" "$tg_chat_id" "$tg_webhook_secret" \
+    "$anthropic_key" "$ollama_url" "$ollama_model" "$gemini_key" "$gemini_model" \
+    "$public_url" "$ngrok_token" \
+    "$api_key" "$totp_secret" "$totp_admin" \
+    "$tz_value"
+}
+
+# ── .env writer (shared) ──────────────────────────────────────────────────────
+
+_write_env() {
+  local env_dst="$1"
+  local messenger="$2" llm="$3" proxy="$4"
+  local wa_token="$5" wa_phone_id="$6" wa_secret="$7" wa_verify="$8" wa_owner="$9"
+  local tg_token="${10}" tg_chat_id="${11}" tg_webhook_secret="${12}"
+  local anthropic_key="${13}" ollama_url="${14}" ollama_model="${15}"
+  local gemini_key="${16}" gemini_model="${17}"
+  local public_url="${18}" ngrok_token="${19}"
+  local api_key="${20}" totp_secret="${21}" totp_admin="${22}"
+  local tz_value="${23:-Europe/Istanbul}"
+
+  local env_src="$BACKEND_DIR/.env.example"
+  [ ! -f "$env_dst" ] && cp "$env_src" "$env_dst"
+
+  _env_set "MESSENGER_TYPE" "$messenger" "$env_dst"
+  [[ -n "$wa_token"    ]] && _env_set "WHATSAPP_ACCESS_TOKEN"    "$wa_token"    "$env_dst"
+  [[ -n "$wa_phone_id" ]] && _env_set "WHATSAPP_PHONE_NUMBER_ID" "$wa_phone_id" "$env_dst"
+  [[ -n "$wa_secret"   ]] && _env_set "WHATSAPP_APP_SECRET"      "$wa_secret"   "$env_dst"
+  [[ -n "$wa_verify"   ]] && _env_set "WHATSAPP_VERIFY_TOKEN"    "$wa_verify"   "$env_dst"
+  [[ -n "$wa_owner"    ]] && _env_set "WHATSAPP_OWNER"           "$wa_owner"    "$env_dst"
+  [[ -n "$tg_token"    ]] && _env_set "TELEGRAM_BOT_TOKEN"       "$tg_token"    "$env_dst"
+  [[ -n "$tg_chat_id"  ]] && _env_set "TELEGRAM_CHAT_ID"         "$tg_chat_id"  "$env_dst"
+  if [[ -n "$tg_webhook_secret" ]]; then _env_set "TELEGRAM_WEBHOOK_SECRET" "$tg_webhook_secret" "$env_dst"; fi
+
+  _env_set "LLM_BACKEND" "$llm" "$env_dst"
+  [[ -n "$anthropic_key" ]] && _env_set "ANTHROPIC_API_KEY" "$anthropic_key" "$env_dst"
+  [[ -n "$ollama_url"    ]] && _env_set "OLLAMA_BASE_URL"   "$ollama_url"    "$env_dst"
+  [[ -n "$ollama_model"  ]] && _env_set "OLLAMA_MODEL"      "$ollama_model"  "$env_dst"
+  [[ -n "$gemini_key"    ]] && _env_set "GEMINI_API_KEY"    "$gemini_key"    "$env_dst"
+  [[ -n "$gemini_model"  ]] && _env_set "GEMINI_MODEL"      "$gemini_model"  "$env_dst"
+
+  _env_set "WEBHOOK_PROXY" "$proxy" "$env_dst"
+  [[ -n "$public_url"  ]] && _env_set "PUBLIC_URL"      "$public_url"  "$env_dst"
+  [[ -n "$ngrok_token" ]] && _env_set "NGROK_AUTHTOKEN" "$ngrok_token" "$env_dst"
+
+  _env_set "API_KEY"           "$api_key"     "$env_dst"
+  _env_set "TOTP_SECRET"       "$totp_secret" "$env_dst"
+  _env_set "TOTP_SECRET_ADMIN" "$totp_admin"  "$env_dst"
+
+  _env_set "TIMEZONE" "$tz_value" "$env_dst"
+
+  ok "$_S_WIZ_ENV_DONE $env_dst"
+}
+
+# ── Step 7: .env wizard entry / Sihirbaz giriş noktası ───────────────────────
+
+step_env() {
+  local env_dst="$BACKEND_DIR/.env"
+
+  if $NO_WIZARD; then
+    local env_src="$BACKEND_DIR/.env.example"
+    if [ ! -f "$env_dst" ]; then cp "$env_src" "$env_dst"; warn "$_S_WIZ_ENV_SKIP_FLAG: $env_dst"
+    else ok "$_S_WIZ_ENV_EXIST_OK"; fi
+    return
+  fi
+
+  if [ ! -t 0 ]; then
+    local env_src="$BACKEND_DIR/.env.example"
+    [ ! -f "$env_dst" ] && cp "$env_src" "$env_dst"
+    warn "$_S_WIZ_ENV_SKIP_CI $env_dst"
+    return
+  fi
+
+  if [ -f "$env_dst" ] && grep -q "^ANTHROPIC_API_KEY=sk-\|^TELEGRAM_BOT_TOKEN=\|^WHATSAPP_ACCESS_TOKEN=[^Y]" "$env_dst" 2>/dev/null; then
+    local rerun
+    if _wt_available; then
+      _wt_yesno "$_S_WIZ_ENV_EXISTS_TITLE" "$_S_WIZ_ENV_EXISTS_MSG" && rerun="$_S_TXT_RERUN_Y" || rerun="n"
+    else
+      read -rp "$_S_TXT_RERUN" rerun
+    fi
+    [[ "${rerun,,}" != "$_S_TXT_RERUN_Y" ]] && { ok "$_S_WIZ_ENV_EXIST_OK"; return; }
+  fi
+
+  if _wt_available; then
+    _wizard_whiptail "$env_dst"
+  else
+    warn "$_S_TXT_NOWHIPTAIL"
+    _wizard_text "$env_dst"
+  fi
+}
+
+# ── Step 8: Yetenek yapılandırması (FEAT-3) ──────────────────────────────────
+# OCP: Yeni kısıtlama = _CAPS dizisine yeni eleman + capability_guard.py'e register çağrısı.
+
+_write_capabilities() {
+  # $1 = seçili etiketler (whiptail checklist çıktısı: '"fs" "media"' formatında, ya da text mode: ' "fs" "media"')
+  local selected="$1"
+  local env_dst="$BACKEND_DIR/.env"
+  # key:ENV_VAR eşlemeleri
+  # RESTRICT_* → seçili=false (kısıtlama yok), seçilmemiş=true (kısıtlı)
+  # Senkronizasyon: bu diziler config.py restrict_* / *_enabled field'ları ve
+  #   capability_guard.py _RULES listesiyle eşleşmeli (bkz. register_capability_rule)
+  local -a cap_keys=( "fs" "network" "shell" "service_mgmt" "media" "calendar" "project_wizard" "screenshot" "scheduler" "pdf_import" "conv_history" "plans" "intent_classifier" "wizard_llm_scaffold" )
+  local -a cap_envs=(
+    "RESTRICT_FS_OUTSIDE_ROOT" "RESTRICT_NETWORK" "RESTRICT_SHELL" "RESTRICT_SERVICE_MGMT"
+    "RESTRICT_MEDIA" "RESTRICT_CALENDAR" "RESTRICT_PROJECT_WIZARD" "RESTRICT_SCREENSHOT"
+    "RESTRICT_SCHEDULER" "RESTRICT_PDF_IMPORT" "RESTRICT_CONV_HISTORY" "RESTRICT_PLANS" "RESTRICT_INTENT_CLASSIFIER"
+    "RESTRICT_WIZARD_LLM_SCAFFOLD"
+  )
+  local i
+  for (( i=0; i<${#cap_keys[@]}; i++ )); do
+    local key="${cap_keys[$i]}"
+    local env_var="${cap_envs[$i]}"
+    if [[ "$selected" == *"\"$key\""* ]]; then
+      # Seçili = aktif = kısıtlama yok
+      _env_set "$env_var" "false" "$env_dst"
+    else
+      # Seçilmedi = devre dışı = kısıtlı
+      _env_set "$env_var" "true" "$env_dst"
+    fi
+  done
+
+  # *_ENABLED → ters mantık: seçili=true (aktif), seçilmemiş=false (devre dışı)
+  # Senkronizasyon: config.py *_enabled field'ları ile eşleşmeli
+  local -a enabled_keys=( "desktop" "browser" )
+  local -a enabled_envs=( "DESKTOP_ENABLED" "BROWSER_ENABLED" )
+  for (( i=0; i<${#enabled_keys[@]}; i++ )); do
+    local key="${enabled_keys[$i]}"
+    local env_var="${enabled_envs[$i]}"
+    if [[ "$selected" == *"\"$key\""* ]]; then
+      _env_set "$env_var" "true" "$env_dst"
+    else
+      _env_set "$env_var" "false" "$env_dst"
+    fi
+  done
+}
+
+_capabilities_whiptail() {
+  local selected
+  # Tüm yetenekler varsayılan ON — kullanıcı istemediğini işareti kaldırır
+  selected=$(whiptail --title "$_S_CAP_TITLE" --checklist \
+    "$_S_CAP_DESC" 30 76 15 \
+    "fs"               "$_S_CAP_FS"      ON \
+    "network"          "$_S_CAP_NET"     ON \
+    "shell"            "$_S_CAP_SHELL"   ON \
+    "service_mgmt"     "$_S_CAP_SVC"     ON \
+    "media"            "$_S_CAP_MEDIA"   ON \
+    "calendar"         "$_S_CAP_CAL"     ON \
+    "project_wizard"   "$_S_CAP_WIZ"     ON \
+    "screenshot"       "$_S_CAP_SS"      ON \
+    "scheduler"        "$_S_CAP_SCHED"   ON \
+    "pdf_import"       "$_S_CAP_PDF"     ON \
+    "conv_history"     "$_S_CAP_HIST"    ON \
+    "plans"            "$_S_CAP_PLANS"   ON \
+    "intent_classifier" "$_S_CAP_IC"     ON \
+    "wizard_llm_scaffold" "$_S_CAP_WIZ_LLM" ON \
+    "desktop"          "$_S_CAP_DESKTOP" OFF \
+    "browser"          "$_S_CAP_BROWSER" OFF \
+    3>&1 1>&2 2>&3) || return 0   # ESC veya Cancel = değişiklik yapma
+  _write_capabilities "$selected"
+}
+
+_capabilities_text() {
+  local selected=""
+  local -a keys=( "fs" "network" "shell" "service_mgmt" "media" "calendar" "project_wizard" "screenshot" "scheduler" "pdf_import" "conv_history" "plans" "intent_classifier" "wizard_llm_scaffold" "desktop" "browser" )
+  local -a labels=( "$_S_CAP_FS" "$_S_CAP_NET" "$_S_CAP_SHELL" "$_S_CAP_SVC"
+                    "$_S_CAP_MEDIA" "$_S_CAP_CAL" "$_S_CAP_WIZ" "$_S_CAP_SS"
+                    "$_S_CAP_SCHED" "$_S_CAP_PDF" "$_S_CAP_HIST" "$_S_CAP_PLANS" "$_S_CAP_IC" "$_S_CAP_WIZ_LLM"
+                    "$_S_CAP_DESKTOP" "$_S_CAP_BROWSER" )
+  # desktop ve browser varsayılan N (ek paket gerektirir)
+  local -a defaults=( "Y" "Y" "Y" "Y" "Y" "Y" "Y" "Y" "Y" "Y" "Y" "Y" "Y" "Y" "N" "N" )
+  local i ans
+  for (( i=0; i<${#keys[@]}; i++ )); do
+    local def="${defaults[$i]}"
+    if [[ "$def" == "Y" ]]; then
+      read -rp "  ${labels[$i]} [Y/n]: " ans
+      ans="${ans:-Y}"
+    else
+      read -rp "  ${labels[$i]} [y/N]: " ans
+      ans="${ans:-N}"
+    fi
+    [[ "${ans,,}" =~ ^y ]] && selected+=" \"${keys[$i]}\""
+  done
+  _write_capabilities "$selected"
+}
+
+step_capabilities() {
+  local env_dst="$BACKEND_DIR/.env"
+  log "🔧 $_S_CAP_TITLE..."
+
+  # .env yoksa henüz wizard çalışmamış demektir — atla
+  [ ! -f "$env_dst" ] && return 0
+
+  # İdempotent: RESTRICT_* veya *_ENABLED zaten tanımlıysa atla (--reconfigure-capabilities olmadığı sürece)
+  if ! $RECONFIGURE_CAPS && grep -qE "^(RESTRICT_|DESKTOP_ENABLED|BROWSER_ENABLED)" "$env_dst" 2>/dev/null; then
+    ok "  ↳ $_S_CAP_SKIP"
+    return 0
+  fi
+
+  # --reconfigure-capabilities: mevcut capability satırlarını sil ve yeniden sor
+  if $RECONFIGURE_CAPS && grep -qE "^(RESTRICT_|DESKTOP_ENABLED|BROWSER_ENABLED)" "$env_dst" 2>/dev/null; then
+    log "  ↳ $_S_CAP_RECONFIG"
+    sed -i '/^RESTRICT_/d;/^DESKTOP_ENABLED/d;/^BROWSER_ENABLED/d' "$env_dst"
+  fi
+
+  if _wt_available; then
+    _capabilities_whiptail
+  else
+    _capabilities_text
+  fi
+}
+
+# ── TOTP QR ───────────────────────────────────────────────────────────────────
+
+step_show_totp() {
+  local env_dst="$BACKEND_DIR/.env"
+  [ ! -f "$env_dst" ] && return
+
+  local totp_secret totp_admin
+  totp_secret="$(grep '^TOTP_SECRET=' "$env_dst" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true)"
+  totp_admin="$(grep  '^TOTP_SECRET_ADMIN=' "$env_dst" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true)"
+  if [[ -z "$totp_secret" || "$totp_secret" == *DOLDUR* || "$totp_secret" == *FILL* ]]; then return; fi
+
+  _print_qr() {
+    local label="$1" secret="$2"
+    local uri="otpauth://totp/99-root%3A${label}?secret=${secret}&issuer=99-root"
+    echo ""
+    echo "  ── $_S_TOTP_OWNER [$label] ──────────────────────────────"
+    echo "  $_S_TOTP_SECRET : $secret"
+    echo "  $_S_TOTP_URI    : $uri"
+    if command -v qrencode &>/dev/null; then
+      echo ""
+      qrencode -t ANSIUTF8 -m 2 "$uri"
+    elif "$BACKEND_DIR/venv/bin/python" -c "import qrcode" 2>/dev/null; then
+      echo ""
+      "$BACKEND_DIR/venv/bin/python" - <<PYEOF
+import qrcode
+qr = qrcode.QRCode(border=1)
+qr.add_data("${uri}")
+qr.make(fit=True)
+qr.print_ascii(invert=True)
+PYEOF
+    else
+      echo "  $_S_TOTP_QR_HINT"
+    fi
+    echo "  ────────────────────────────────────────────────────"
+  }
+
+  echo ""
+  echo "╔══════════════════════════════════════════════════════╗"
+  echo "║  $_S_TOTP_TITLE"
+  echo "║  $_S_TOTP_SUBTITLE"
+  echo "╚══════════════════════════════════════════════════════╝"
+  _print_qr "owner" "$totp_secret"
+  if [[ -n "$totp_admin" && "$totp_admin" != "$totp_secret" ]]; then
+    _print_qr "admin" "$totp_admin"
+  fi
+  echo ""
+  warn "$_S_TOTP_WARN"
+}
+
+# ── Webhook URL info ──────────────────────────────────────────────────────────
+
+step_show_webhook_url() {
+  local env_dst="$BACKEND_DIR/.env"
+  [ ! -f "$env_dst" ] && return
+
+  local messenger proxy public_url port
+  messenger="$(grep '^MESSENGER_TYPE=' "$env_dst" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true)"
+  messenger="${messenger:-whatsapp}"
+  proxy="$(grep '^WEBHOOK_PROXY=' "$env_dst" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true)"
+  proxy="${proxy:-none}"
+  public_url="$(grep '^PUBLIC_URL=' "$env_dst" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true)"
+  port="$(grep '^FASTAPI_PORT=' "$env_dst" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true)"
+  port="${port:-$API_PORT}"
+
+  echo ""
+  echo "╔══════════════════════════════════════════════════════╗"
+  echo "║  $_S_WH_TITLE"
+  echo "╚══════════════════════════════════════════════════════╝"
+
+  if [[ "$messenger" == "whatsapp" ]]; then
+    local webhook_url
+    if [[ -n "$public_url" ]]; then
+      webhook_url="${public_url}/whatsapp/webhook"
+    elif [[ "$proxy" == "none" ]]; then
+      webhook_url="http://localhost:${port}/whatsapp/webhook"
+    else
+      webhook_url="<proxy URL — $_S_WH_WA_CONSOLE>"
+    fi
+    echo ""; echo "  $_S_WH_WA_URL"
+    echo "  → $webhook_url"
+    echo ""; echo "  $_S_WH_WA_CONSOLE"
+    echo "  $_S_WH_WA_PATH"
+    if [[ "$proxy" == "none" && -z "$public_url" ]]; then
+      echo ""; warn "$_S_WH_WA_PROXY_WARN"
+    fi
+
+  elif [[ "$messenger" == "telegram" ]]; then
+    local tg_token
+    tg_token="$(grep '^TELEGRAM_BOT_TOKEN=' "$env_dst" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true)"
+    echo ""; echo "  $_S_WH_TG_SETUP"
+    if [[ -n "$public_url" ]]; then
+      echo "  → curl -s \"https://api.telegram.org/bot${tg_token}/setWebhook?url=${public_url}/telegram/webhook\""
+    else
+      echo "  → $_S_WH_TG_NO_URL"
+      echo "    $_S_WH_TG_SETWEBHOOK"
+    fi
+
+  elif [[ "$messenger" == "cli" ]]; then
+    echo ""; echo "  $_S_WH_CLI"
+    echo "  $_S_WH_CLI_HINT"
+  fi
+
+  echo ""; echo "  $_S_WH_HEALTH"
+  echo "  → curl -s http://localhost:${port}/health"
+  echo "  → curl -s http://localhost:${BRIDGE_PORT}/health"
+  echo ""
+}
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+main() {
+  _select_language
+  _load_strings
+
+  # Hızlı yol: --reconfigure-capabilities — yalnızca yetenek sihirbazını çalıştır
+  if $RECONFIGURE_CAPS && ! $NO_WIZARD; then
+    echo "=================================================="
+    echo " 99-root — $_S_CAP_TITLE"
+    echo "=================================================="
+    step_capabilities
+    ok "$_S_DONE_TITLE"
+    return 0
+  fi
+
+  echo "=================================================="
+  echo " 99-root — $_S_BANNER_TITLE"
+  echo " ROOT_DIR  : $ROOT_DIR"
+  echo " USER      : $CURRENT_USER"
+  echo " NODE      : $NODE_PATH"
+  echo " API_PORT  : $API_PORT  |  BRIDGE_PORT: $BRIDGE_PORT"
+  echo "=================================================="
+
+  check_prereqs
+  step_venv
+  step_npm
+  step_env
+  step_capabilities
+  step_data_dirs
+  step_docker_group
+  step_systemd
+  step_pm2
+
+  echo ""
+  log "$_S_STEP_SYNTAX"
+  (cd "$SCRIPTS_DIR" && backend/venv/bin/python -c "from backend.main import app; print('[✓] Python import OK')")
+  node --check "$BRIDGE_DIR/server.js" && echo "[✓] Node syntax OK"
+
+  echo ""
+  echo "[>>] Unit testler çalıştırılıyor..."
+  if (cd "$SCRIPTS_DIR" && backend/venv/bin/python -m pytest tests/ -q --tb=short 2>&1); then
+    echo "[✓] Tüm unit testler geçti"
+  else
+    warn "Bazı unit testler başarısız — log yukarıda. Kurulum tamamlandı ama testleri incele."
+  fi
+
+  if $USE_PM2; then
+    echo ""
+    echo "[>>] Servis sağlık kontrolü (PM2)..."
+    sleep 3
+    if curl -sf "http://localhost:${API_PORT}/health" > /dev/null 2>&1; then
+      echo "[✓] FastAPI sağlıklı (port ${API_PORT})"
+    else
+      warn "FastAPI yanıt vermiyor — 'pm2 logs 99-api' ile kontrol et"
+    fi
+    if curl -sf "http://localhost:${BRIDGE_PORT}/health" > /dev/null 2>&1; then
+      echo "[✓] Bridge sağlıklı (port ${BRIDGE_PORT})"
+    else
+      warn "Bridge yanıt vermiyor — 'pm2 logs 99-bridge' ile kontrol et"
+    fi
+  fi
+
+  step_show_totp
+  step_show_webhook_url
+
+  echo ""
+  ok "$_S_DONE_TITLE"
+  if $USE_PM2; then
+    echo "$_S_DONE_PM2"
+  elif ! $NO_SYSTEMD && command -v systemctl &>/dev/null; then
+    echo "$_S_DONE_SYSTEMD"
+  else
+    echo "$_S_DONE_DOCKER"
+  fi
+}
+
+main "$@"

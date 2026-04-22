@@ -1,0 +1,15 @@
+[Unit]
+Description=Personal Agent — FastAPI Backend (port 8010)
+After=network.target
+
+[Service]
+Type=simple
+User=emin
+WorkingDirectory=/home/emin/projects/40-claude-code-agents/99-root/scripts
+EnvironmentFile=/home/emin/projects/40-claude-code-agents/99-root/scripts/backend/.env
+ExecStart=/home/emin/projects/40-claude-code-agents/99-root/scripts/backend/venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port 8010 --log-level info
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

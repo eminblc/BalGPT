@@ -1,0 +1,37 @@
+# ── Claude Code Bridge (Node.js) — Port 8013 ──────────────────────────────────
+FROM node:18-slim
+
+# Git (claude CLI için) + curl (healthcheck + API bekleme)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Kaynak kodun tamamını kopyala
+COPY . .
+
+# Bridge bağımlılıklarını kur (@anthropic-ai/claude-code dahil)
+# CLI_PATH = node_modules/@anthropic-ai/claude-code/cli.js (yerel kurulum)
+WORKDIR /app/scripts/claude-code-bridge
+RUN npm ci --omit=dev
+
+# Veri ve log dizinlerini oluştur
+WORKDIR /app
+RUN mkdir -p data/projects data/media data/claude_sessions data/conv_history \
+             outputs/logs reports/done
+
+# Entrypoint ve LLM fixer scriptlerini kopyala
+COPY docker/entrypoint-bridge.sh /entrypoint.sh
+COPY docker/llm_fix.py /docker/llm_fix.py
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 8013
+
+# Sağlık kontrolü — container "healthy" olana kadar API depends_on bekler
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl -sf http://localhost:8013/health || exit 1
+
+WORKDIR /app/scripts/claude-code-bridge
+ENTRYPOINT ["/entrypoint.sh"]

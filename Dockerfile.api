@@ -1,0 +1,37 @@
+# ── FastAPI (Uvicorn) — Port 8010 ─────────────────────────────────────────────
+FROM python:3.11-slim
+
+# Sistem bağımlılıkları: gcc (derleme) + curl (healthcheck)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Bağımlılıkları önce kopyala — Docker layer cache optimizasyonu
+COPY scripts/backend/requirements.txt scripts/backend/requirements.txt
+RUN pip install --no-cache-dir -r scripts/backend/requirements.txt
+
+# Kaynak kodun tamamını kopyala
+COPY . .
+
+# Veri ve log dizinlerini oluştur (volume mount yoksa container içinde kullanılır)
+RUN mkdir -p data/projects data/media data/claude_sessions data/conv_history \
+             outputs/logs reports/done
+
+# Entrypoint ve LLM fixer scriptlerini kopyala
+COPY docker/entrypoint-api.sh /entrypoint.sh
+COPY docker/llm_fix.py /docker/llm_fix.py
+RUN chmod +x /entrypoint.sh
+
+# FastAPI, scripts/ dizininden başlatılmalı (backend.main:app modül yolu için)
+WORKDIR /app/scripts
+
+EXPOSE 8010
+
+# Sağlık kontrolü — container "healthy" olana kadar depends_on bekler
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -sf http://localhost:8010/health || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]
