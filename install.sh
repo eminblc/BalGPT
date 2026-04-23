@@ -188,15 +188,23 @@ Press OK to begin."
 
     # ── WhatsApp credentials
     _S_WIZ_WA_INFO_TITLE="WhatsApp Credentials"
-    _S_WIZ_WA_INFO_MSG="Get the following from Meta Developer Console:
-  developers.facebook.com → WhatsApp → API Setup
+    _S_WIZ_WA_INFO_MSG="Get credentials from Meta Developer Console:
+  developers.facebook.com → My Apps → <Your App> → WhatsApp → API Setup
+
+  Access Token   — temporary 24h token on that page, or create a permanent
+                   System User token in Business Settings → System Users
+  Phone Number ID — numeric ID shown next to your phone number (e.g. 1234567890)
+  App Secret     — Settings → Basic → App Secret  (used to verify webhook signatures)
+  Owner Number   — your own WhatsApp number WITH country code (e.g. +1XXXXXXXXXX)
+
+  Verify Token and webhook secret are auto-generated — no input needed.
 
 Press OK when ready."
-    _S_WIZ_WA_TOKEN="(*) Access Token:"
-    _S_WIZ_WA_PHONE="(*) Phone Number ID:"
-    _S_WIZ_WA_SECRET="(*) App Secret (HMAC verification):"
-    _S_WIZ_WA_VERIFY="(*) Verify Token (choose a random string):"
-    _S_WIZ_WA_OWNER="(*) Owner number (+1XXXXXXXXXX):"
+    _S_WIZ_WA_TOKEN="(*) Access Token (EAA...):"
+    _S_WIZ_WA_PHONE="(*) Phone Number ID (numeric, e.g. 1234567890):"
+    _S_WIZ_WA_SECRET="(*) App Secret (from Settings → Basic):"
+    _S_WIZ_WA_VERIFY="(*) Verify Token (auto-generated — leave blank):"
+    _S_WIZ_WA_OWNER="(*) Your WhatsApp number (+1XXXXXXXXXX):"
 
     # ── Telegram credentials
     _S_WIZ_TG_INFO_TITLE="Telegram Credentials"
@@ -219,44 +227,81 @@ Press OK when ready."
     _S_TXT_TG_CHATID_FAIL="Could not auto-detect. Open t.me/userinfobot — it will show your ID instantly."
 
     # ── Anthropic
-    _S_WIZ_AN_KEY="(*) API Key (sk-ant-...):"
+    _S_WIZ_AN_INFO_TITLE="Anthropic API Key"
+    _S_WIZ_AN_INFO_MSG="Get your API key from Anthropic Console:
+  console.anthropic.com → Settings → API Keys → Create Key
+
+  The key starts with: sk-ant-api03-...
+
+  Note: Claude Code bridge also accepts this key directly —
+  no separate claude auth login is needed if the key is set."
+    _S_WIZ_AN_KEY="(*) API Key (sk-ant-api03-...):"
 
     # ── Ollama
     _S_WIZ_OL_INFO_TITLE="Ollama"
-    _S_WIZ_OL_INFO_MSG="Ollama must be running locally.
-Install: curl -fsSL https://ollama.com/install.sh | sh"
-    _S_WIZ_OL_URL="Base URL:"
-    _S_WIZ_OL_MODEL="Model name:"
+    _S_WIZ_OL_INFO_MSG="Ollama must be running locally before starting the agent.
+
+  Install:     curl -fsSL https://ollama.com/install.sh | sh
+  Pull model:  ollama pull llama3   (or mistral, qwen2, gemma3, phi3 …)
+  Check:       curl http://localhost:11434/api/tags
+
+  Tip: basic conversation works well; complex tool use may be unreliable."
+    _S_WIZ_OL_URL="Base URL [http://localhost:11434]:"
+    _S_WIZ_OL_MODEL="Model name [llama3]:"
 
     # ── Gemini
     _S_WIZ_GE_INFO_TITLE="Google Gemini"
-    _S_WIZ_GE_INFO_MSG="Get your API key from Google AI Studio:
-  aistudio.google.com → Get API Key"
-    _S_WIZ_GE_KEY="(*) Gemini API Key:"
-    _S_WIZ_GE_MODEL="Model name:"
+    _S_WIZ_GE_INFO_MSG="Get your free API key from Google AI Studio:
+  aistudio.google.com → Get API Key → Create API key
+
+  Default model: gemini-2.0-flash (fast, good for most tasks).
+  Use gemini-1.5-pro for complex reasoning."
+    _S_WIZ_GE_KEY="(*) Gemini API Key (AIza...):"
+    _S_WIZ_GE_MODEL="Model name [gemini-2.0-flash]:"
 
     # ── Proxy details
     _S_WIZ_CF_INFO_TITLE="Cloudflare Tunnel"
-    _S_WIZ_CF_INFO_MSG="cloudflared binary must be installed:
-  curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
-  chmod +x /usr/local/bin/cloudflared
+    _S_WIZ_CF_INFO_MSG="Cloudflare Tunnel gives a persistent free HTTPS URL.
 
-For a persistent tunnel: cloudflared tunnel login && cloudflared tunnel create personal-agent
-(Can be done after setup)"
-    _S_WIZ_CF_MISSING="cloudflared not found — can be installed after setup."
+  Install cloudflared:
+    curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \\
+         -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared
+
+  Create a persistent tunnel (one-time setup):
+    cloudflared tunnel login
+    cloudflared tunnel create personal-agent
+    cloudflared tunnel route dns personal-agent <your-subdomain>
+
+  Or use a quick temporary tunnel (no account needed):
+    cloudflared tunnel --url http://localhost:8010
+
+  (Can be done after setup)"
+    _S_WIZ_CF_MISSING="cloudflared binary not found — install it before starting services."
     _S_WIZ_NGROK_INFO_TITLE="ngrok"
-    _S_WIZ_NGROK_INFO_MSG="Auth token is optional for free tier.
-A paid account is required for persistent subdomains."
-    _S_WIZ_NGROK_TOKEN="ngrok Auth Token (optional):"
-    _S_WIZ_EXT_URL="(*) Public URL (https://...):"
+    _S_WIZ_NGROK_INFO_MSG="ngrok creates a public HTTPS tunnel to your local server.
+
+  Free tier:  URL changes on every restart (not suitable for permanent setups).
+  Paid tier:  Permanent subdomain (ngrok.com → pricing).
+
+  If you have an ngrok account:
+    ngrok.com → Dashboard → Your Authtoken → copy and paste below.
+
+  Leave the token blank to use ngrok without an account (rate-limited, URL still changes)."
+    _S_WIZ_NGROK_TOKEN="ngrok Auth Token (leave blank for anonymous):"
+    _S_WIZ_EXT_URL="(*) Public URL (https://yourdomain.com):"
 
     # ── Security keys
-    _S_WIZ_SEC_TITLE="Security Keys"
-    _S_WIZ_SEC_MSG="The following keys were auto-generated.
-Leave them as-is or change them.
+    _S_WIZ_SEC_TITLE="Security Keys — Auto-Generated"
+    _S_WIZ_SEC_MSG="All security keys have been generated automatically.
+No input needed — they are written to .env.
 
-Store these keys somewhere safe!
-(A password manager is recommended)"
+What they are used for:
+  API_KEY          — authenticates internal /agent/* API calls
+  TOTP_SECRET      — 6-digit code for owner commands (!lock, !schedule …)
+  TOTP_SECRET_ADMIN — 6-digit code for destructive commands (!restart, !shutdown)
+
+You will scan the QR codes on the next screen to add them to Google Authenticator.
+Store the secrets in a password manager as backup."
     _S_WIZ_SEC_APIKEY="API_KEY (internal access):"
     _S_WIZ_SEC_TOTP="TOTP_SECRET (owner commands):"
     _S_WIZ_SEC_ADMIN="TOTP_SECRET_ADMIN (destructive commands):"
@@ -282,25 +327,25 @@ Store these keys somewhere safe!
 
     # ── Text mode labels
     _S_TXT_TITLE="99-root Setup Wizard (text mode)"
-    _S_TXT_HINT="Leave blank for [default]."
-    _S_TXT_MESSENGER="▶ Messenger Platform"
-    _S_TXT_M1="1) whatsapp  — Meta Cloud API (default)"
-    _S_TXT_M2="2) telegram  — Telegram Bot"
-    _S_TXT_M3="3) cli       — Terminal output (testing)"
-    _S_TXT_LLM="▶ LLM Backend"
-    _S_TXT_L1="1) anthropic — Anthropic Claude (default)"
-    _S_TXT_L2="2) ollama    — Local Ollama"
-    _S_TXT_L3="3) gemini    — Google Gemini"
-    _S_TXT_PROXY="▶ Webhook Proxy"
-    _S_TXT_P1="1) none        — None (default)"
-    _S_TXT_P2="2) ngrok       — ngrok tunnel"
-    _S_TXT_P3="3) cloudflared — Cloudflare Tunnel"
-    _S_TXT_P4="4) external    — Your own URL"
-    _S_TXT_WA="▶ WhatsApp Credentials (Meta Developer Console)"
-    _S_TXT_TG="▶ Telegram Credentials (@BotFather)"
-    _S_TXT_AN="▶ Anthropic (claude.ai/settings → API Keys)"
-    _S_TXT_OL="▶ Ollama"
-    _S_TXT_GE="▶ Google Gemini (aistudio.google.com)"
+    _S_TXT_HINT="Leave blank to accept [default] values shown in brackets."
+    _S_TXT_MESSENGER="▶ Messenger Platform  (which app you will use to control the agent)"
+    _S_TXT_M1="1) whatsapp  — Meta Cloud API  [recommended if you already have a Meta app] (default)"
+    _S_TXT_M2="2) telegram  — Telegram Bot    [recommended — easiest setup, no business account needed]"
+    _S_TXT_M3="3) cli       — Terminal only   [for local testing, no app needed]"
+    _S_TXT_LLM="▶ LLM Backend  (which AI model powers the agent)"
+    _S_TXT_L1="1) anthropic — Anthropic Claude  [recommended — full tool use, best results] (default)"
+    _S_TXT_L2="2) ollama    — Local Ollama      [free, fully local, limited tool support]"
+    _S_TXT_L3="3) gemini    — Google Gemini     [free quota, cloud, works for most tasks]"
+    _S_TXT_PROXY="▶ Webhook Proxy  (how Meta/Telegram delivers messages to your server)"
+    _S_TXT_P1="1) none        — No proxy  [use if server has a static public IP or domain] (default)"
+    _S_TXT_P2="2) ngrok       — ngrok tunnel  [easiest for local setup; URL changes on restart]"
+    _S_TXT_P3="3) cloudflared — Cloudflare Tunnel  [persistent free URL; requires Cloudflare account]"
+    _S_TXT_P4="4) external    — Your own domain  [enter your public HTTPS URL manually]"
+    _S_TXT_WA="▶ WhatsApp Credentials  (from developers.facebook.com → WhatsApp → API Setup)"
+    _S_TXT_TG="▶ Telegram Credentials  (create a bot at t.me/BotFather)"
+    _S_TXT_AN="▶ Anthropic API Key  (console.anthropic.com → Settings → API Keys)"
+    _S_TXT_OL="▶ Ollama  (must be running locally — ollama.com)"
+    _S_TXT_GE="▶ Google Gemini  (aistudio.google.com → Get API Key)"
     _S_TXT_SEC="▶ Security Keys — auto-generating..."
     _S_TXT_SEC_DONE="Security keys generated automatically (API key, TOTP secrets)"
     _S_TXT_VERIFY_AUTO="Verify token auto-generated"
@@ -345,11 +390,21 @@ Store these keys somewhere safe!
     _S_DOCKER_NOT_FOUND="docker not found — install Docker first."
     _S_DOCKER_COMPOSE_NOT_FOUND="docker compose not found — install Docker Compose v2."
 
+    # ── Test / health
+    _S_WH_TG_REGISTERED="Telegram webhook auto-registered"
+    _S_STEP_TEST_PASS="All unit tests passed"
+    _S_STEP_TEST_FAIL="Some unit tests failed — check output above. Setup complete but investigate before running."
+    _S_STEP_HEALTH_OK_API="FastAPI is healthy (port"
+    _S_STEP_HEALTH_FAIL_API="FastAPI not responding — check: pm2 logs 99-api"
+    _S_STEP_HEALTH_OK_BRIDGE="Bridge is healthy (port"
+    _S_STEP_HEALTH_FAIL_BRIDGE="Bridge not responding — check: pm2 logs 99-bridge"
+
     # ── Completion
     _S_DONE_TITLE="Setup complete."
-    _S_DONE_PM2="Service status: pm2 status"
-    _S_DONE_SYSTEMD="To start services: sudo systemctl start personal-agent personal-agent-bridge"
-    _S_DONE_DOCKER="To start with Docker: docker compose up -d --build"
+    _S_DONE_PM2="Service status: pm2 status  |  Logs: pm2 logs 99-api"
+    _S_DONE_SYSTEMD="Start services: sudo systemctl start personal-agent personal-agent-bridge"
+    _S_DONE_DOCKER="Containers started — check health: curl http://localhost:8010/health"
+    _S_DONE_MANUAL="Start manually:  cd scripts && backend/venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port 8010"
 
     # ── Capability configuration (FEAT-3)
     _S_CAP_TITLE="Capability Configuration"
@@ -480,15 +535,23 @@ Başlamak için OK'a basın."
 
     # ── WhatsApp bilgileri
     _S_WIZ_WA_INFO_TITLE="WhatsApp Bilgileri"
-    _S_WIZ_WA_INFO_MSG="Meta Developer Console'dan aşağıdaki bilgileri alın:
-  developers.facebook.com → WhatsApp → API Setup
+    _S_WIZ_WA_INFO_MSG="Meta Developer Console'dan bilgileri alın:
+  developers.facebook.com → My Apps → <Uygulamanız> → WhatsApp → API Setup
+
+  Access Token   — o sayfadaki geçici 24 saatlik token, ya da Business
+                   Settings → System Users'dan kalıcı token oluşturun
+  Phone Number ID — telefon numarasının yanındaki sayısal ID (numaranın kendisi değil)
+  App Secret     — Settings → Basic → App Secret  (webhook imza doğrulaması için)
+  Owner Number   — kendi WhatsApp numaranız ülke koduyla (+90XXXXXXXXXX)
+
+  Verify Token ve webhook secret otomatik üretilir — giriş gerekmez.
 
 Hazır olduğunuzda OK'a basın."
-    _S_WIZ_WA_TOKEN="(*) Access Token:"
-    _S_WIZ_WA_PHONE="(*) Phone Number ID:"
-    _S_WIZ_WA_SECRET="(*) App Secret (HMAC doğrulama):"
-    _S_WIZ_WA_VERIFY="(*) Verify Token (kendin belirle, rastgele string):"
-    _S_WIZ_WA_OWNER="(*) Owner numarası (+90XXXXXXXXXX):"
+    _S_WIZ_WA_TOKEN="(*) Access Token (EAA...):"
+    _S_WIZ_WA_PHONE="(*) Phone Number ID (sayısal, ör. 1234567890):"
+    _S_WIZ_WA_SECRET="(*) App Secret (Settings → Basic'ten):"
+    _S_WIZ_WA_VERIFY="(*) Verify Token (otomatik üretilir — boş bırakın):"
+    _S_WIZ_WA_OWNER="(*) WhatsApp numaranız (+90XXXXXXXXXX):"
 
     # ── Telegram bilgileri
     _S_WIZ_TG_INFO_TITLE="Telegram Bilgileri"
@@ -511,44 +574,81 @@ Hazır olduğunuzda OK'a basın."
     _S_TXT_TG_CHATID_FAIL="Otomatik algılanamadı. t.me/userinfobot'a yazın — anında ID'nizi söyler."
 
     # ── Anthropic
-    _S_WIZ_AN_KEY="(*) API Key (sk-ant-...):"
+    _S_WIZ_AN_INFO_TITLE="Anthropic API Key"
+    _S_WIZ_AN_INFO_MSG="Anthropic Console'dan API key alın:
+  console.anthropic.com → Settings → API Keys → Create Key
+
+  Key şu şekilde başlar: sk-ant-api03-...
+
+  Not: Claude Code bridge bu key'i doğrudan kullanır —
+  ANTHROPIC_API_KEY ayarlanmışsa 'claude auth login' gerekmez."
+    _S_WIZ_AN_KEY="(*) API Key (sk-ant-api03-...):"
 
     # ── Ollama
     _S_WIZ_OL_INFO_TITLE="Ollama Bilgileri"
-    _S_WIZ_OL_INFO_MSG="Ollama yerel kurulumunuzda çalışıyor olmalı.
-Kurmak için: curl -fsSL https://ollama.com/install.sh | sh"
-    _S_WIZ_OL_URL="Base URL:"
-    _S_WIZ_OL_MODEL="Model adı:"
+    _S_WIZ_OL_INFO_MSG="Ajan başlatılmadan önce Ollama yerel makinede çalışıyor olmalı.
+
+  Kur:     curl -fsSL https://ollama.com/install.sh | sh
+  Model:   ollama pull llama3   (veya mistral, qwen2, gemma3, phi3 …)
+  Kontrol: curl http://localhost:11434/api/tags
+
+  İpucu: Temel sohbet iyi çalışır; karmaşık araç kullanımı güvenilmeyebilir."
+    _S_WIZ_OL_URL="Base URL [http://localhost:11434]:"
+    _S_WIZ_OL_MODEL="Model adı [llama3]:"
 
     # ── Gemini
     _S_WIZ_GE_INFO_TITLE="Google Gemini Bilgileri"
-    _S_WIZ_GE_INFO_MSG="Google AI Studio'dan API key alın:
-  aistudio.google.com → Get API Key"
-    _S_WIZ_GE_KEY="(*) Gemini API Key:"
-    _S_WIZ_GE_MODEL="Model adı:"
+    _S_WIZ_GE_INFO_MSG="Google AI Studio'dan ücretsiz API key alın:
+  aistudio.google.com → Get API Key → Create API key
+
+  Varsayılan model: gemini-2.0-flash (hızlı, çoğu görev için yeterli).
+  Karmaşık akıl yürütme için gemini-1.5-pro kullanın."
+    _S_WIZ_GE_KEY="(*) Gemini API Key (AIza...):"
+    _S_WIZ_GE_MODEL="Model adı [gemini-2.0-flash]:"
 
     # ── Proxy detayları
     _S_WIZ_CF_INFO_TITLE="Cloudflare Tunnel"
-    _S_WIZ_CF_INFO_MSG="cloudflared binary kurulu olmalı:
-  curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
-  chmod +x /usr/local/bin/cloudflared
+    _S_WIZ_CF_INFO_MSG="Cloudflare Tunnel kalıcı ve ücretsiz bir HTTPS URL sağlar.
 
-Kalıcı tunnel için: cloudflared tunnel login && cloudflared tunnel create personal-agent
-(Kurulum sonrası yapılabilir)"
-    _S_WIZ_CF_MISSING="cloudflared bulunamadı — kurulum sonrası elle kurulabilir."
+  cloudflared'ı kur:
+    curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \\
+         -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared
+
+  Kalıcı tunnel oluştur (tek seferlik kurulum):
+    cloudflared tunnel login
+    cloudflared tunnel create personal-agent
+    cloudflared tunnel route dns personal-agent <subdomain>
+
+  Hesapsız hızlı geçici tünel:
+    cloudflared tunnel --url http://localhost:8010
+
+  (Kurulum sonrası yapılabilir)"
+    _S_WIZ_CF_MISSING="cloudflared bulunamadı — servisleri başlatmadan önce kurun."
     _S_WIZ_NGROK_INFO_TITLE="ngrok Bilgileri"
-    _S_WIZ_NGROK_INFO_MSG="Ücretsiz hesap için token opsiyoneldir.
-Kalıcı subdomain için ngrok.com hesabı gerekir."
-    _S_WIZ_NGROK_TOKEN="ngrok Auth Token (opsiyonel):"
-    _S_WIZ_EXT_URL="(*) Public URL (https://...):"
+    _S_WIZ_NGROK_INFO_MSG="ngrok, yerel sunucunuza genel HTTPS tüneli oluşturur.
+
+  Ücretsiz: Her yeniden başlatmada URL değişir (kalıcı kurulum için uygun değil).
+  Ücretli:  Kalıcı subdomain (ngrok.com → pricing).
+
+  ngrok hesabınız varsa:
+    ngrok.com → Dashboard → Your Authtoken → kopyalayıp aşağıya yapıştırın.
+
+  Token boş bırakılırsa hesapsız kullanılır (hız sınırlı, URL yine değişir)."
+    _S_WIZ_NGROK_TOKEN="ngrok Auth Token (anonim kullanım için boş bırakın):"
+    _S_WIZ_EXT_URL="(*) Public URL (https://alanadi.com):"
 
     # ── Güvenlik anahtarları
-    _S_WIZ_SEC_TITLE="Güvenlik Anahtarları"
-    _S_WIZ_SEC_MSG="Aşağıdaki anahtarlar otomatik üretildi.
-Değiştirmek istemiyorsanız olduğu gibi bırakın.
+    _S_WIZ_SEC_TITLE="Güvenlik Anahtarları — Otomatik Üretildi"
+    _S_WIZ_SEC_MSG="Tüm güvenlik anahtarları otomatik olarak üretildi.
+Giriş gerekmez — .env dosyasına yazılacak.
 
-Bu anahtarları güvenli bir yerde saklayın!
-(Parola yöneticisi önerilir)"
+Ne işe yararlar:
+  API_KEY           — dahili /agent/* API çağrılarını doğrular
+  TOTP_SECRET       — owner komutları için 6 haneli kod (!lock, !schedule …)
+  TOTP_SECRET_ADMIN — yıkıcı komutlar için 6 haneli kod (!restart, !shutdown)
+
+Bir sonraki ekranda QR kodları Google Authenticator'a ekleyeceksiniz.
+Secret'ları yedek olarak bir parola yöneticisine kaydedin."
     _S_WIZ_SEC_APIKEY="API_KEY (dahili erişim):"
     _S_WIZ_SEC_TOTP="TOTP_SECRET (owner komutları):"
     _S_WIZ_SEC_ADMIN="TOTP_SECRET_ADMIN (yıkıcı komutlar):"
@@ -574,25 +674,25 @@ Bu anahtarları güvenli bir yerde saklayın!
 
     # ── Metin modu etiketleri
     _S_TXT_TITLE="99-root Kurulum Sihirbazı (metin modu)"
-    _S_TXT_HINT="Boş bırakırsan [varsayılan] kullanılır."
-    _S_TXT_MESSENGER="▶ Messenger Platformu"
-    _S_TXT_M1="1) whatsapp  — Meta Cloud API (varsayılan)"
-    _S_TXT_M2="2) telegram  — Telegram Bot"
-    _S_TXT_M3="3) cli       — Terminal çıktı (test)"
-    _S_TXT_LLM="▶ LLM Backend"
-    _S_TXT_L1="1) anthropic — Anthropic Claude (varsayılan)"
-    _S_TXT_L2="2) ollama    — Yerel Ollama"
-    _S_TXT_L3="3) gemini    — Google Gemini"
-    _S_TXT_PROXY="▶ Webhook Proxy"
-    _S_TXT_P1="1) none        — Yok (varsayılan)"
-    _S_TXT_P2="2) ngrok       — ngrok tüneli"
-    _S_TXT_P3="3) cloudflared — Cloudflare Tunnel"
-    _S_TXT_P4="4) external    — Kendi URL'in"
-    _S_TXT_WA="▶ WhatsApp Bilgileri (Meta Developer Console)"
-    _S_TXT_TG="▶ Telegram Bilgileri (@BotFather)"
-    _S_TXT_AN="▶ Anthropic (claude.ai/settings → API Keys)"
-    _S_TXT_OL="▶ Ollama"
-    _S_TXT_GE="▶ Google Gemini (aistudio.google.com)"
+    _S_TXT_HINT="Köşeli parantez içindeki [varsayılan] değeri için boş bırakın."
+    _S_TXT_MESSENGER="▶ Messenger Platformu  (ajanı hangi uygulamayla kontrol edeceksiniz)"
+    _S_TXT_M1="1) whatsapp  — Meta Cloud API       [Meta uygulamanız varsa] (varsayılan)"
+    _S_TXT_M2="2) telegram  — Telegram Bot          [önerilen — en kolay kurulum, iş hesabı gerekmez]"
+    _S_TXT_M3="3) cli       — Yalnızca terminal     [yerel test, uygulama gerekmez]"
+    _S_TXT_LLM="▶ LLM Backend  (ajanı hangi yapay zeka modeli çalıştıracak)"
+    _S_TXT_L1="1) anthropic — Anthropic Claude  [önerilen — tam araç desteği, en iyi sonuç] (varsayılan)"
+    _S_TXT_L2="2) ollama    — Yerel Ollama      [ücretsiz, tamamen yerel, sınırlı araç desteği]"
+    _S_TXT_L3="3) gemini    — Google Gemini     [ücretsiz kota, bulut, çoğu görev için yeterli]"
+    _S_TXT_PROXY="▶ Webhook Proxy  (Meta/Telegram mesajları sunucunuza nasıl iletecek)"
+    _S_TXT_P1="1) none        — Proxy yok  [sabit IP'li sunucu veya domain için] (varsayılan)"
+    _S_TXT_P2="2) ngrok       — ngrok tüneli  [yerel kurulum için en kolay; yeniden başlatmada URL değişir]"
+    _S_TXT_P3="3) cloudflared — Cloudflare Tunnel  [kalıcı ücretsiz URL; Cloudflare hesabı gerekir]"
+    _S_TXT_P4="4) external    — Kendi domain'in  [HTTPS URL'inizi manuel girin]"
+    _S_TXT_WA="▶ WhatsApp Bilgileri  (developers.facebook.com → WhatsApp → API Setup)"
+    _S_TXT_TG="▶ Telegram Bilgileri  (t.me/BotFather ile bot oluşturun)"
+    _S_TXT_AN="▶ Anthropic API Key  (console.anthropic.com → Settings → API Keys)"
+    _S_TXT_OL="▶ Ollama  (yerel makinede çalışıyor olmalı — ollama.com)"
+    _S_TXT_GE="▶ Google Gemini  (aistudio.google.com → Get API Key)"
     _S_TXT_SEC="▶ Güvenlik Anahtarları — otomatik üretiliyor..."
     _S_TXT_SEC_DONE="Güvenlik anahtarları otomatik üretildi (API key, TOTP secret'lar)"
     _S_TXT_VERIFY_AUTO="Verify token otomatik üretildi"
@@ -637,11 +737,21 @@ Bu anahtarları güvenli bir yerde saklayın!
     _S_DOCKER_NOT_FOUND="docker bulunamadı — önce Docker kur."
     _S_DOCKER_COMPOSE_NOT_FOUND="docker compose bulunamadı — Docker Compose v2 kur."
 
+    # ── Test / sağlık kontrolü
+    _S_WH_TG_REGISTERED="Telegram webhook otomatik kaydedildi"
+    _S_STEP_TEST_PASS="Tüm unit testler geçti"
+    _S_STEP_TEST_FAIL="Bazı unit testler başarısız — yukarıdaki çıktıyı incele. Kurulum tamamlandı ama başlatmadan önce kontrol et."
+    _S_STEP_HEALTH_OK_API="FastAPI sağlıklı (port"
+    _S_STEP_HEALTH_FAIL_API="FastAPI yanıt vermiyor — kontrol et: pm2 logs 99-api"
+    _S_STEP_HEALTH_OK_BRIDGE="Bridge sağlıklı (port"
+    _S_STEP_HEALTH_FAIL_BRIDGE="Bridge yanıt vermiyor — kontrol et: pm2 logs 99-bridge"
+
     # ── Tamamlama
     _S_DONE_TITLE="Kurulum tamamlandı."
-    _S_DONE_PM2="Servis durumu: pm2 status"
-    _S_DONE_SYSTEMD="Servisleri başlatmak için: sudo systemctl start personal-agent personal-agent-bridge"
-    _S_DONE_DOCKER="Docker ile başlatmak için: docker compose up -d --build"
+    _S_DONE_PM2="Servis durumu: pm2 status  |  Loglar: pm2 logs 99-api"
+    _S_DONE_SYSTEMD="Servisleri başlat: sudo systemctl start personal-agent personal-agent-bridge"
+    _S_DONE_DOCKER="Container'lar başlatıldı — sağlık kontrol: curl http://localhost:8010/health"
+    _S_DONE_MANUAL="Manuel başlat:  cd scripts && backend/venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port 8010"
 
     # ── Yetenek yapılandırması (FEAT-3)
     _S_CAP_TITLE="Yetenek Yapılandırması"
@@ -909,10 +1019,10 @@ step_docker_group() {
 
 step_docker_build() {
   if ! command -v docker &>/dev/null; then
-    err "$_S_DOCKER_NOT_FOUND"; exit 1
+    die "$_S_DOCKER_NOT_FOUND"
   fi
   if ! docker compose version &>/dev/null 2>&1; then
-    err "$_S_DOCKER_COMPOSE_NOT_FOUND"; exit 1
+    die "$_S_DOCKER_COMPOSE_NOT_FOUND"
   fi
 
   # Seçili capability dosyalarını belirle
@@ -1116,8 +1226,9 @@ except: pass" 2>/dev/null || true)"
   local anthropic_key="" ollama_url="" ollama_model="" gemini_key="" gemini_model=""
 
   if [[ "$llm" == "anthropic" ]]; then
+    _wt_msg "$_S_WIZ_AN_INFO_TITLE" "$_S_WIZ_AN_INFO_MSG" || return 1
     while true; do
-      anthropic_key=$(_wt_password "Anthropic" "$_S_WIZ_AN_KEY") || return 1
+      anthropic_key=$(_wt_password "$_S_WIZ_AN_INFO_TITLE" "$_S_WIZ_AN_KEY") || return 1
       [[ -n "$anthropic_key" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
     done
   elif [[ "$llm" == "ollama" ]]; then
@@ -1254,6 +1365,7 @@ except: pass" 2>/dev/null || true)"
 
   if [[ "$llm" == "anthropic" ]]; then
     echo ""; echo "$_S_TXT_AN"
+    printf "  %b\n" "$_S_WIZ_AN_INFO_MSG"
     while true; do read -rsp "  $_S_WIZ_AN_KEY " anthropic_key; echo; [[ -n "$anthropic_key" ]] && break; warn "$_S_REQUIRED"; done
   elif [[ "$llm" == "ollama" ]]; then
     echo ""; echo "$_S_TXT_OL"
@@ -1272,18 +1384,24 @@ except: pass" 2>/dev/null || true)"
   if [[ "$proxy" == "external" ]]; then
     while true; do read -rp "  $_S_WIZ_EXT_URL " public_url; [[ "$public_url" == https://* ]] && break; warn "$_S_URL_HTTPS"; done
   elif [[ "$proxy" == "ngrok" ]]; then
+    echo ""; echo "▶ $_S_WIZ_NGROK_INFO_TITLE"
+    printf "  %b\n" "$_S_WIZ_NGROK_INFO_MSG"
     read -rsp "  $_S_WIZ_NGROK_TOKEN " ngrok_token; echo
+  elif [[ "$proxy" == "cloudflared" ]]; then
+    echo ""; echo "▶ $_S_WIZ_CF_INFO_TITLE"
+    printf "  %b\n" "$_S_WIZ_CF_INFO_MSG"
+    if ! command -v cloudflared &>/dev/null; then warn "$_S_WIZ_CF_MISSING"; fi
   fi
 
   # ── Timezone / Saat Dilimi
   echo ""; echo "▶ $_S_WIZ_TZ_TITLE"
-  echo "  1) Europe/Istanbul (varsayılan)"
-  echo "  2) Europe/London"
-  echo "  3) Europe/Paris"
-  echo "  4) America/New_York"
-  echo "  5) America/Los_Angeles"
-  echo "  6) Asia/Tokyo"
-  echo "  7) UTC"
+  echo "  1) $_S_WIZ_TZ_TRT"
+  echo "  2) $_S_WIZ_TZ_LON"
+  echo "  3) $_S_WIZ_TZ_PAR"
+  echo "  4) $_S_WIZ_TZ_NYC"
+  echo "  5) $_S_WIZ_TZ_LAX"
+  echo "  6) $_S_WIZ_TZ_TYO"
+  echo "  7) $_S_WIZ_TZ_UTC"
   echo "  8) $_S_WIZ_TZ_OTH"
   read -rp "  [1]: " _tz
   local tz_value
@@ -1693,7 +1811,7 @@ step_show_webhook_url() {
         -d "{\"url\":\"${_wh_url}\",\"secret_token\":\"${tg_secret}\",\"allowed_updates\":[\"message\",\"callback_query\"]}" \
         2>/dev/null || true)"
       if echo "$_wh_result" | grep -q '"ok":true'; then
-        ok "  Webhook registered: $_wh_url"
+        ok "  $_S_WH_TG_REGISTERED: $_wh_url"
       else
         echo "  → $_wh_url"
         warn "  $_S_WH_TG_SETUP (manual): curl -s -X POST 'https://api.telegram.org/bot${tg_token}/setWebhook' -d 'url=${_wh_url}'"
@@ -1770,9 +1888,9 @@ main() {
     echo ""
     log "$_S_STEP_TESTS"
     if (cd "$SCRIPTS_DIR" && backend/venv/bin/python -m pytest tests/ -q --tb=short 2>&1); then
-      echo "[✓] Tüm unit testler geçti"
+      ok "$_S_STEP_TEST_PASS"
     else
-      warn "Bazı unit testler başarısız — log yukarıda. Kurulum tamamlandı ama testleri incele."
+      warn "$_S_STEP_TEST_FAIL"
     fi
 
     if $USE_PM2; then
@@ -1780,14 +1898,14 @@ main() {
       log "$_S_STEP_HEALTH_PM2"
       sleep 3
       if curl -sf "http://localhost:${API_PORT}/health" > /dev/null 2>&1; then
-        echo "[✓] FastAPI sağlıklı (port ${API_PORT})"
+        ok "$_S_STEP_HEALTH_OK_API ${API_PORT})"
       else
-        warn "FastAPI yanıt vermiyor — 'pm2 logs 99-api' ile kontrol et"
+        warn "$_S_STEP_HEALTH_FAIL_API"
       fi
       if curl -sf "http://localhost:${BRIDGE_PORT}/health" > /dev/null 2>&1; then
-        echo "[✓] Bridge sağlıklı (port ${BRIDGE_PORT})"
+        ok "$_S_STEP_HEALTH_OK_BRIDGE ${BRIDGE_PORT})"
       else
-        warn "Bridge yanıt vermiyor — 'pm2 logs 99-bridge' ile kontrol et"
+        warn "$_S_STEP_HEALTH_FAIL_BRIDGE"
       fi
     fi
   fi
@@ -1799,13 +1917,13 @@ main() {
   echo ""
   ok "$_S_DONE_TITLE"
   if $USE_DOCKER; then
-    echo "$_S_DONE_DOCKER"
+    echo "  $_S_DONE_DOCKER"
   elif $USE_PM2; then
-    echo "$_S_DONE_PM2"
+    echo "  $_S_DONE_PM2"
   elif ! $NO_SYSTEMD && command -v systemctl &>/dev/null; then
-    echo "$_S_DONE_SYSTEMD"
+    echo "  $_S_DONE_SYSTEMD"
   else
-    echo "$_S_DONE_DOCKER"
+    echo "  $_S_DONE_MANUAL"
   fi
 }
 
