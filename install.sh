@@ -1602,6 +1602,8 @@ main() {
     step_data_dirs
     step_docker_group
     step_docker_build
+    step_show_totp
+    step_show_webhook_url
   else
     step_venv          # seçili yeteneklere göre paketleri kur
     step_npm
