@@ -68,11 +68,18 @@ check_env() {
   fi
 }
 
-check_env "WHATSAPP_OWNER"       "alıcı WhatsApp numarası (E.164)"
 check_env "API_KEY"               "X-Api-Key header'ı için"
 check_env "TOTP_SECRET"           "owner TOTP doğrulaması"
 check_env "TOTP_SECRET_ADMIN"     "admin TOTP doğrulaması (yıkıcı komutlar)"
 check_env "ANTHROPIC_API_KEY"     "Claude LLM erişimi (llm_backend=anthropic ise)"
+
+MESSENGER_TYPE="${MESSENGER_TYPE:-whatsapp}"
+if [ "$MESSENGER_TYPE" = "whatsapp" ]; then
+  check_env "WHATSAPP_OWNER" "alıcı WhatsApp numarası (E.164)"
+elif [ "$MESSENGER_TYPE" = "telegram" ]; then
+  check_env "TELEGRAM_BOT_TOKEN" "Telegram bot kimlik doğrulaması"
+  check_env "TELEGRAM_CHAT_ID"   "Owner'ın Telegram chat_id'si"
+fi
 
 if [ "$MISSING" -gt 0 ]; then
   echo ""

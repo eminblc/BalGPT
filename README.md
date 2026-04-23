@@ -1,6 +1,6 @@
 # Personal AI Agent
 
-A self-hosted personal AI agent controlled via WhatsApp. Send a message, get things done — create projects, manage tasks, set calendar reminders, import PDFs, and chat with Claude Code directly from your phone. Everything runs locally on your machine; no data leaves unless you configure cloud services.
+A self-hosted personal AI agent controlled via WhatsApp or Telegram. Send a message, get things done — create projects, manage tasks, set calendar reminders, run shell commands, import PDFs, and chat with Claude Code directly from your phone. Everything runs locally on your machine; no data leaves unless you configure cloud services.
 
 ---
 
@@ -12,10 +12,10 @@ A self-hosted personal AI agent controlled via WhatsApp. Send a message, get thi
 | Claude Code Bridge | 8013 | Wraps Claude Code CLI, manages sessions |
 
 ```
-WhatsApp → POST /whatsapp/webhook
-              └─ dedup → blacklist → rate limit → permission
-                    └─ "main"    → Claude Code Bridge → Claude Code CLI
-                    └─ "project" → Project's own FastAPI (beta mode)
+WhatsApp / Telegram → POST /whatsapp/webhook  or  POST /telegram/webhook
+                        └─ dedup → blacklist → permission → rate limit → capability
+                              └─ "main"    → Claude Code Bridge → Claude Code CLI
+                              └─ "project" → Project's own FastAPI (beta mode)
 ```
 
 ---
@@ -28,9 +28,11 @@ WhatsApp → POST /whatsapp/webhook
 git clone https://github.com/your-username/99-root.git
 cd 99-root
 cp scripts/backend/.env.example scripts/backend/.env
-# Fill in .env (see table below)
+# Fill in .env (see Required Environment Variables below)
 docker compose up -d
 ```
+
+The compose file mounts `./data` and `./outputs/logs` as volumes so all data persists outside the containers.
 
 Check service health:
 
@@ -47,21 +49,42 @@ docker compose logs -f 99-api
 docker compose logs -f 99-bridge
 ```
 
+Restart:
+
+```bash
+docker compose restart
+```
+
 ### Option B — systemd (Linux only)
 
 ```bash
 git clone https://github.com/your-username/99-root.git
 cd 99-root
 cp scripts/backend/.env.example scripts/backend/.env
-# Fill in .env (see table below)
-sudo ./install.sh
+# Fill in .env (see Required Environment Variables below)
+sudo bash install.sh
 ```
 
-`install.sh` creates the Python venv, installs Node dependencies, renders systemd unit files, and enables the services. After it completes:
+`install.sh` runs an interactive wizard (messenger, LLM backend, timezone, capabilities), creates the Python venv, installs only the packages required by the enabled capabilities (via pip-compile + pip-sync), installs Node dependencies, renders systemd unit files, and enables the services.
+
+> Run with `sudo` to automatically install and enable the systemd units. Without `sudo`, the script still runs the wizard and installs dependencies — it prints the manual `systemctl` commands to finish the setup.
+
+Check services:
 
 ```bash
 sudo systemctl status personal-agent.service personal-agent-bridge.service
+journalctl -u personal-agent.service -f
 ```
+
+Other install flags:
+
+```bash
+bash install.sh --no-systemd             # install dependencies only, skip systemd
+bash install.sh --pm2                    # start with PM2 instead of systemd
+bash install.sh --reconfigure-capabilities  # re-run capability wizard and re-sync packages
+```
+
+> **Note:** After manually editing `DESKTOP_ENABLED`, `BROWSER_ENABLED`, or any `RESTRICT_*` flag in `.env`, run `bash install.sh --reconfigure-capabilities` so that the required Python packages are installed or removed.
 
 ### Option C — PM2 (Linux / macOS / Windows)
 
@@ -71,8 +94,8 @@ Use PM2 if you don't have systemd (macOS, Windows WSL, VPS without root).
 git clone https://github.com/your-username/99-root.git
 cd 99-root
 cp scripts/backend/.env.example scripts/backend/.env
-# Fill in .env (see table below)
-./install.sh --pm2
+# Fill in .env (see Required Environment Variables below)
+bash install.sh --pm2
 ```
 
 Check status and logs:
@@ -99,39 +122,63 @@ pm2 logs 99-bridge
 | `TOTP_SECRET` | Base32 TOTP secret — `python -c "import pyotp; print(pyotp.random_base32())"` |
 | `TOTP_SECRET_ADMIN` | Separate TOTP for destructive commands (`!restart`, `!shutdown`) |
 
-See [`scripts/backend/.env.example`](scripts/backend/.env.example) for all options.
+See [`scripts/backend/.env.example`](scripts/backend/.env.example) for all options including Telegram, Ollama, Gemini, timezone, and capability flags.
 
 ---
 
-## WhatsApp Commands
+## Commands
 
 | Command | Description | Auth |
 |---------|-------------|------|
 | `!help` | List all commands | Owner |
 | `!history [N]` | Show last N messages or session summaries | Owner |
-| `!project [id]` | Set active project context | Owner |
-| `!schedule` | List / create / stop cron jobs | Owner |
+| `!project [id]` | Set / show active project context | Owner |
+| `!root-project [name]` | Assign a project context to the root agent | Owner |
+| `!root-exit` | Exit root project context | Owner |
 | `!root-reset` | Reset Claude Code session | Owner |
-| `!restart` | Restart both services via systemd | Admin TOTP |
-| `!shutdown` | Stop FastAPI service | Admin TOTP |
-| `!beta-exit` | Exit project beta mode | Owner |
+| `!root-check` | Show Bridge status (active request or idle) | Owner |
+| `!root-log` | Show last 5 entries of root_actions.log | Owner |
+| `!schedule` | List / create / stop scheduled tasks | Owner |
+| `!terminal [cmd]` | Run a shell command and send output (dangerous commands require admin TOTP) | Owner |
+| `!model [name]` | Change LLM model at runtime (persists until restart) | Owner |
+| `!tokens [24h\|7d\|30d]` | Show LLM token usage statistics | Owner |
 | `!lang <tr\|en>` | Change interface language | Owner |
+| `!timezone [IANA]` | Show or change the active timezone (reconfigures APScheduler) | Owner |
+| `!cancel` | Cancel active TOTP flow, pending action, or in-progress query | Owner |
+| `!lock` | Lock the application (TOTP required to unlock) | Owner TOTP |
+| `!unlock` | Unlock the application | Owner TOTP |
+| `!beta-exit` | Exit project beta mode | Owner |
+| `!project-delete` | Delete a project from the database | Math + Admin TOTP |
+| `!restart` | Restart both services | Math + Admin TOTP |
+| `!shutdown` | Stop the FastAPI service | Math + Admin TOTP |
 
 Non-command messages are forwarded to Claude Code for free-form conversation.
 
-For the full command list, capability flags, system requirements, and internal API endpoints, see [docs/skills.md](docs/skills.md).
+For capability flags, system requirements, and internal API endpoints, see [docs/skills.md](docs/skills.md).
 
 ---
 
-## Model Selection
+## Messenger Selection
 
-Three LLM backends are supported. See [docs/deployment/byok.md](docs/deployment/byok.md) for full setup instructions and a comparison table.
+| Messenger | `.env` setting | Notes |
+|-----------|---------------|-------|
+| WhatsApp (default) | `MESSENGER_TYPE=whatsapp` | Requires Meta Cloud API app and a webhook URL |
+| Telegram | `MESSENGER_TYPE=telegram` | Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` — see [docs/deployment/telegram.md](docs/deployment/telegram.md) |
+| CLI (local testing) | `MESSENGER_TYPE=cli` | Writes to stdout; no account needed |
+
+---
+
+## LLM Backend Selection
 
 | Backend | `.env` setting | Cost | Privacy | Notes |
 |---------|---------------|------|---------|-------|
-| Anthropic API (default) | `LLM_BACKEND=anthropic` | Pay-per-token | Cloud | Set `ANTHROPIC_API_KEY` |
-| Ollama (local GPU) | `LLM_BACKEND=ollama` | Free | Fully local | Set `OLLAMA_BASE_URL`, `OLLAMA_MODEL` |
-| Gemini Free Tier | `LLM_BACKEND=gemini` | Free quota | Cloud | Set `GEMINI_API_KEY`; optionally `GEMINI_MODEL` (default: `gemini-2.0-flash`). **Experimental** — intent classifier does not use Gemini. |
+| Anthropic (default) | `LLM_BACKEND=anthropic` | Pay-per-token | Cloud | Set `ANTHROPIC_API_KEY`. Primary tested backend. |
+| Ollama (local) | `LLM_BACKEND=ollama` | Free | Fully local | Set `OLLAMA_BASE_URL` and `OLLAMA_MODEL`. Less tested — basic conversation works; complex tool use may be unreliable. |
+| Gemini | `LLM_BACKEND=gemini` | Free quota | Cloud | Set `GEMINI_API_KEY`; optionally `GEMINI_MODEL` (default: `gemini-2.0-flash`). Less tested — basic conversation works; edge cases may behave differently. |
+
+> The `INTENT_CLASSIFIER_MODEL` setting only applies to the Anthropic backend. When using Ollama or Gemini, the intent classifier uses the backend's default model.
+
+See [docs/deployment/byok.md](docs/deployment/byok.md) for a full setup guide and comparison.
 
 ---
 
@@ -139,8 +186,8 @@ Three LLM backends are supported. See [docs/deployment/byok.md](docs/deployment/
 
 - Python 3.11+
 - Node.js 18+
-- `claude` CLI installed (`npm install -g @anthropic-ai/claude-code`)
-- A Meta WhatsApp Cloud API app with a webhook URL (ngrok or Cloudflare Tunnel for local setup)
+- `claude` CLI installed and authenticated (`npm install -g @anthropic-ai/claude-code`)
+- A Meta WhatsApp Cloud API app with a webhook URL (use ngrok or Cloudflare Tunnel for local setup), **or** a Telegram bot token
 - `sudo` access for systemd service installation
 
 ---

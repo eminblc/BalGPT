@@ -133,6 +133,8 @@ _load_strings() {
     _S_STEP_PM2_DONE="PM2 services started"
     _S_STEP_PM2_STARTUP="pm2 startup may require root — run the printed command"
     _S_STEP_SYNTAX="Running syntax checks..."
+    _S_STEP_TESTS="Running unit tests..."
+    _S_STEP_HEALTH_PM2="Service health check (PM2)..."
 
     # ── Wizard — whiptail
     _S_WIZ_WELCOME_TITLE="99-root Setup Wizard"
@@ -388,6 +390,8 @@ Store these keys somewhere safe!
     _S_STEP_PM2_DONE="PM2 servisleri başlatıldı"
     _S_STEP_PM2_STARTUP="pm2 startup root yetkisi gerektirebilir — çıktıdaki komutu çalıştır"
     _S_STEP_SYNTAX="Sözdizimi kontrolleri yapılıyor..."
+    _S_STEP_TESTS="Unit testler çalıştırılıyor..."
+    _S_STEP_HEALTH_PM2="Servis sağlık kontrolü (PM2)..."
 
     # ── Sihirbaz — whiptail
     _S_WIZ_WELCOME_TITLE="99-root Kurulum Sihirbazı"
@@ -794,7 +798,9 @@ step_data_dirs() {
     "$ROOT_DIR/data/media" \
     "$ROOT_DIR/data/claude_sessions" \
     "$ROOT_DIR/data/conv_history" \
-    "$ROOT_DIR/outputs/logs"
+    "$ROOT_DIR/outputs/logs" \
+    "$ROOT_DIR/reports/done" \
+    "$ROOT_DIR/research/done"
   ok "$_S_STEP_DIRS_DONE"
 }
 
@@ -1389,9 +1395,11 @@ step_show_totp() {
 
   _print_qr() {
     local label="$1" secret="$2"
+    local heading
+    [[ "$label" == "admin" ]] && heading="$_S_TOTP_ADMIN" || heading="$_S_TOTP_OWNER"
     local uri="otpauth://totp/99-root%3A${label}?secret=${secret}&issuer=99-root"
     echo ""
-    echo "  ── $_S_TOTP_OWNER [$label] ──────────────────────────────"
+    echo "  ── $heading ──────────────────────────────"
     echo "  $_S_TOTP_SECRET : $secret"
     echo "  $_S_TOTP_URI    : $uri"
     if command -v qrencode &>/dev/null; then
@@ -1528,7 +1536,7 @@ main() {
   node --check "$BRIDGE_DIR/server.js" && echo "[✓] Node syntax OK"
 
   echo ""
-  echo "[>>] Unit testler çalıştırılıyor..."
+  log "$_S_STEP_TESTS"
   if (cd "$SCRIPTS_DIR" && backend/venv/bin/python -m pytest tests/ -q --tb=short 2>&1); then
     echo "[✓] Tüm unit testler geçti"
   else
@@ -1537,7 +1545,7 @@ main() {
 
   if $USE_PM2; then
     echo ""
-    echo "[>>] Servis sağlık kontrolü (PM2)..."
+    log "$_S_STEP_HEALTH_PM2"
     sleep 3
     if curl -sf "http://localhost:${API_PORT}/health" > /dev/null 2>&1; then
       echo "[✓] FastAPI sağlıklı (port ${API_PORT})"
