@@ -106,6 +106,17 @@ _load_strings() {
     _S_PRE_CLAUDE_HINT="Install with: npm install -g @anthropic-ai/claude-code"
     _S_PRE_CLAUDE_CONT="(Continuing setup — install Claude CLI before starting services)"
 
+    # ── Claude auth
+    _S_AUTH_ALREADY="Claude CLI already authenticated"
+    _S_AUTH_NEEDED="Claude CLI is not authenticated."
+    _S_AUTH_APIKEY="ANTHROPIC_API_KEY is set — API key auth will be used (no login needed)"
+    _S_AUTH_INSTR="Run the following in another terminal, then press Enter here:"
+    _S_AUTH_CMD="  claude auth login"
+    _S_AUTH_PROMPT="Press Enter after completing login: "
+    _S_AUTH_OK="Claude CLI authenticated"
+    _S_AUTH_WARN="Credentials not found — run 'claude auth login' before starting services"
+    _S_AUTH_SKIP="Claude CLI not found — skipping auth step"
+
     # ── Steps
     _S_STEP_VENV="Creating Python venv →"
     _S_STEP_VENV_DONE="Python dependencies synced"
@@ -372,6 +383,17 @@ Store these keys somewhere safe!
     _S_PRE_CLAUDE_MISSING="Claude CLI bulunamadı — bridge çalışmaz!"
     _S_PRE_CLAUDE_HINT="Kurmak için: npm install -g @anthropic-ai/claude-code"
     _S_PRE_CLAUDE_CONT="(Kurulum devam ediyor — servisleri başlatmadan önce mutlaka kur)"
+
+    # ── Claude auth
+    _S_AUTH_ALREADY="Claude CLI zaten authenticate edilmiş"
+    _S_AUTH_NEEDED="Claude CLI authenticate edilmemiş."
+    _S_AUTH_APIKEY="ANTHROPIC_API_KEY tanımlı — API key auth kullanılacak (giriş gerekmez)"
+    _S_AUTH_INSTR="Başka bir terminalde şunu çalıştır, ardından buraya dön:"
+    _S_AUTH_CMD="  claude auth login"
+    _S_AUTH_PROMPT="Girişi tamamladıktan sonra Enter'a bas: "
+    _S_AUTH_OK="Claude CLI authenticate edildi"
+    _S_AUTH_WARN="Credentials bulunamadı — servisi başlatmadan önce 'claude auth login' çalıştır"
+    _S_AUTH_SKIP="Claude CLI bulunamadı — auth adımı atlanıyor"
 
     # ── Adımlar
     _S_STEP_VENV="Python venv oluşturuluyor →"
@@ -1460,6 +1482,42 @@ step_capabilities() {
   fi
 }
 
+# ── Claude CLI auth ──────────────────────────────────────────────────────────
+
+step_claude_auth() {
+  # Claude CLI yoksa atla
+  if ! command -v claude &>/dev/null; then
+    warn "$_S_AUTH_SKIP"; return
+  fi
+
+  # Zaten authenticate ise atla
+  if [[ -f "$HOME/.claude/.credentials.json" ]]; then
+    ok "$_S_AUTH_ALREADY"; return
+  fi
+
+  # ANTHROPIC_API_KEY .env'de tanımlıysa OAuth gerekmez
+  local env_dst="$BACKEND_DIR/.env"
+  local api_key
+  api_key="$(_read_env_var "ANTHROPIC_API_KEY" "$env_dst" 2>/dev/null || true)"
+  if [[ -n "$api_key" && "$api_key" != *"FILL"* && "$api_key" != *"DOLDUR"* ]]; then
+    ok "$_S_AUTH_APIKEY"; return
+  fi
+
+  # Kullanıcıdan manuel login istenecek
+  echo ""
+  echo "  ── $_S_AUTH_NEEDED ──────────────────────────────"
+  echo "  $_S_AUTH_INSTR"
+  echo "  $_S_AUTH_CMD"
+  echo ""
+  read -rp "  $_S_AUTH_PROMPT" _
+
+  if [[ -f "$HOME/.claude/.credentials.json" ]]; then
+    ok "$_S_AUTH_OK"
+  else
+    warn "$_S_AUTH_WARN"
+  fi
+}
+
 # ── TOTP QR ───────────────────────────────────────────────────────────────────
 
 step_show_totp() {
@@ -1652,6 +1710,7 @@ main() {
     fi
   fi
 
+  step_claude_auth
   step_show_totp
   step_show_webhook_url
 

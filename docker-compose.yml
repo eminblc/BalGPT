@@ -48,3 +48,6 @@ services:
       # CLAUDE.md ve GUARDRAILS.md her zaman güncel kalsın
       - ./CLAUDE.md:/app/CLAUDE.md:ro
       - ./GUARDRAILS.md:/app/GUARDRAILS.md:ro
+      # Claude CLI auth — claude.ai subscription kullanıcıları için (API key yeterliyse bu satır opsiyonel)
+      # ~/.claude/.credentials.json host'ta yoksa bu mount sessizce atlanır
+      - ${HOME}/.claude/.credentials.json:/root/.claude/.credentials.json:ro
