@@ -714,6 +714,10 @@ check_prereqs() {
     # Docker modunda host'ta Python/Node/Claude gerekmez; docker ve compose yeterli
     if ! command -v docker &>/dev/null; then die "$_S_DOCKER_NOT_FOUND"; fi
     if ! docker compose version &>/dev/null 2>&1; then die "$_S_DOCKER_COMPOSE_NOT_FOUND"; fi
+    # Daemon çalışıyor mu? (--version değil, info kullan)
+    if ! docker info &>/dev/null 2>&1; then
+      die "Docker daemon çalışmıyor — Docker Desktop'ı başlat ve tekrar dene. / Docker daemon is not running — start Docker Desktop and try again."
+    fi
     ok "Docker: $(docker --version)"
     return
   fi
@@ -982,10 +986,23 @@ _gen_api_key() {
 }
 
 _gen_totp() {
+  # venv python (systemd/PM2 modu)
   if "$BACKEND_DIR/venv/bin/python" -c "import pyotp" 2>/dev/null; then
     "$BACKEND_DIR/venv/bin/python" -c 'import pyotp; print(pyotp.random_base32())'
+  # system python3 (Docker modu / Git Bash)
+  elif python3 -c "import pyotp" 2>/dev/null; then
+    python3 -c 'import pyotp; print(pyotp.random_base32())'
+  elif python -c "import pyotp" 2>/dev/null; then
+    python -c 'import pyotp; print(pyotp.random_base32())'
+  # pyotp yoksa base32 uyumlu rastgele string üret
   else
-    echo "TOTP_KURULUM_SONRASI_DOLDUR_$(date +%s)"
+    local raw
+    if command -v openssl &>/dev/null; then
+      raw="$(openssl rand -base64 20 | tr -dc 'A-Z2-7' | head -c 32)"
+    else
+      raw="$(date +%s%N | sha256sum | tr -dc 'A-Z2-7' | head -c 32)"
+    fi
+    echo "$raw"
   fi
 }
 
