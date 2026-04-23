@@ -330,6 +330,7 @@ async def test_sticker_message_sends_ack():
 
     with patcher_m, \
          patch("backend.routers._dispatcher.log_inbound"), \
+         patch("backend.routers._dispatcher.log_outbound"), \
          patch("backend.routers._dispatcher.is_locked", return_value=False):
         from backend.routers import _dispatcher
         await _dispatcher.handle_common_message(

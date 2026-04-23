@@ -4,6 +4,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from httpx import AsyncClient, ASGITransport
 from fastapi import FastAPI
 
+_NO_LOCKOUT = AsyncMock(return_value=(0, 0.0))
+_RESET_LOCKOUT = AsyncMock(return_value=None)
+_RECORD_FAILURE = AsyncMock(return_value=(1, None))
+
 
 def _make_app():
     from backend.routers.internal_router import router
@@ -21,7 +25,9 @@ async def test_localhost_access_allowed():
     app = _make_app()
     mock_perm = MagicMock()
     mock_perm.verify_admin_totp.return_value = True
-    with patch("backend.routers.internal_router.get_perm_mgr", return_value=mock_perm):
+    with patch("backend.routers.internal_router.get_perm_mgr", return_value=mock_perm), \
+         patch("backend.store.sqlite_store.totp_get_lockout", AsyncMock(return_value=(0, 0.0))), \
+         patch("backend.store.sqlite_store.totp_reset_lockout", AsyncMock(return_value=None)):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://127.0.0.1") as client:
             resp = await client.post(
@@ -81,7 +87,9 @@ async def test_valid_admin_totp_returns_true():
     app = _make_app()
     mock_perm = MagicMock()
     mock_perm.verify_admin_totp.return_value = True
-    with patch("backend.routers.internal_router.get_perm_mgr", return_value=mock_perm):
+    with patch("backend.routers.internal_router.get_perm_mgr", return_value=mock_perm), \
+         patch("backend.store.sqlite_store.totp_get_lockout", AsyncMock(return_value=(0, 0.0))), \
+         patch("backend.store.sqlite_store.totp_reset_lockout", AsyncMock(return_value=None)):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://127.0.0.1") as client:
             resp = await client.post(
@@ -95,7 +103,9 @@ async def test_invalid_admin_totp_returns_false():
     app = _make_app()
     mock_perm = MagicMock()
     mock_perm.verify_admin_totp.return_value = False
-    with patch("backend.routers.internal_router.get_perm_mgr", return_value=mock_perm):
+    with patch("backend.routers.internal_router.get_perm_mgr", return_value=mock_perm), \
+         patch("backend.store.sqlite_store.totp_get_lockout", AsyncMock(return_value=(0, 0.0))), \
+         patch("backend.store.sqlite_store.totp_record_failure", AsyncMock(return_value=(1, None))):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://127.0.0.1") as client:
             resp = await client.post(

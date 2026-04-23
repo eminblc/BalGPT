@@ -21,6 +21,7 @@ def _mock_settings(secret: str = "test-secret", env: str = "development",
     mock.telegram_webhook_secret.get_secret_value.return_value = secret
     mock.environment = env
     mock.restrict_conv_history = True
+    mock.conv_history_enabled = False
     mock.telegram_chat_id = "123456"
     mock.owner_id = "123456"
     return mock

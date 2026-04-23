@@ -102,8 +102,8 @@ async def test_screenshot_with_mock_returns_ok():
 
     with patch("backend.routers.desktop_router.is_localhost", return_value=True), \
          patch("backend.routers.desktop_router.settings", mock_settings), \
-         patch("backend.features.desktop.capture_screen",
-               AsyncMock(return_value="/tmp/screenshot_123.png")):
+         patch("backend.features.desktop_capture.capture_all_monitors",
+               AsyncMock(return_value=[("monitor0", "/tmp/screenshot_123.png")])):
         resp = await desktop_router.desktop_action(
             desktop_router.DesktopRequest(action="screenshot"),
             mock_request,
