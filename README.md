@@ -181,7 +181,7 @@ The agent needs a public HTTPS URL so WhatsApp or Telegram can reach your server
 | Option | When to use |
 |--------|-------------|
 | **None** | VPS with a static public IP or domain |
-| **ngrok** ✅ Recommended for local setup | Easiest — free account, single binary, wizard asks for your auth token |
+| **ngrok** ✅ Recommended for local setup | Easiest — free account includes a permanent static domain; wizard asks for your auth token |
 | **Cloudflare Tunnel** | Persistent free option — requires a Cloudflare account and DNS setup |
 | **External URL** | You already have a domain pointing to this machine |
 
@@ -190,14 +190,15 @@ The agent needs a public HTTPS URL so WhatsApp or Telegram can reach your server
 The agent manages ngrok through the `pyngrok` Python package — **no manual ngrok binary installation required**. pyngrok downloads and runs the ngrok binary automatically.
 
 1. Create a free account at [ngrok.com](https://ngrok.com).
-2. Copy your auth token: **ngrok Dashboard → Your Authtoken**.
-3. Run `bash install.sh --docker` (or `install.sh`) and select **ngrok** as the proxy — the wizard will ask for your auth token and write it to `.env`.
-4. After the service starts, ngrok automatically opens a tunnel. The public URL is logged on startup and shown in the webhook info printed at the end of the wizard.
-5. Register the webhook URL in Meta Developer Console (WhatsApp) or via `setWebhook` (Telegram) — the wizard prints the exact command.
+2. Claim your **free static domain**: ngrok Dashboard → Domains → New Domain → copy the domain (e.g. `yourname.ngrok-free.app`). This URL is permanent and never changes.
+3. Copy your auth token: **ngrok Dashboard → Your Authtoken**.
+4. Run `bash install.sh --docker` (or `install.sh`) and select **ngrok** as the proxy — the wizard will ask for your auth token and write it to `.env`.
+5. After the service starts, ngrok automatically opens a tunnel on your static domain. The public URL is logged on startup and shown in the webhook info printed at the end of the wizard.
+6. Register the webhook URL in Meta Developer Console (WhatsApp) or via `setWebhook` (Telegram) — the wizard prints the exact command.
 
-> **Note:** Free ngrok URLs change on every restart. For a stable URL, use a paid ngrok plan, Cloudflare Tunnel, or a VPS with a static IP.
+> **Free accounts get one permanent static domain** — the URL does not change on restart as long as you use your static domain and auth token.
 >
-> **No account?** You can leave the auth token blank — ngrok works anonymously but with tighter rate limits and the URL still changes on restart.
+> **No account?** You can leave the auth token blank — ngrok works anonymously but the URL is random and changes on every restart.
 
 ---
 

@@ -182,7 +182,7 @@ Press OK to begin."
     _S_WIZ_PRX_MSG="How will Meta/Telegram reach your server?
 (The webhook endpoint must be publicly accessible)"
     _S_WIZ_PRX_NONE="None — Local dev / VPS with static IP"
-    _S_WIZ_PRX_NGROK="ngrok — Temporary tunnel (URL changes on restart)"
+    _S_WIZ_PRX_NGROK="ngrok — Free static domain available (permanent URL)"
     _S_WIZ_PRX_CF="Cloudflare Tunnel — Persistent option (free)"
     _S_WIZ_PRX_EXT="External URL — You have your own domain"
 
@@ -281,13 +281,13 @@ Press OK when ready."
     _S_WIZ_NGROK_INFO_MSG="ngrok creates a public HTTPS tunnel to your local server.
   No binary installation needed — the agent manages ngrok via the pyngrok package.
 
-  Free tier:  URL changes on every restart (not suitable for permanent setups).
-  Paid tier:  Permanent subdomain (ngrok.com → pricing).
+  Free accounts include ONE permanent static domain (URL never changes):
+    ngrok Dashboard → Domains → New Domain → claim your free domain
 
-  To get your auth token (optional but recommended):
+  To get your auth token (required for static domain):
     ngrok.com → Sign up (free) → Dashboard → Your Authtoken
 
-  Leave the token blank to use ngrok anonymously (more rate-limited, URL still changes)."
+  Leave the token blank to use ngrok anonymously — URL changes on every restart."
     _S_WIZ_NGROK_TOKEN="ngrok Auth Token (leave blank for anonymous):"
     _S_WIZ_EXT_URL="(*) Public URL (https://yourdomain.com):"
 
@@ -339,7 +339,7 @@ Store the secrets in a password manager as backup."
     _S_TXT_L3="3) gemini    — Google Gemini     [free quota, cloud, works for most tasks]"
     _S_TXT_PROXY="▶ Webhook Proxy  (how Meta/Telegram delivers messages to your server)"
     _S_TXT_P1="1) none        — No proxy  [use if server has a static public IP or domain] (default)"
-    _S_TXT_P2="2) ngrok       — ngrok tunnel  [easiest for local setup; URL changes on restart]"
+    _S_TXT_P2="2) ngrok       — ngrok tunnel  [easiest for local setup; free static domain available]"
     _S_TXT_P3="3) cloudflared — Cloudflare Tunnel  [persistent free URL; requires Cloudflare account]"
     _S_TXT_P4="4) external    — Your own domain  [enter your public HTTPS URL manually]"
     _S_TXT_WA="▶ WhatsApp Credentials  (from developers.facebook.com → WhatsApp → API Setup)"
@@ -530,7 +530,7 @@ Başlamak için OK'a basın."
     _S_WIZ_PRX_MSG="Dış erişim için hangi yöntem kullanılacak?
 (Meta/Telegram'ın webhook'u bu adrese mesaj gönderir)"
     _S_WIZ_PRX_NONE="Yok — Yerel geliştirme / VPS sabit IP"
-    _S_WIZ_PRX_NGROK="ngrok — Geçici tünel (her başlatmada URL değişir)"
+    _S_WIZ_PRX_NGROK="ngrok — Ücretsiz static domain var (kalıcı URL)"
     _S_WIZ_PRX_CF="Cloudflare Tunnel — Kalıcı seçenek (ücretsiz)"
     _S_WIZ_PRX_EXT="Harici URL — Kendi domainin var"
 
@@ -629,13 +629,13 @@ Hazır olduğunuzda OK'a basın."
     _S_WIZ_NGROK_INFO_MSG="ngrok, yerel sunucunuza genel HTTPS tüneli oluşturur.
   Binary kurulumu gerekmez — ajan ngrok'u pyngrok paketi aracılığıyla yönetir.
 
-  Ücretsiz: Her yeniden başlatmada URL değişir (kalıcı kurulum için uygun değil).
-  Ücretli:  Kalıcı subdomain (ngrok.com → pricing).
+  Ücretsiz hesaplarda BİR adet kalıcı static domain var (URL hiç değişmez):
+    ngrok Dashboard → Domains → New Domain → ücretsiz domain'i al
 
-  Auth token almak için (opsiyonel ama önerilir):
+  Auth token almak için (static domain kullanmak zorunlu):
     ngrok.com → Ücretsiz kayıt → Dashboard → Your Authtoken
 
-  Token boş bırakılırsa anonim kullanılır (daha sınırlı, URL yine değişir)."
+  Token boş bırakılırsa anonim kullanılır — URL her yeniden başlatmada değişir."
     _S_WIZ_NGROK_TOKEN="ngrok Auth Token (anonim kullanım için boş bırakın):"
     _S_WIZ_EXT_URL="(*) Public URL (https://alanadi.com):"
 
@@ -687,7 +687,7 @@ Secret'ları yedek olarak bir parola yöneticisine kaydedin."
     _S_TXT_L3="3) gemini    — Google Gemini     [ücretsiz kota, bulut, çoğu görev için yeterli]"
     _S_TXT_PROXY="▶ Webhook Proxy  (Meta/Telegram mesajları sunucunuza nasıl iletecek)"
     _S_TXT_P1="1) none        — Proxy yok  [sabit IP'li sunucu veya domain için] (varsayılan)"
-    _S_TXT_P2="2) ngrok       — ngrok tüneli  [yerel kurulum için en kolay; yeniden başlatmada URL değişir]"
+    _S_TXT_P2="2) ngrok       — ngrok tüneli  [yerel kurulum için en kolay; ücretsiz static domain mevcut]"
     _S_TXT_P3="3) cloudflared — Cloudflare Tunnel  [kalıcı ücretsiz URL; Cloudflare hesabı gerekir]"
     _S_TXT_P4="4) external    — Kendi domain'in  [HTTPS URL'inizi manuel girin]"
     _S_TXT_WA="▶ WhatsApp Bilgileri  (developers.facebook.com → WhatsApp → API Setup)"
