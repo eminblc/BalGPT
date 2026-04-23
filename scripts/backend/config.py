@@ -81,6 +81,7 @@ class Settings(BaseSettings):
     webhook_proxy: str = "none"        # ngrok | cloudflared | external | none
     public_url: str = ""               # WEBHOOK_PROXY=external ise zorunlu (https://...)
     ngrok_authtoken: str = ""          # NGROK_AUTHTOKEN — ngrok auth token (opsiyonel)
+    ngrok_domain: str = ""             # NGROK_DOMAIN — static domain (e.g. yourname.ngrok-free.app)
 
     # ── Messenger adaptörü ───────────────────────────────────────
     messenger_type: str = "whatsapp"   # "whatsapp" | "telegram"

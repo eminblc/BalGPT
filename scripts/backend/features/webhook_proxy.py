@@ -119,7 +119,10 @@ class WebhookProxyManager:
             if ngrok_token:
                 conf.get_default().auth_token = ngrok_token
 
-            tunnel = ngrok.connect(port, "http")
+            connect_kwargs: dict = {"proto": "http"}
+            if settings.ngrok_domain:
+                connect_kwargs["hostname"] = settings.ngrok_domain
+            tunnel = ngrok.connect(port, **connect_kwargs)
             url: str = tunnel.public_url  # type: ignore[attr-defined]
             # ngrok ücretsiz planda http → https yönlendirir; https'i tercih et
             if url.startswith("http://"):

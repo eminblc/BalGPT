@@ -113,18 +113,20 @@ else
   fi
 fi
 
-# ── 4. API hazır mı? (retry loop) ────────────────────────────────
+# ── 4. API hazır mı? (kısa retry) ───────────────────────────────
+# Docker compose bağımlılığı: 99-api depends_on: 99-bridge: healthy
+# Bu yüzden API henüz başlamamış olabilir; bekleme çok kısa tutulur.
+# Bridge başladıktan sonra API ayağa kalkar; bağlantı sorunları server.js'de handle edilir.
 API_URL="${FASTAPI_URL:-http://99-api:8010}"
 echo ""
-echo "$INFO API bekleniyor: $API_URL/health"
+echo "$INFO API kontrol ediliyor: $API_URL/health"
 
-MAX_RETRIES=30   # 30 × 2s = 60s maksimum bekleme
+MAX_RETRIES=5   # 5 × 2s = 10s maksimum bekleme (API daha sonra başlayacak)
 RETRY=0
 until curl -sf "${API_URL}/health" > /dev/null 2>&1; do
   RETRY=$((RETRY + 1))
   if [ "$RETRY" -ge "$MAX_RETRIES" ]; then
-    echo "  $WARN API 60s içinde yanıt vermedi — Bridge yine de başlatılıyor"
-    echo "    API başladığında Bridge otomatik bağlanır"
+    echo "  $WARN API henüz hazır değil — Bridge başlatılıyor (API sonra bağlanır)"
     break
   fi
   printf "  Bekleniyor... (%d/%d)\r" "$RETRY" "$MAX_RETRIES"

@@ -213,18 +213,25 @@ Press OK when ready."
   2. Choose a name and username (must end with 'bot')
   3. BotFather gives you a token like: 123456789:ABCdef...
 
-Then find YOUR Chat ID (your personal Telegram account number):
-  • Easiest: open t.me/userinfobot — it instantly replies with your ID
-  • Alternative: send any message to your new bot, then:
-    curl 'https://api.telegram.org/bot<TOKEN>/getUpdates'
-    Look for result[0].message.chat.id
+After entering the token, the wizard will try to auto-detect your Chat ID.
+For this to work: open your new bot and send any message (e.g. 'hello').
 
 Press OK when ready."
     _S_WIZ_TG_TOKEN="(*) Bot Token (123456789:ABCdef...):"
-    _S_WIZ_TG_CHAT="(*) Your Chat ID (from @userinfobot — e.g. 123456789):"
-    _S_TXT_TG_CHATID_TIP="Send any message to your bot first, then press Enter to auto-detect chat ID (or type it):"
+    _S_WIZ_TG_SEND_MSG_TITLE="Auto-detect Chat ID"
+    _S_WIZ_TG_SEND_MSG="Open your new Telegram bot and send any message (e.g. 'hello').
+
+  How to find your bot:
+  • In Telegram, search for the username you just set with BotFather
+  • Tap START or send any text
+
+  Then click OK — the wizard will detect your Chat ID automatically."
+    _S_WIZ_TG_CHAT="(*) Your Chat ID (numeric, e.g. 123456789):"
+    _S_TXT_TG_CHATID_TIP="Open your bot in Telegram, send 'hello', then press Enter to auto-detect your Chat ID (or type it manually):"
     _S_TXT_TG_CHATID_OK="Chat ID auto-detected"
-    _S_TXT_TG_CHATID_FAIL="Could not auto-detect. Open t.me/userinfobot — it will show your ID instantly."
+    _S_TXT_TG_CHATID_FAIL="Auto-detect failed. Get your Chat ID in 10 seconds:
+  → Open Telegram → search @userinfobot → tap Start → it replies with your ID
+  → Copy the number (e.g. 123456789) and enter it below."
 
     # ── Anthropic
     _S_WIZ_AN_INFO_TITLE="Anthropic API Key"
@@ -288,7 +295,10 @@ Press OK when ready."
     ngrok.com → Sign up (free) → Dashboard → Your Authtoken
 
   Leave the token blank to use ngrok anonymously — URL changes on every restart."
-    _S_WIZ_NGROK_TOKEN="ngrok Auth Token (leave blank for anonymous):"
+    _S_WIZ_NGROK_TOKEN="ngrok Auth Token — alphanumeric string from Dashboard → Your Authtoken
+  (NOT the domain name; leave blank for anonymous mode):"
+    _S_WIZ_NGROK_DOMAIN="Static domain from ngrok Dashboard → Domains
+  (e.g. yourname.ngrok-free.app — leave blank if you have no account):"
     _S_WIZ_EXT_URL="(*) Public URL (https://yourdomain.com):"
 
     # ── Security keys
@@ -390,6 +400,8 @@ Store the secrets in a password manager as backup."
     _S_DOCKER_BUILD_DONE="Docker image built and containers started"
     _S_DOCKER_NOT_FOUND="docker not found — install Docker first."
     _S_DOCKER_COMPOSE_NOT_FOUND="docker compose not found — install Docker Compose v2."
+    _S_DOCKER_CRED_CREATED="Created empty ~/.claude/.credentials.json so Docker mounts a file (not a directory). Re-run 'claude auth login' to populate it if using a Claude subscription."
+    _S_DOCKER_CRED_OK="~/.claude/.credentials.json found — will be mounted in bridge container"
 
     # ── Test / health
     _S_WH_TG_REGISTERED="Telegram webhook auto-registered"
@@ -561,18 +573,25 @@ Hazır olduğunuzda OK'a basın."
   2. Bot adı ve kullanıcı adı gir (kullanıcı adı 'bot' ile bitmeli)
   3. BotFather token verir: 123456789:ABCdef...
 
-Ardından kendi Chat ID'nizi bulun (kişisel Telegram hesap numaranız):
-  • En kolay: t.me/userinfobot'a yaz — anında ID'nizi söyler
-  • Alternatif: yeni botunuza herhangi bir mesaj gönderin, sonra:
-    curl 'https://api.telegram.org/bot<TOKEN>/getUpdates'
-    result[0].message.chat.id değerine bakın
+Token girdikten sonra sihirbaz Chat ID'nizi otomatik algılamayı dener.
+Bunun çalışması için: yeni botunuzu açın ve herhangi bir mesaj gönderin (örn. 'merhaba').
 
 Hazır olduğunuzda OK'a basın."
     _S_WIZ_TG_TOKEN="(*) Bot Token (123456789:ABCdef...):"
-    _S_WIZ_TG_CHAT="(*) Chat ID'niz (@userinfobot'tan — örn. 123456789):"
-    _S_TXT_TG_CHATID_TIP="Önce botunuza herhangi bir mesaj gönderin, sonra Enter'a basın (otomatik algılama) veya yazın:"
+    _S_WIZ_TG_SEND_MSG_TITLE="Chat ID Otomatik Algılama"
+    _S_WIZ_TG_SEND_MSG="Az önce oluşturduğunuz Telegram botunu açın ve herhangi bir mesaj gönderin (örn. 'merhaba').
+
+  Botu nasıl bulursunuz:
+  • Telegram'da BotFather'da belirlediniz kullanıcı adını aratın
+  • BAŞLAT'a dokunun veya herhangi bir metin gönderin
+
+  Sonra OK'a tıklayın — sihirbaz Chat ID'nizi otomatik algılayacak."
+    _S_WIZ_TG_CHAT="(*) Chat ID'niz (sayısal, örn. 123456789):"
+    _S_TXT_TG_CHATID_TIP="Telegram'da botunuzu açın, 'merhaba' gönderin, ardından Enter'a basın — Chat ID otomatik algılanır (veya manuel girin):"
     _S_TXT_TG_CHATID_OK="Chat ID otomatik algılandı"
-    _S_TXT_TG_CHATID_FAIL="Otomatik algılanamadı. t.me/userinfobot'a yazın — anında ID'nizi söyler."
+    _S_TXT_TG_CHATID_FAIL="Otomatik algılama başarısız. Chat ID'nizi 10 saniyede öğrenin:
+  → Telegram'ı açın → @userinfobot'u aratın → Başlat'a dokunun → anında ID'nizi söyler
+  → Gelen numarayı (örn. 123456789) aşağıya girin."
 
     # ── Anthropic
     _S_WIZ_AN_INFO_TITLE="Anthropic API Key"
@@ -636,7 +655,10 @@ Hazır olduğunuzda OK'a basın."
     ngrok.com → Ücretsiz kayıt → Dashboard → Your Authtoken
 
   Token boş bırakılırsa anonim kullanılır — URL her yeniden başlatmada değişir."
-    _S_WIZ_NGROK_TOKEN="ngrok Auth Token (anonim kullanım için boş bırakın):"
+    _S_WIZ_NGROK_TOKEN="ngrok Auth Token — Dashboard → Your Authtoken sayfasındaki alfanümerik kod
+  (Domain adı değil; anonim mod için boş bırakın):"
+    _S_WIZ_NGROK_DOMAIN="Static domain — ngrok Dashboard → Domains sayfasındaki domain adı
+  (örn. adın.ngrok-free.app — hesabın yoksa boş bırak):"
     _S_WIZ_EXT_URL="(*) Public URL (https://alanadi.com):"
 
     # ── Güvenlik anahtarları
@@ -738,6 +760,8 @@ Secret'ları yedek olarak bir parola yöneticisine kaydedin."
     _S_DOCKER_BUILD_DONE="Docker image oluşturuldu ve container'lar başlatıldı"
     _S_DOCKER_NOT_FOUND="docker bulunamadı — önce Docker kur."
     _S_DOCKER_COMPOSE_NOT_FOUND="docker compose bulunamadı — Docker Compose v2 kur."
+    _S_DOCKER_CRED_CREATED="Boş ~/.claude/.credentials.json oluşturuldu (Docker directory değil dosya mount etsin diye). Claude subscription kullanıyorsanız 'claude auth login' ile doldurun."
+    _S_DOCKER_CRED_OK="~/.claude/.credentials.json mevcut — bridge container'a mount edilecek"
 
     # ── Test / sağlık kontrolü
     _S_WH_TG_REGISTERED="Telegram webhook otomatik kaydedildi"
@@ -1027,6 +1051,17 @@ step_docker_build() {
     die "$_S_DOCKER_COMPOSE_NOT_FOUND"
   fi
 
+  # ── credentials.json pre-flight: Docker file mount requires source to be a file.
+  # If it doesn't exist, Docker creates a directory — breaking claude CLI auth.
+  local cred_file="$HOME/.claude/.credentials.json"
+  if [ ! -f "$cred_file" ]; then
+    mkdir -p "$HOME/.claude"
+    echo "{}" > "$cred_file"
+    warn "$_S_DOCKER_CRED_CREATED"
+  else
+    ok "$_S_DOCKER_CRED_OK"
+  fi
+
   # Seçili capability dosyalarını belirle
   local req_files cap_names=()
   mapfile -t req_files < <(_resolve_requirements)
@@ -1204,7 +1239,8 @@ _wizard_whiptail() {
       tg_token=$(_wt_password "$_S_WIZ_TG_INFO_TITLE" "$_S_WIZ_TG_TOKEN") || return 1
       [[ -n "$tg_token" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
     done
-    # Try auto-detect chat_id via getUpdates
+    # Ask user to send a message to bot, then auto-detect chat_id via getUpdates
+    _wt_msg "$_S_WIZ_TG_SEND_MSG_TITLE" "$_S_WIZ_TG_SEND_MSG" || return 1
     local _tg_auto_id=""
     _tg_auto_id="$(curl -s --max-time 6 "https://api.telegram.org/bot${tg_token}/getUpdates" 2>/dev/null \
       | python3 -c "import sys,json
@@ -1246,7 +1282,7 @@ except: pass" 2>/dev/null || true)"
     gemini_model=$(_wt_input "$_S_WIZ_GE_INFO_TITLE" "$_S_WIZ_GE_MODEL" "gemini-2.0-flash") || return 1
   fi
 
-  local public_url="" ngrok_token=""
+  local public_url="" ngrok_token="" ngrok_domain=""
 
   if [[ "$proxy" == "external" ]]; then
     while true; do
@@ -1256,6 +1292,7 @@ except: pass" 2>/dev/null || true)"
   elif [[ "$proxy" == "ngrok" ]]; then
     _wt_msg "$_S_WIZ_NGROK_INFO_TITLE" "$_S_WIZ_NGROK_INFO_MSG" || return 1
     ngrok_token=$(_wt_password "$_S_WIZ_NGROK_INFO_TITLE" "$_S_WIZ_NGROK_TOKEN") || return 1
+    ngrok_domain=$(_wt_input "$_S_WIZ_NGROK_INFO_TITLE" "$_S_WIZ_NGROK_DOMAIN") || return 1
   elif [[ "$proxy" == "cloudflared" ]]; then
     _wt_msg "$_S_WIZ_CF_INFO_TITLE" "$_S_WIZ_CF_INFO_MSG" || return 1
     if ! command -v cloudflared &>/dev/null; then warn "$_S_WIZ_CF_MISSING"; fi
@@ -1296,7 +1333,7 @@ except: pass" 2>/dev/null || true)"
     "$wa_token" "$wa_phone_id" "$wa_secret" "$wa_verify" "$wa_owner" \
     "$tg_token" "$tg_chat_id" "$tg_webhook_secret" \
     "$anthropic_key" "$ollama_url" "$ollama_model" "$gemini_key" "$gemini_model" \
-    "$public_url" "$ngrok_token" \
+    "$public_url" "$ngrok_token" "$ngrok_domain" \
     "$api_key" "$totp_secret" "$totp_admin" \
     "$tz_value"
 }
@@ -1317,18 +1354,21 @@ _wizard_text() {
   local messenger
   case "${_m:-1}" in 2) messenger="telegram";; 3) messenger="cli";; *) messenger="whatsapp";; esac
 
+  echo ""; echo "  ──────────────────────────────────────"
   echo ""; echo "$_S_TXT_LLM"
   echo "  $_S_TXT_L1"; echo "  $_S_TXT_L2"; echo "  $_S_TXT_L3"
   read -rp "  [1]: " _l
   local llm
   case "${_l:-1}" in 2) llm="ollama";; 3) llm="gemini";; *) llm="anthropic";; esac
 
+  echo ""; echo "  ──────────────────────────────────────"
   echo ""; echo "$_S_TXT_PROXY"
   echo "  $_S_TXT_P1"; echo "  $_S_TXT_P2"; echo "  $_S_TXT_P3"; echo "  $_S_TXT_P4"
   read -rp "  [1]: " _p
   local proxy
   case "${_p:-1}" in 2) proxy="ngrok";; 3) proxy="cloudflared";; 4) proxy="external";; *) proxy="none";; esac
 
+  echo ""; echo "  ──────────────────────────────────────"
   local wa_token="" wa_phone_id="" wa_secret="" wa_verify="" wa_owner=""
   local tg_token="" tg_chat_id="" tg_webhook_secret=""
 
@@ -1343,7 +1383,11 @@ _wizard_text() {
   elif [[ "$messenger" == "telegram" ]]; then
     echo ""; echo "$_S_TXT_TG"
     while true; do read -rsp "  $_S_WIZ_TG_TOKEN " tg_token; echo; [[ -n "$tg_token" ]] && break; warn "$_S_REQUIRED"; done
-    echo ""; read -rp "  $_S_TXT_TG_CHATID_TIP " tg_chat_id
+    echo ""
+    echo "  ▶ $_S_WIZ_TG_SEND_MSG_TITLE"
+    printf "  %b\n" "$_S_WIZ_TG_SEND_MSG"
+    echo ""
+    read -rp "  $_S_TXT_TG_CHATID_TIP " tg_chat_id
     if [[ -z "$tg_chat_id" ]]; then
       local _tg_updates
       _tg_updates="$(curl -s --max-time 6 "https://api.telegram.org/bot${tg_token}/getUpdates" 2>/dev/null || true)"
@@ -1363,6 +1407,7 @@ except: pass" 2>/dev/null || true)"
     ok "  $_S_TXT_WSECRET_AUTO"
   fi
 
+  echo ""; echo "  ──────────────────────────────────────"
   local anthropic_key="" ollama_url="" ollama_model="" gemini_key="" gemini_model=""
 
   if [[ "$llm" == "anthropic" ]]; then
@@ -1382,19 +1427,24 @@ except: pass" 2>/dev/null || true)"
     gemini_model="${gemini_model:-gemini-2.0-flash}"
   fi
 
-  local public_url="" ngrok_token=""
+  echo ""; echo "  ──────────────────────────────────────"
+  local public_url="" ngrok_token="" ngrok_domain=""
   if [[ "$proxy" == "external" ]]; then
     while true; do read -rp "  $_S_WIZ_EXT_URL " public_url; [[ "$public_url" == https://* ]] && break; warn "$_S_URL_HTTPS"; done
   elif [[ "$proxy" == "ngrok" ]]; then
     echo ""; echo "▶ $_S_WIZ_NGROK_INFO_TITLE"
     printf "  %b\n" "$_S_WIZ_NGROK_INFO_MSG"
+    echo ""
     read -rsp "  $_S_WIZ_NGROK_TOKEN " ngrok_token; echo
+    echo ""
+    read -rp "  $_S_WIZ_NGROK_DOMAIN " ngrok_domain; echo
   elif [[ "$proxy" == "cloudflared" ]]; then
     echo ""; echo "▶ $_S_WIZ_CF_INFO_TITLE"
     printf "  %b\n" "$_S_WIZ_CF_INFO_MSG"
     if ! command -v cloudflared &>/dev/null; then warn "$_S_WIZ_CF_MISSING"; fi
   fi
 
+  echo ""; echo "  ──────────────────────────────────────"
   # ── Timezone / Saat Dilimi
   echo ""; echo "▶ $_S_WIZ_TZ_TITLE"
   echo "  1) $_S_WIZ_TZ_TRT"
@@ -1418,6 +1468,7 @@ except: pass" 2>/dev/null || true)"
     *) tz_value="Europe/Istanbul" ;;
   esac
 
+  echo ""; echo "  ──────────────────────────────────────"
   echo ""; echo "$_S_TXT_SEC"
   local api_key totp_secret totp_admin
   api_key="$(_gen_api_key)"
@@ -1429,7 +1480,7 @@ except: pass" 2>/dev/null || true)"
     "$wa_token" "$wa_phone_id" "$wa_secret" "$wa_verify" "$wa_owner" \
     "$tg_token" "$tg_chat_id" "$tg_webhook_secret" \
     "$anthropic_key" "$ollama_url" "$ollama_model" "$gemini_key" "$gemini_model" \
-    "$public_url" "$ngrok_token" \
+    "$public_url" "$ngrok_token" "$ngrok_domain" \
     "$api_key" "$totp_secret" "$totp_admin" \
     "$tz_value"
 }
@@ -1443,9 +1494,9 @@ _write_env() {
   local tg_token="${10}" tg_chat_id="${11}" tg_webhook_secret="${12}"
   local anthropic_key="${13}" ollama_url="${14}" ollama_model="${15}"
   local gemini_key="${16}" gemini_model="${17}"
-  local public_url="${18}" ngrok_token="${19}"
-  local api_key="${20}" totp_secret="${21}" totp_admin="${22}"
-  local tz_value="${23:-Europe/Istanbul}"
+  local public_url="${18}" ngrok_token="${19}" ngrok_domain="${20}"
+  local api_key="${21}" totp_secret="${22}" totp_admin="${23}"
+  local tz_value="${24:-Europe/Istanbul}"
 
   local env_src="$BACKEND_DIR/.env.example"
   [ ! -f "$env_dst" ] && cp "$env_src" "$env_dst"
@@ -1468,8 +1519,9 @@ _write_env() {
   [[ -n "$gemini_model"  ]] && _env_set "GEMINI_MODEL"      "$gemini_model"  "$env_dst"
 
   _env_set "WEBHOOK_PROXY" "$proxy" "$env_dst"
-  [[ -n "$public_url"  ]] && _env_set "PUBLIC_URL"      "$public_url"  "$env_dst"
-  [[ -n "$ngrok_token" ]] && _env_set "NGROK_AUTHTOKEN" "$ngrok_token" "$env_dst"
+  [[ -n "$public_url"   ]] && _env_set "PUBLIC_URL"      "$public_url"   "$env_dst"
+  [[ -n "$ngrok_token"  ]] && _env_set "NGROK_AUTHTOKEN" "$ngrok_token"  "$env_dst"
+  [[ -n "$ngrok_domain" ]] && _env_set "NGROK_DOMAIN"    "$ngrok_domain" "$env_dst"
 
   _env_set "API_KEY"           "$api_key"     "$env_dst"
   _env_set "TOTP_SECRET"       "$totp_secret" "$env_dst"

@@ -1,0 +1,36 @@
+# Force LF line endings for all shell scripts and Dockerfiles.
+# Without this, Windows git (core.autocrlf=true) converts to CRLF,
+# breaking #!/bin/sh shebangs inside Docker Linux containers.
+
+* text=auto
+
+# Shell scripts — always LF (CRLF breaks shebang in Linux containers)
+*.sh text eol=lf
+
+# Dockerfiles — always LF
+Dockerfile text eol=lf
+Dockerfile.* text eol=lf
+
+# Compose files — always LF
+docker-compose*.yml text eol=lf
+
+# Python and JS source — LF
+*.py text eol=lf
+*.js text eol=lf
+
+# Config/data files — LF
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.toml text eol=lf
+*.env text eol=lf
+*.env.example text eol=lf
+*.md text eol=lf
+
+# Binary files — no EOL conversion
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.whl binary

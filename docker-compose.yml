@@ -48,6 +48,8 @@ services:
       # CLAUDE.md ve GUARDRAILS.md her zaman güncel kalsın
       - ./CLAUDE.md:/app/CLAUDE.md:ro
       - ./GUARDRAILS.md:/app/GUARDRAILS.md:ro
-      # Claude CLI auth — claude.ai subscription kullanıcıları için (API key yeterliyse bu satır opsiyonel)
-      # ~/.claude/.credentials.json host'ta yoksa bu mount sessizce atlanır
+      # Claude CLI auth — ANTHROPIC_API_KEY yeterliyse bu mount opsiyoneldir.
+      # claude.ai subscription ile oturum açtıysanız bu dosya kimlik bilgilerini içerir.
+      # ⚠ Dosya host'ta yoksa Docker boş bir DIRECTORY oluşturur (sessizce atlanmaz).
+      #   Bu durumda install.sh otomatik olarak boş {} dosyası oluşturur.
       - ${HOME}/.claude/.credentials.json:/root/.claude/.credentials.json:ro
