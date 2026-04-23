@@ -27,7 +27,7 @@ BRIDGE_DIR="$SCRIPTS_DIR/claude-code-bridge"
 SYSTEMD_DIR="$ROOT_DIR/systemd"
 SYSTEM_UNIT_DIR="/etc/systemd/system"
 
-CURRENT_USER="${SUDO_USER:-$USER}"
+CURRENT_USER="${SUDO_USER:-${USER:-$(whoami)}}"
 NODE_PATH="$(command -v node 2>/dev/null || echo /usr/bin/node)"
 API_PORT="${PORT:-8010}"
 BRIDGE_PORT="${BRIDGE_PORT:-8013}"
