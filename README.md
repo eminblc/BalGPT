@@ -22,7 +22,9 @@ WhatsApp / Telegram → POST /whatsapp/webhook  or  POST /telegram/webhook
 
 ## Quick Start
 
-### Option A — Docker (recommended, any OS)
+### Option A — Docker ✅ Recommended
+
+> Best choice for most users. Works on any OS, no Python/Node required on the host.
 
 ```bash
 git clone https://github.com/your-username/99-root.git
@@ -30,7 +32,7 @@ cd 99-root
 bash install.sh --docker
 ```
 
-The wizard asks which messenger, LLM backend, credentials, and capabilities you want. It then writes `.env`, generates a `docker-compose.override.yml` with a `CAPABILITIES` build-arg, builds the image with only the selected packages installed, and starts the containers.
+The wizard asks which messenger, LLM backend, webhook proxy, credentials, and capabilities you want. It then writes `.env`, generates a `docker-compose.override.yml` with a `CAPABILITIES` build-arg, builds the image with only the selected packages installed, and starts the containers.
 
 The compose file mounts `./data` and `./outputs/logs` as volumes so all data persists outside the containers.
 
@@ -63,15 +65,15 @@ docker compose restart
 
 ### Option B — systemd (Linux only)
 
+> Best choice for a dedicated Linux server or Raspberry Pi where you want native performance and automatic startup.
+
 ```bash
 git clone https://github.com/your-username/99-root.git
 cd 99-root
-cp scripts/backend/.env.example scripts/backend/.env
-# Fill in .env (see Required Environment Variables below)
 sudo bash install.sh
 ```
 
-`install.sh` runs an interactive wizard (messenger, LLM backend, timezone, capabilities), creates the Python venv, installs only the packages required by the enabled capabilities (via pip-compile + pip-sync), installs Node dependencies, renders systemd unit files, and enables the services.
+`install.sh` runs an interactive wizard (messenger, LLM backend, webhook proxy, timezone, capabilities), creates the Python venv, installs only the packages required by the enabled capabilities (via pip-compile + pip-sync), installs Node dependencies, renders systemd unit files, and enables the services.
 
 > Run with `sudo` to automatically install and enable the systemd units. Without `sudo`, the script still runs the wizard and installs dependencies — it prints the manual `systemctl` commands to finish the setup.
 
@@ -99,8 +101,6 @@ Use PM2 if you don't have systemd (macOS, Windows WSL, VPS without root).
 ```bash
 git clone https://github.com/your-username/99-root.git
 cd 99-root
-cp scripts/backend/.env.example scripts/backend/.env
-# Fill in .env (see Required Environment Variables below)
 bash install.sh --pm2
 ```
 
@@ -169,6 +169,35 @@ For capability flags, system requirements, and internal API endpoints, see [docs
 
 ---
 
+## Webhook Proxy
+
+The agent needs a public HTTPS URL so WhatsApp or Telegram can reach your server. The wizard offers four options:
+
+| Option | When to use |
+|--------|-------------|
+| **None** | VPS with a static public IP or domain |
+| **ngrok** ✅ Recommended for local setup | Easiest — free account, single binary, wizard asks for your auth token |
+| **Cloudflare Tunnel** | Persistent free option — requires a Cloudflare account and DNS setup |
+| **External URL** | You already have a domain pointing to this machine |
+
+### ngrok setup
+
+1. Create a free account at [ngrok.com](https://ngrok.com) and copy your auth token from the dashboard.
+2. Install the binary:
+   ```bash
+   # Linux
+   curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+   echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+   sudo apt update && sudo apt install ngrok
+   ```
+3. Run `bash install.sh --docker` (or `install.sh`) and select **ngrok** as the proxy — the wizard will ask for your auth token and write it to `.env`.
+4. After the service starts, ngrok automatically opens a tunnel. The public URL is logged on startup and shown in the webhook info printed at the end of the wizard.
+5. Register the webhook URL in Meta Developer Console (WhatsApp) or via `setWebhook` (Telegram).
+
+> **Note:** Free ngrok URLs change on every restart. For a stable URL, use a paid ngrok plan, Cloudflare Tunnel, or a VPS with a static IP.
+
+---
+
 ## Messenger Selection
 
 | Messenger | `.env` setting | Notes |
@@ -195,11 +224,19 @@ See [docs/deployment/byok.md](docs/deployment/byok.md) for a full setup guide an
 
 ## Prerequisites
 
+**Docker (Option A):**
+- Docker Engine + Docker Compose v2 (`docker compose version`)
+- `claude` CLI installed and authenticated on the host (`npm install -g @anthropic-ai/claude-code`)
+
+**systemd / PM2 (Options B & C):**
 - Python 3.11+
 - Node.js 18+
 - `claude` CLI installed and authenticated (`npm install -g @anthropic-ai/claude-code`)
-- A Meta WhatsApp Cloud API app with a webhook URL (use ngrok or Cloudflare Tunnel for local setup), **or** a Telegram bot token
-- `sudo` access for systemd service installation
+- `sudo` access for systemd service installation (Option B only)
+
+**All options:**
+- A Meta WhatsApp Cloud API app **or** a Telegram bot token
+- A public HTTPS URL for the webhook — see [Webhook Proxy](#webhook-proxy) above
 
 ---
 
