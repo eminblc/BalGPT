@@ -227,6 +227,26 @@ class DedupStoreProtocol(Protocol):
     async def dedup_load_recent(self, ttl: float = ...) -> set[str]: ...
 
 
+@runtime_checkable
+class TokenStatStoreProtocol(Protocol):
+    """Token kullanım istatistikleri arayüzü."""
+
+    async def token_add_usage(
+        self,
+        model_id: str,
+        model_name: str,
+        backend: str,
+        input_tokens: int,
+        output_tokens: int,
+        session_id: str | None = ...,
+        context: str = ...,
+    ) -> None: ...
+
+    async def token_get_summary(self, timespan_hours: int = ...) -> list[dict]: ...
+
+    async def token_get_totals(self, timespan_hours: int = ...) -> dict: ...
+
+
 # ── Birleşik Protocol (geriye uyumlu) ────────────────────────────────
 
 
@@ -241,6 +261,7 @@ class StoreProtocol(
     BridgeStoreProtocol,
     TotpStoreProtocol,
     DedupStoreProtocol,
+    TokenStatStoreProtocol,
     Protocol,
 ):
     """Tüm domain arayüzlerini birleştiren üst Protocol.

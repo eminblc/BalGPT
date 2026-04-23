@@ -12,9 +12,16 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
-from apscheduler.jobstores.base import JobLookupError
+try:
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+    from apscheduler.jobstores.base import JobLookupError
+    _APSCHEDULER_AVAILABLE = True
+except ImportError:
+    AsyncIOScheduler = None       # type: ignore[assignment,misc]
+    SQLAlchemyJobStore = None     # type: ignore[assignment,misc]
+    JobLookupError = Exception    # type: ignore[assignment,misc]
+    _APSCHEDULER_AVAILABLE = False
 
 from ..config import get_settings
 from ..i18n import t
@@ -23,13 +30,16 @@ logger = logging.getLogger(__name__)
 
 _DB_PATH = Path(__file__).parent.parent.parent.parent / "data" / "scheduler.db"
 
-_scheduler = AsyncIOScheduler(
-    jobstores={
-        "default": SQLAlchemyJobStore(url=f"sqlite:///{_DB_PATH}"),
-    },
-    job_defaults={"coalesce": True, "max_instances": 1},
-    timezone=get_settings().timezone,
-)
+if _APSCHEDULER_AVAILABLE:
+    _scheduler = AsyncIOScheduler(
+        jobstores={
+            "default": SQLAlchemyJobStore(url=f"sqlite:///{_DB_PATH}"),
+        },
+        job_defaults={"coalesce": True, "max_instances": 1},
+        timezone=get_settings().timezone,
+    )
+else:
+    _scheduler = None  # type: ignore[assignment]
 
 # Çalışma zamanında değiştirilebilen aktif timezone (FEAT-10)
 _active_timezone: str = get_settings().timezone
@@ -534,6 +544,9 @@ def _parse_cron(expr: str) -> dict:
 # ── Startup / Shutdown hook'ları (registry tarafından çağrılır) ──────────────
 
 async def lifecycle_startup() -> None:
+    if not _APSCHEDULER_AVAILABLE:
+        logger.warning("apscheduler kurulu değil — scheduler başlatılamıyor (RESTRICT_SCHEDULER=true ise beklenen durum)")
+        return
     from ..config import settings
     await start_scheduler()
     try:

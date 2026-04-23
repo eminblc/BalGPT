@@ -6,8 +6,9 @@ doğrudan çağrılır; çağıran kod async değildir.
 """
 from __future__ import annotations
 
-import asyncio
 import time
+
+from ._thread_runner import run_in_thread
 
 from .._connection import _conn
 
@@ -62,16 +63,16 @@ def _sync_user_setting_delete(sender: str, key: str) -> None:
 # ── Async public API ──────────────────────────────────────────────
 
 async def user_setting_get(sender: str, key: str, default: str | None = None) -> str | None:
-    return await asyncio.to_thread(_sync_user_setting_get, sender, key, default)
+    return await run_in_thread(_sync_user_setting_get, sender, key, default)
 
 
 async def user_setting_set(sender: str, key: str, value: str) -> None:
-    await asyncio.to_thread(_sync_user_setting_set, sender, key, value)
+    await run_in_thread(_sync_user_setting_set, sender, key, value)
 
 
 async def user_settings_get_all(sender: str) -> dict[str, str]:
-    return await asyncio.to_thread(_sync_user_settings_get_all, sender)
+    return await run_in_thread(_sync_user_settings_get_all, sender)
 
 
 async def user_setting_delete(sender: str, key: str) -> None:
-    await asyncio.to_thread(_sync_user_setting_delete, sender, key)
+    await run_in_thread(_sync_user_setting_delete, sender, key)

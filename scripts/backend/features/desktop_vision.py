@@ -20,6 +20,7 @@ from typing import Optional
 from .desktop_capture import capture_screen
 from .desktop_common import _detect_display, _env, _xdotool_available, x11_lock
 from ..config import get_settings
+from ..store.repositories import token_stat_repo
 
 logger = logging.getLogger(__name__)
 
@@ -317,8 +318,17 @@ async def vision_query(
                 ],
             }
         ]
-        answer = await llm.complete(messages, model=model, max_tokens=1024)
+        completion = await llm.complete(messages, model=model, max_tokens=1024)
+        answer = completion.text
         logger.info("vision_query: model=%s, soru=%r, yanıt=%d karakter", model, question[:60], len(answer))
+        try:
+            await token_stat_repo.add_usage(
+                completion.model_id, completion.model_name, completion.backend,
+                completion.input_tokens, completion.output_tokens,
+                context="desktop_vision",
+            )
+        except Exception:
+            pass
 
         # Cache'e yaz (OPT-3)
         if use_cache and cache_key:

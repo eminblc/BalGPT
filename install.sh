@@ -105,7 +105,12 @@ _load_strings() {
 
     # ── Steps
     _S_STEP_VENV="Creating Python venv →"
-    _S_STEP_VENV_DONE="Python dependencies installed"
+    _S_STEP_VENV_DONE="Python dependencies synced"
+    _S_STEP_PKG_BOOTSTRAP="  ↳ Bootstrapping pip + pip-tools..."
+    _S_STEP_PKG_COMPILE="  ↳ Resolving all dependencies (pip-compile)..."
+    _S_STEP_PKG_SYNC="  ↳ Syncing venv (install missing + remove unused):"
+    _S_STEP_PKG_CAP="  ↳ Installing packages for capability:"
+    _S_STEP_PKG_ALL="  ↳ No capability config found — installing all packages"
     _S_STEP_NPM="Installing Node dependencies →"
     _S_STEP_NPM_DONE="npm dependencies installed"
     _S_STEP_DIRS="Creating data directories..."
@@ -325,7 +330,7 @@ Store these keys somewhere safe!
     _S_CAP_PLANS="Work plan creation and management"
     _S_CAP_IC="Natural language intent classification (LLM call per message)"
     _S_CAP_WIZ_LLM="Wizard LLM scaffold (auto architecture preview)"
-    _S_CAP_DESKTOP="Desktop automation (xdotool, screenshot, vision)"
+    _S_CAP_DESKTOP="Desktop automation — BETA (xdotool, screenshot, vision)"
     _S_CAP_BROWSER="Browser automation (Playwright, headless Chrome)"
 
   else  # ── Turkish / Türkçe (default) ──────────────────────────────────────
@@ -355,7 +360,12 @@ Store these keys somewhere safe!
 
     # ── Adımlar
     _S_STEP_VENV="Python venv oluşturuluyor →"
-    _S_STEP_VENV_DONE="Python bağımlılıkları kuruldu"
+    _S_STEP_VENV_DONE="Python bağımlılıkları senkronize edildi"
+    _S_STEP_PKG_BOOTSTRAP="  ↳ pip + pip-tools bootstrap ediliyor..."
+    _S_STEP_PKG_COMPILE="  ↳ Tüm bağımlılıklar çözülüyor (pip-compile)..."
+    _S_STEP_PKG_SYNC="  ↳ Venv senkronize ediliyor (eksik kur + fazla kaldır):"
+    _S_STEP_PKG_CAP="  ↳ Yetenek paketleri kuruluyor:"
+    _S_STEP_PKG_ALL="  ↳ Yetenek yapılandırması yok — tüm paketler kuruluyor"
     _S_STEP_NPM="Node bağımlılıkları kuruluyor →"
     _S_STEP_NPM_DONE="npm bağımlılıkları kuruldu"
     _S_STEP_DIRS="Veri dizinleri oluşturuluyor..."
@@ -575,7 +585,7 @@ Bu anahtarları güvenli bir yerde saklayın!
     _S_CAP_PLANS="İş planı oluşturma ve yönetimi"
     _S_CAP_IC="Doğal dil niyet tespiti (mesaj başına LLM çağrısı)"
     _S_CAP_WIZ_LLM="Wizard LLM scaffold (otomatik mimari önizlemesi)"
-    _S_CAP_DESKTOP="Masaüstü otomasyonu (xdotool, ekran görüntüsü, vision)"
+    _S_CAP_DESKTOP="Masaüstü otomasyonu — BETA (xdotool, ekran görüntüsü, vision)"
     _S_CAP_BROWSER="Tarayıcı otomasyonu (Playwright, headless Chrome)"
 
   fi
@@ -594,6 +604,26 @@ _env_set() {
     sed -i "s@^${key}=.*@${key}=${val}@" "$file"
   else
     echo "${key}=${val}" >> "$file"
+  fi
+}
+
+# _env_comment_out <KEY> <file>
+# Aktif satırı (KEY=...) yorum satırına dönüştürür (# KEY=...).
+# Zaten yorum satırıysa veya yoksa işlem yapmaz.
+_env_comment_out() {
+  local key="$1" file="$2"
+  if grep -q "^${key}=" "$file" 2>/dev/null; then
+    sed -i "s@^${key}=@# ${key}=@" "$file"
+  fi
+}
+
+# _env_uncomment <KEY> <file>
+# Yorum satırını (# KEY=...) aktif satıra dönüştürür (KEY=...).
+# Zaten aktifse veya yoksa işlem yapmaz.
+_env_uncomment() {
+  local key="$1" file="$2"
+  if grep -q "^# ${key}=" "$file" 2>/dev/null; then
+    sed -i "s@^# ${key}=@${key}=@" "$file"
   fi
 }
 
@@ -657,13 +687,93 @@ check_prereqs() {
   fi
 }
 
+# ── Package resolution — modüler kurulum ─────────────────────────────────────
+#
+# Veri odaklı yaklaşım (OCP): yeni yetenek = yeni satır aşağıdaki tablolara,
+# _resolve_requirements fonksiyonu değişmez.
+#
+# Tablo sütunları:
+#   _PKG_CAP_KEYS   : yetenek adı (requirements/<name>.txt dosyasıyla eşleşmeli)
+#   _PKG_ENV_VARS   : .env'deki değişken adı
+#   _PKG_ACTIVE_VAL : bu değerde yetenek "etkin" sayılır
+#
+_PKG_CAP_KEYS=(   "scheduler" "pdf_import" "calendar" "screenshot" "media" "desktop"        "browser"        )
+_PKG_ENV_VARS=(   "RESTRICT_SCHEDULER" "RESTRICT_PDF_IMPORT" "RESTRICT_CALENDAR" "RESTRICT_SCREENSHOT" "RESTRICT_MEDIA" "DESKTOP_ENABLED" "BROWSER_ENABLED" )
+_PKG_ACTIVE_VAL=( "false"     "false"      "false"    "false"      "false"  "true"           "true"           )
+
+# _read_env_var <VAR> <env_file>
+# .env dosyasından değişken değerini okur; yoksa boş string döner.
+_read_env_var() {
+  grep "^${1}=" "${2}" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true
+}
+
+# _resolve_requirements
+# Seçili yeteneklere göre yüklenecek requirements dosya yollarını stdout'a yazar.
+# .env yoksa veya capability flag'leri yoksa tüm dosyaları döner (güvenli fallback).
+_resolve_requirements() {
+  local env_file="$BACKEND_DIR/.env"
+  local req_dir="$BACKEND_DIR/requirements"
+
+  # core + dev her zaman yüklenir
+  printf '%s\n' "$req_dir/core.txt"
+  printf '%s\n' "$req_dir/dev.txt"
+
+  # Capability flag'leri mevcut değilse: tümünü yükle
+  if ! grep -qE "^(RESTRICT_|DESKTOP_ENABLED|BROWSER_ENABLED)" "$env_file" 2>/dev/null; then
+    log "$_S_STEP_PKG_ALL"
+    for f in "$req_dir"/*.txt; do
+      [[ "$(basename "$f")" == "core.txt" ]] && continue
+      [[ "$(basename "$f")" == "dev.txt"  ]] && continue
+      printf '%s\n' "$f"
+    done
+    return
+  fi
+
+  # Seçili yeteneklere göre dosya ekle
+  local i
+  for (( i=0; i<${#_PKG_CAP_KEYS[@]}; i++ )); do
+    local val
+    val="$(_read_env_var "${_PKG_ENV_VARS[$i]}" "$env_file")"
+    val="${val,,}"  # küçük harfe çevir
+    # Eksik değer için runtime default uygula:
+    #   RESTRICT_* → default "false" (kısıtlama yok = etkin)
+    #   *_ENABLED  → default "false" (etkinleştirilmedi)
+    if [[ -z "$val" ]]; then val="false"; fi
+    if [[ "$val" == "${_PKG_ACTIVE_VAL[$i]}" ]]; then
+      printf '%s\n' "$req_dir/${_PKG_CAP_KEYS[$i]}.txt"
+    fi
+  done
+}
+
 # ── Step 1: Python venv ───────────────────────────────────────────────────────
 
 step_venv() {
   log "$_S_STEP_VENV $BACKEND_DIR/venv"
   if [ ! -d "$BACKEND_DIR/venv" ]; then python3 -m venv "$BACKEND_DIR/venv"; fi
-  "$BACKEND_DIR/venv/bin/pip" install --quiet --upgrade pip
-  "$BACKEND_DIR/venv/bin/pip" install --quiet -r "$BACKEND_DIR/requirements.txt"
+
+  # Bootstrap: pip-compile ve pip-sync için pip-tools'u regular pip ile kur
+  log "$_S_STEP_PKG_BOOTSTRAP"
+  "$BACKEND_DIR/venv/bin/pip" install --quiet --upgrade pip pip-tools
+
+  # Seçili capability dosyalarını belirle
+  local req_files cap_names=()
+  mapfile -t req_files < <(_resolve_requirements)
+  for f in "${req_files[@]}"; do cap_names+=( "$(basename "$f" .txt)" ); done
+  log "$_S_STEP_PKG_COMPILE ${cap_names[*]}"
+
+  # pip-compile: seçili dosyaları birleştir + tüm transitive dep'leri çöz → pinned file.
+  # compiled.txt machine-specific, gitignored.
+  local compiled="$BACKEND_DIR/requirements/compiled.txt"
+  "$BACKEND_DIR/venv/bin/pip-compile" \
+    --quiet --no-header --no-annotate --no-strip-extras \
+    --output-file="$compiled" \
+    "${req_files[@]}"
+
+  # pip-sync: compiled.txt'e göre venv'i atomik senkronize et.
+  # Eksik paketleri kurar; listede olmayan (devre dışı capability) paketleri kaldırır.
+  log "$_S_STEP_PKG_SYNC ${cap_names[*]}"
+  "$BACKEND_DIR/venv/bin/pip-sync" --quiet "$compiled"
+
   ok "$_S_STEP_VENV_DONE"
 }
 
@@ -1119,6 +1229,31 @@ step_env() {
 # ── Step 8: Yetenek yapılandırması (FEAT-3) ──────────────────────────────────
 # OCP: Yeni kısıtlama = _CAPS dizisine yeni eleman + capability_guard.py'e register çağrısı.
 
+# Capability → ilgili .env parametreleri eşlemesi (boşlukla ayrılmış liste).
+# Yetenek devre dışı bırakıldığında bu parametreler yorum satırına alınır;
+# etkinleştirildiğinde aktif hâle getirilir.
+# OCP: Yeni capability için sadece bir satır eklenir, fonksiyonlar değişmez.
+declare -A _CAP_ASSOC_PARAMS=(
+  ["desktop"]="DESKTOP_RECORDING DESKTOP_RECORDING_MAX_MB"
+  ["browser"]="BROWSER_HEADLESS BROWSER_SESSIONS_DIR"
+)
+
+# _apply_cap_visibility <cap_key> <enabled: true|false> <file>
+# Capability'ye bağlı .env parametrelerini yorum/aktif yapar.
+_apply_cap_visibility() {
+  local cap="$1" enabled="$2" file="$3"
+  local params="${_CAP_ASSOC_PARAMS[$cap]:-}"
+  [[ -z "$params" ]] && return
+  local param
+  for param in $params; do
+    if [[ "$enabled" == "true" ]]; then
+      _env_uncomment "$param" "$file"
+    else
+      _env_comment_out "$param" "$file"
+    fi
+  done
+}
+
 _write_capabilities() {
   # $1 = seçili etiketler (whiptail checklist çıktısı: '"fs" "media"' formatında, ya da text mode: ' "fs" "media"')
   local selected="$1"
@@ -1141,9 +1276,11 @@ _write_capabilities() {
     if [[ "$selected" == *"\"$key\""* ]]; then
       # Seçili = aktif = kısıtlama yok
       _env_set "$env_var" "false" "$env_dst"
+      _apply_cap_visibility "$key" "true" "$env_dst"
     else
       # Seçilmedi = devre dışı = kısıtlı
       _env_set "$env_var" "true" "$env_dst"
+      _apply_cap_visibility "$key" "false" "$env_dst"
     fi
   done
 
@@ -1156,8 +1293,10 @@ _write_capabilities() {
     local env_var="${enabled_envs[$i]}"
     if [[ "$selected" == *"\"$key\""* ]]; then
       _env_set "$env_var" "true" "$env_dst"
+      _apply_cap_visibility "$key" "true" "$env_dst"
     else
       _env_set "$env_var" "false" "$env_dst"
+      _apply_cap_visibility "$key" "false" "$env_dst"
     fi
   done
 }
@@ -1357,6 +1496,10 @@ main() {
     echo " 99-root — $_S_CAP_TITLE"
     echo "=================================================="
     step_capabilities
+    # Yeni seçime göre paketleri yeniden kur (venv varsa)
+    if [ -d "$BACKEND_DIR/venv" ]; then
+      step_venv
+    fi
     ok "$_S_DONE_TITLE"
     return 0
   fi
@@ -1370,10 +1513,10 @@ main() {
   echo "=================================================="
 
   check_prereqs
-  step_venv
+  step_env           # .env oluştur / güncelle
+  step_capabilities  # RESTRICT_* / *_ENABLED flag'lerini yaz
+  step_venv          # seçili yeteneklere göre paketleri kur
   step_npm
-  step_env
-  step_capabilities
   step_data_dirs
   step_docker_group
   step_systemd

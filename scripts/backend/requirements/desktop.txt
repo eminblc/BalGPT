@@ -1,0 +1,6 @@
+# Yetenek: desktop (DESKTOP_ENABLED=true) — BETA
+# AT-SPI: sistem paketiyle sağlanır: sudo apt install python3-gi gir1.2-atspi-2.0
+# Video kaydı için sistem paketi gerekir: sudo apt install ffmpeg
+python-xlib>=0.33
+mss>=9.0
+Pillow>=10.0

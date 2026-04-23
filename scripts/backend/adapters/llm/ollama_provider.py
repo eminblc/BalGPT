@@ -12,6 +12,7 @@ import logging
 import httpx
 
 from ...config import settings
+from .result import CompletionResult
 
 logger = logging.getLogger(__name__)
 
@@ -34,14 +35,15 @@ class OllamaProvider:
         messages: list[dict],
         model: str | None = None,
         max_tokens: int = 4096,
-    ) -> str:
-        """Ollama /api/chat endpoint'ine istek gönderir, yanıt metnini döndürür.
+    ) -> CompletionResult:
+        """Ollama /api/chat endpoint'ine istek gönderir, CompletionResult döndürür.
 
         Ollama, OpenAI uyumlu mesaj formatını destekler (system/user/assistant).
         """
+        resolved_model = model or self._default_model
         url = f"{self._base_url}/api/chat"
         payload = {
-            "model": model or self._default_model,
+            "model": resolved_model,
             "messages": [
                 {"role": msg["role"], "content": msg["content"]}
                 for msg in messages
@@ -63,6 +65,15 @@ class OllamaProvider:
 
         data = resp.json()
         try:
-            return data["message"]["content"]
+            text = data["message"]["content"]
         except (KeyError, TypeError) as exc:
             raise RuntimeError(f"Ollama yanıt parse hatası: {data}") from exc
+
+        return CompletionResult(
+            text=text,
+            model_id=resolved_model,
+            model_name=f"Ollama/{resolved_model}",
+            backend="ollama",
+            input_tokens=data.get("prompt_eval_count", 0),
+            output_tokens=data.get("eval_count", 0),
+        )

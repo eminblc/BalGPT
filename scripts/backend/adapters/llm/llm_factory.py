@@ -13,6 +13,7 @@ Yeni backend eklemek:
 """
 from __future__ import annotations
 
+import inspect
 import logging
 
 from ...config import settings
@@ -39,9 +40,31 @@ def register_backend(name: str, cls: type[AbstractLLMProvider]) -> None:
         from backend.adapters.llm.llm_factory import register_backend
         from mypackage.my_provider import MyProvider
         register_backend("myprovider", MyProvider)
+
+    Raises:
+        TypeError: cls bir tür değilse veya `complete` metodu yoksa.
     """
+    if not (isinstance(cls, type) and callable(getattr(cls, "complete", None))):
+        raise TypeError(
+            f"register_backend: {cls!r} geçerli bir LLM sağlayıcı sınıfı değil — "
+            "AbstractLLMProvider Protocol'ünü (complete() metodu) uygulamalı."
+        )
     _BACKENDS[name] = cls
     logger.debug("LLM backend kaydedildi: %s", name)
+
+
+def _accepts_default_model(cls: type) -> bool:
+    """Sınıfın __init__ metodunun `default_model` parametresi alıp almadığını kontrol eder.
+
+    LSP güvencesi: AbstractLLMProvider Protocol'ü constructor imzasını sözleşmeye
+    dahil etmez. register_backend() üzerinden eklenen yeni sağlayıcılar
+    `default_model` desteklemeyebilir; bu kontrol sessiz TypeError'ı önler.
+    """
+    try:
+        sig = inspect.signature(cls.__init__)
+        return "default_model" in sig.parameters
+    except (ValueError, TypeError):
+        return False
 
 
 def get_llm(backend: str | None = None) -> AbstractLLMProvider:
@@ -65,4 +88,6 @@ def get_llm(backend: str | None = None) -> AbstractLLMProvider:
         )
     logger.debug("LLM backend: %s", cls.__name__)
     active = get_active_model()
-    return cls(default_model=active) if active is not None else cls()
+    if active is not None and _accepts_default_model(cls):
+        return cls(default_model=active)
+    return cls()

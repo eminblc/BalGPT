@@ -29,59 +29,104 @@ from typing import Dict, Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 
+
 # ---------------------------------------------------------------------------
-# Per-guard timing stats (in-memory, cumulative, thread-safe via GIL for CPython)
+# GuardChainMetrics — istatistik state'ini kapsülleyen sınıf (OOP kuralı)
 # ---------------------------------------------------------------------------
 
-_guard_stats: Dict[str, dict] = defaultdict(lambda: {
-    "count": 0,
-    "total_ms": 0.0,
-    "min_ms": float("inf"),
-    "max_ms": 0.0,
-})
+class GuardChainMetrics:
+    """Per-guard ve zincir geneli timing istatistiklerini yönetir.
 
-# Zincirin tamamının (tüm guard'lar passed) toplam istatistikleri
-_chain_stats: dict = {"count": 0, "total_ms": 0.0, "min_ms": float("inf"), "max_ms": 0.0}
+    OOP uyumu: mutable state sınıf içinde kapsüllenmiş; modül düzeyinde global yok.
+    Thread safety: CPython GIL üzerinden sağlanır (mevcut davranışla aynı).
+    """
 
-# Her N başarılı zincir geçişinde aggregate istatistik loglanır
-_LOG_EVERY_N = 50
-_chain_pass_count = 0
+    _LOG_EVERY_N = 50
 
+    def __init__(self) -> None:
+        self._guard_stats: Dict[str, dict] = defaultdict(lambda: {
+            "count": 0,
+            "total_ms": 0.0,
+            "min_ms": float("inf"),
+            "max_ms": 0.0,
+        })
+        self._chain_stats: dict = {
+            "count": 0, "total_ms": 0.0,
+            "min_ms": float("inf"), "max_ms": 0.0,
+        }
+        self._pass_count: int = 0
+
+    def record_guard(self, name: str, elapsed_ms: float) -> None:
+        """Bir guard'ın işlem süresini kaydet."""
+        s = self._guard_stats[name]
+        s["count"] += 1
+        s["total_ms"] += elapsed_ms
+        if elapsed_ms < s["min_ms"]:
+            s["min_ms"] = elapsed_ms
+        if elapsed_ms > s["max_ms"]:
+            s["max_ms"] = elapsed_ms
+
+    def record_chain_pass(self, elapsed_ms: float) -> bool:
+        """Başarılı bir zincir geçişini kaydet; aggregate log zamanı geldiyse True döndür."""
+        self._chain_stats["count"] += 1
+        self._chain_stats["total_ms"] += elapsed_ms
+        if elapsed_ms < self._chain_stats["min_ms"]:
+            self._chain_stats["min_ms"] = elapsed_ms
+        if elapsed_ms > self._chain_stats["max_ms"]:
+            self._chain_stats["max_ms"] = elapsed_ms
+        self._pass_count += 1
+        return self._pass_count % self._LOG_EVERY_N == 0
+
+    def get_stats(self) -> dict:
+        """Mevcut per-guard timing istatistiklerini döndürür (ortalama dahil).
+
+        Dönen dict örneği::
+
+            {
+                "DedupMessageGuard": {
+                    "count": 120,
+                    "total_ms": 4.8,
+                    "min_ms": 0.02,
+                    "max_ms": 0.45,
+                    "avg_ms": 0.04,
+                },
+                ...
+                "__chain__": { ... }   # tüm zincirin toplamı
+            }
+        """
+        result: dict = {}
+        for name, s in self._guard_stats.items():
+            avg = s["total_ms"] / s["count"] if s["count"] else 0.0
+            result[name] = {**s, "avg_ms": round(avg, 4)}
+        cs = self._chain_stats
+        chain_avg = cs["total_ms"] / cs["count"] if cs["count"] else 0.0
+        result["__chain__"] = {**cs, "avg_ms": round(chain_avg, 4)}
+        return result
+
+    def reset(self) -> None:
+        """İstatistikleri sıfırlar (test / manuel temizlik için)."""
+        self._guard_stats.clear()
+        self._chain_stats.update({
+            "count": 0, "total_ms": 0.0,
+            "min_ms": float("inf"), "max_ms": 0.0,
+        })
+        self._pass_count = 0
+
+
+# Modül singleton — GuardChain ve public API buraya delege eder
+_metrics = GuardChainMetrics()
+
+
+# ── Public API (backward-compat) ────────────────────────────────────────────
 
 def get_guard_stats() -> dict:
-    """Mevcut per-guard timing istatistiklerini döndürür (ortalama dahil).
-
-    Dönen dict örneği::
-
-        {
-            "DedupMessageGuard": {
-                "count": 120,
-                "total_ms": 4.8,
-                "min_ms": 0.02,
-                "max_ms": 0.45,
-                "avg_ms": 0.04,
-            },
-            ...
-            "__chain__": { ... }   # tüm zincirin toplamı
-        }
-    """
-    result: dict = {}
-    for name, s in _guard_stats.items():
-        avg = s["total_ms"] / s["count"] if s["count"] else 0.0
-        result[name] = {**s, "avg_ms": round(avg, 4)}
-    # chain toplamı
-    cs = _chain_stats
-    chain_avg = cs["total_ms"] / cs["count"] if cs["count"] else 0.0
-    result["__chain__"] = {**cs, "avg_ms": round(chain_avg, 4)}
-    return result
+    """Mevcut per-guard timing istatistiklerini döndürür."""
+    return _metrics.get_stats()
 
 
 def reset_guard_stats() -> None:
     """İstatistikleri sıfırlar (test / manuel temizlik için)."""
-    _guard_stats.clear()
-    _chain_stats.update({"count": 0, "total_ms": 0.0, "min_ms": float("inf"), "max_ms": 0.0})
-    global _chain_pass_count
-    _chain_pass_count = 0
+    _metrics.reset()
 
 
 # ---------------------------------------------------------------------------
@@ -138,8 +183,6 @@ class GuardChain:
         self._guards = guards
 
     async def check(self, ctx: GuardContext) -> GuardResult:
-        global _chain_pass_count
-
         chain_t0 = time.perf_counter()
 
         for guard in self._guards:
@@ -149,15 +192,7 @@ class GuardChain:
             result = await guard.check(ctx)
             elapsed_ms = (time.perf_counter() - t0) * 1000.0
 
-            # Per-guard istatistik güncelle
-            s = _guard_stats[guard_name]
-            s["count"] += 1
-            s["total_ms"] += elapsed_ms
-            if elapsed_ms < s["min_ms"]:
-                s["min_ms"] = elapsed_ms
-            if elapsed_ms > s["max_ms"]:
-                s["max_ms"] = elapsed_ms
-
+            _metrics.record_guard(guard_name, elapsed_ms)
             logger.debug(
                 "GuardTiming guard=%s elapsed_ms=%.3f sender=%.6s",
                 guard_name, elapsed_ms, ctx.sender,
@@ -171,20 +206,10 @@ class GuardChain:
                 return result
 
         chain_elapsed_ms = (time.perf_counter() - chain_t0) * 1000.0
-
-        # Chain istatistik güncelle
-        _chain_stats["count"] += 1
-        _chain_stats["total_ms"] += chain_elapsed_ms
-        if chain_elapsed_ms < _chain_stats["min_ms"]:
-            _chain_stats["min_ms"] = chain_elapsed_ms
-        if chain_elapsed_ms > _chain_stats["max_ms"]:
-            _chain_stats["max_ms"] = chain_elapsed_ms
-
         logger.debug("GuardChain total elapsed_ms=%.3f", chain_elapsed_ms)
 
-        # Periyodik aggregate log (her _LOG_EVERY_N geçişte bir INFO)
-        _chain_pass_count += 1
-        if _chain_pass_count % _LOG_EVERY_N == 0:
+        should_log = _metrics.record_chain_pass(chain_elapsed_ms)
+        if should_log:
             _log_aggregate_stats()
 
         return GuardResult(passed=True)
@@ -192,7 +217,7 @@ class GuardChain:
 
 def _log_aggregate_stats() -> None:
     """Guard zinciri aggregate istatistiklerini INFO seviyesinde loglar."""
-    stats = get_guard_stats()
+    stats = _metrics.get_stats()
     chain = stats.pop("__chain__", {})
     guard_summary = "; ".join(
         f"{name}(n={s['count']} avg={s['avg_ms']:.3f}ms max={s['max_ms']:.3f}ms)"

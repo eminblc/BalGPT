@@ -46,42 +46,8 @@ async def lifespan(app: FastAPI):
     configure_logging(level=settings.log_level)
     logger.info("99-root kişisel ajan başlatılıyor (port %d)", settings.port)
 
-    # Güvenlik uyarıları
-    if not settings.api_key:
-        if settings.environment == "production":
-            raise RuntimeError(
-                "GÜVENLIK: api_key tanımlı değil — "
-                "production ortamında /agent/* endpoint'leri korumasız bırakılamaz. "
-                "Servis başlatılmadı."
-            )
-        logger.warning("GÜVENLIK: api_key tanımlı değil — /agent/* endpoint'leri korumasız!")
-    if not settings.totp_secret:
-        logger.warning("GÜVENLIK: totp_secret tanımlı değil — TOTP koruması devre dışı!")
-    if not settings.whatsapp_app_secret:
-        if settings.environment == "production":
-            raise RuntimeError(
-                "GÜVENLIK: whatsapp_app_secret tanımlı değil — "
-                "production ortamında HMAC doğrulaması zorunludur. "
-                "Servis başlatılmadı."
-            )
-        logger.warning("GÜVENLIK: whatsapp_app_secret tanımlı değil — HMAC doğrulaması atlanıyor!")
-    if settings.messenger_type == "telegram" and not settings.telegram_webhook_secret.get_secret_value():
-        if settings.environment == "production":
-            raise RuntimeError(
-                "GÜVENLIK: telegram_webhook_secret tanımlı değil — "
-                "production ortamında Telegram webhook koruması zorunludur. "
-                "Servis başlatılmadı."
-            )
-        logger.warning("GÜVENLIK: telegram_webhook_secret tanımlı değil — Telegram webhook korumasız!")
-    _parsed_cors = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
-    if not _parsed_cors:
-        if settings.environment == "production":
-            raise RuntimeError(
-                "GÜVENLIK: cors_origins tanımlı değil veya boş — "
-                "production ortamında CORS origin listesi zorunludur. "
-                "Servis başlatılmadı."
-            )
-        logger.warning("GÜVENLIK: cors_origins boş — CORS yalnızca http://localhost:5678 için etkin!")
+    # Güvenlik doğrulaması — SRP: tüm mantık Settings.validate_for_environment()'ta
+    settings.validate_for_environment()
 
     # FEAT-3: Aktif yetenek kısıtlamalarını logla
     from .guards import get_capability_guard

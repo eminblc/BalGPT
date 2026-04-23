@@ -94,6 +94,7 @@
     "row_shutdown": "Shutdown / Restart",
     "row_lang": "Change Language",
     "row_model": "Change Model",
+    "row_tokens": "Token Statistics",
     "model_hint_anthropic": "!model sonnet|haiku|opus — active: {current}",
     "model_hint_ollama": "!model <model_name> — active: {current}",
     "model_hint_gemini": "!model gemini-2.0-flash etc. — active: {current}",
@@ -418,6 +419,16 @@
     "started": "✅ Personal agent started.",
     "started_with_url": "✅ Personal agent started.\n🌐 Webhook URL:\n{url}",
     "stopping": "🛑 Personal agent shutting down."
+  },
+  "tokens": {
+    "invalid_span": "❌ Invalid time span: {span}\nUsage: !tokens [24h|7d|30d]",
+    "empty": "📭 No token usage recorded in the last {span}.",
+    "header": "📊 Token Statistics (last {span})",
+    "total": "🔢 Total: {input} input + {output} output ({calls} calls)",
+    "model_header": "🤖 Model Categories:",
+    "model_row": "  • {name}: {input} in + {output} out ({calls} calls)",
+    "backend_header": "⚙️ Backends:",
+    "backend_row": "  • {name}: {input} in + {output} out ({calls} calls)"
   },
   "bridge_monitor": {
     "restart_timeout": "Bridge auto-restart timed out. Manual !restart required.",

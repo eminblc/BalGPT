@@ -8,17 +8,64 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
-- Wizard SRP refactor: `wizard_core.py` (sabitler, yardımcılar, session temizleme) + `wizard_steps.py` (8 adım: ask_description → confirm_create); `project_wizard.py` shim olarak kaldı
-- Menu SRP refactor: `menu_project.py` — project_select_*, project_start_*, project_stop_* vb. prefix handler'ları `menu.py`'den ayrıldı
-- SOLID-OOP1: `SessionState` is now a `dict` subclass with typed auth-flow methods (`start_totp`, `start_admin_totp`, `start_math_challenge`, `start_guardrail` and their `clear_*` counterparts)
-- SOLID-OCP3: Auth state dispatch in `_dispatcher.py` now uses `_AUTH_FLOW_REGISTRY` dict — new auth step = new function + registry entry, no dispatcher change required
-- SOLID-DIP1: `store/protocol.py` — `StoreProtocol` runtime-checkable Protocol; `store/sqlite_wrapper.py` — `SqliteStoreWrapper` class + `store` singleton for dependency injection in tests
-- SOLID-OCP1+DIP2: `guards/guard_chain.py` — `GuardChain` + `MessageGuard` Protocol; `guards/message_guards.py` — four concrete guard classes (`DedupMessageGuard`, `BlacklistMessageGuard`, `OwnerPermissionGuard`, `RateLimitMessageGuard`)
-- SOLID-SRP1: `services/bridge_monitor.py` — `BridgeMonitor` class extracted from `main.py` lifespan; auto-restart after 3 consecutive health-check failures
-- `routers/_dispatcher.py` — platform-independent dispatch module shared by WhatsApp and Telegram routers
+
+**Desktop Automation (APR-18–20)**
+- Desktop automation modüler yapısı: `desktop_atspi.py`, `desktop_capture.py`, `desktop_popup.py`, `desktop_recording.py`, `desktop_system.py` (SRP bölünmesi)
+- `desktop_router.py` SRP split: `_desktop_capture.py` (capture handler'ları) + `_desktop_vision.py` (vision/OCR handler'ları)
+- DESK-OPT-1: `asyncio.Lock()` ile X11 race condition giderildi
+- DESK-OPT-2: `xdotool type` → python-xlib XTEST in-process giriş (Türkçe Unicode)
+- DESK-OPT-3: `scrot` → `python-mss` (sıfır disk I/O, bellekten Base64)
+- `/internal/send_media` endpoint — screenshot/video WhatsApp/Telegram'a iletme (BUG-DESK-SEND-1)
+- Desktop per-action structured logging
+
+**Browser Automation (APR-18–22)**
+- `features/browser/` paketi — Playwright DOM-first otomasyon: `_actions`, `_lifecycle`, `_paths`, `_persistence`, `_session_store`, `_validation`
+- `routers/browser_router.py` — `/internal/browser/*` endpoint'leri (goto, click, fill, eval, screenshot, get_credential, save/load_session)
+- `features/credential_store.py` — site bazlı kimlik bilgisi deposu
+
+**Terminal (APR-18)**
+- `features/terminal.py` + `routers/terminal_router.py` — `/internal/terminal` endpoint
+- `guards/commands/terminal_cmd.py` — `!terminal` komutu (tehlikeli komutlar için admin TOTP)
+
+**Token İstatistikleri (APR-23)**
+- `store/repositories/token_stat_repo.py` — `token_usage` tablosu; Anthropic/Gemini/Ollama provider'lardan token bilgisi kaydedilir
+- `guards/commands/tokens_cmd.py` — `!tokens [24h|7d|30d]` komutu; model/backend dağılım özeti
+
+**Diğer Komutlar (APR-18–23)**
+- `guards/commands/timezone_cmd.py` — `!timezone` komutu; APScheduler'ı çalışma zamanında yeniden yapılandırır
+- `guards/commands/lock_cmd.py` + `unlock_cmd.py` — uygulama kilidi/kilit açma (TOTP gerekli)
+
+**OOP/SOLID (APR-18–22)**
+- Wizard SRP refactor: `wizard_core.py` + `wizard_steps.py` + `wizard_validator.py`; `project_wizard.py` shim olarak kaldı
+- Menu SRP refactor: `menu_project.py` — project_select_*, project_start_*, project_stop_* handler'ları ayrıldı
+- Project SRP: `project_crud.py` + `project_service.py` `projects.py`'den ayrıldı
+- SOLID-OOP1: `SessionState` typed auth-flow metodları (`start_totp`, `start_admin_totp`, `start_math_challenge`, 13 wizard wrapper)
+- SOLID-OCP3: `_AUTH_FLOW_REGISTRY` dispatch tablosu
+- SOLID-DIP1: `StoreProtocol` + `SqliteStoreWrapper` singleton
+- SOLID-OCP1+DIP2: `GuardChain` + `MessageGuard` Protocol (4 concrete guard)
+- SOLID-SRP1: `BridgeMonitor` `main.py`'den ayrıldı
+- SOLID-ISP: `StoreProtocol` 9 domain-spesifik sub-protocol'e bölündü
+- `routers/_dispatcher.py` — platform-agnostic dispatch
+
+**Altyapı (APR-18–19)**
+- Koşullu router kaydı (`DESKTOP_ENABLED`, `BROWSER_ENABLED`, `TERMINAL_ENABLED`)
+- Feature manifest / plugin registry: `features/_registry.py`
+- `routers/_localhost_guard.py` — localhost-only FastAPI dependency (shared)
+- `adapters/media/` — WhatsApp medya indirme adaptör katmanı
+- `adapters/llm/result.py` — `LLMResult` typed wrapper
+- `constants.py` — proje geneli string sabitleri
+- `.claude-routes.json` 12→33 rota; init_prompt küçültme
+- `SensitiveHeaderFilter` — API key/authorization header log sızıntısı kapatıldı
+
+**Güvenlik (APR-18)**
+- Admin TOTP brute-force koruması (3 deneme → 15 dk kilit)
+- Symlink path traversal ve Bridge `allowedRoots` kontrolü
+- API key startup kontrolü, CORS startup doğrulaması
 
 ### Changed
-- `whatsapp_router.py` now delegates all common dispatch to `_dispatcher.handle_common_message()`
+- `whatsapp_router.py` tüm ortak dispatch'i `_dispatcher.handle_common_message()`'a devreder
+- Telegram `owner_id` eşleştirmesi `settings.owner_id` üzerinden (platform-agnostic)
+- i18n: 33 hardcode string `t()` ile değiştirildi; tr/en tam paritet
 
 ---
 

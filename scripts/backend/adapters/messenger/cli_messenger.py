@@ -27,6 +27,9 @@ class CLIMessenger:
                 desc = f" — {row['description']}" if row.get("description") else ""
                 print(f"    • {row.get('title', row.get('id', '?'))}{desc}")
 
+    async def send_typing(self, to: str) -> None:
+        print(f"[CLIMessenger] typing → to={to}")
+
     async def send_image(self, to: str, source: str, caption: str = "") -> None:
         print(f"[CLIMessenger] send_image → to={to} source={source} caption={caption!r}")
 

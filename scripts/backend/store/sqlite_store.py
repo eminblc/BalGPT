@@ -141,6 +141,24 @@ def init_db() -> None:
             updated_at  REAL NOT NULL,
             PRIMARY KEY (sender, key)
         );
+
+        -- ── Token kullanım istatistikleri — TOKEN-STATS-1 ────────────
+        CREATE TABLE IF NOT EXISTS token_usage (
+            id            TEXT PRIMARY KEY,
+            timestamp     TEXT NOT NULL,
+            model_id      TEXT NOT NULL,
+            model_name    TEXT NOT NULL,
+            backend       TEXT NOT NULL,
+            input_tokens  INTEGER NOT NULL,
+            output_tokens INTEGER NOT NULL,
+            total_tokens  INTEGER NOT NULL,
+            session_id    TEXT,
+            context       TEXT DEFAULT 'bridge_query',
+            created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_token_usage_ts      ON token_usage(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_token_usage_backend ON token_usage(backend, timestamp);
         """)
 
 

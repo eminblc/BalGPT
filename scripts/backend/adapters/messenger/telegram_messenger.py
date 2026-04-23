@@ -129,6 +129,17 @@ class TelegramMessenger:
         formatted = _sections_to_text(text, sections)
         await self.send_text(to, formatted)
 
+    async def send_typing(self, to: str) -> None:
+        """Telegram 'yazıyor…' göstergesi — yaklaşık 5 saniye aktif kalır."""
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                await client.post(
+                    f"{self._base}/sendChatAction",
+                    json={"chat_id": to, "action": "typing"},
+                )
+        except Exception as exc:
+            logger.debug("send_typing başarısız (görmezden geliniyor): %s", exc)
+
     async def set_webhook(self, url: str) -> dict:
         """Telegram webhook URL'sini kaydet.
 

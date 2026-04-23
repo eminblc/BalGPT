@@ -248,16 +248,18 @@ async def net_active_window(wid_int: int) -> tuple[bool, str]:
 
 # ── Public API ────────────────────────────────────────────────────────────
 
-async def xdotool_type(text: str, delay_ms: int = 12) -> str:
+async def xdotool_type(text: str, delay_ms: int = 12, window_id: str | None = None) -> str:
     """
-    Aktif pencereye metin yazar.
+    Metin yazar.
 
-    Önce python-xlib XTEST dener (fork/exec yok, Unicode tam destek).
-    Kullanılamıyorsa xdotool type'a düşer.
+    window_id verilirse xdotool type --window ile hedefli yazma yapılır —
+    kullanıcı başka bir pencereye geçse bile metin doğru yere gider.
+    window_id verilmezse o an klavye odağındaki pencereye yazar (güvensiz).
 
     Args:
         text: Yazılacak metin.
         delay_ms: Tuşlar arası gecikme (ms). Varsayılan 12ms.
+        window_id: Hedef pencere ID (hex ör. "0x05000003"). None → aktif pencere.
 
     Döner: Durum mesajı.
     """
@@ -268,7 +270,22 @@ async def xdotool_type(text: str, delay_ms: int = 12) -> str:
 
     preview = text[:60] + ("…" if len(text) > 60 else "")
 
-    # ── 1. python-xlib XTEST yolu (DESK-OPT-2) ──────────────────────────
+    # ── window_id verilmişse: xdotool --window ile hedefli yaz ───────────
+    # XTEST odak bağımlıdır; pencere hedeflemesi için xdotool zorunlu.
+    if window_id:
+        if not _xdotool_available():
+            return "❌ window_id ile hedefli yazma için xdotool gerekli. `sudo apt install xdotool` çalıştır."
+        async with x11_lock:
+            code, err = await _xdotool(
+                "type", "--window", window_id,
+                "--clearmodifiers", "--delay", str(delay_ms), "--", text,
+            )
+        if code == 0:
+            logger.info("xdotool type --window %s: %d karakter yazıldı", window_id, len(text))
+            return f"✅ Metin yazıldı (pencere {window_id}): {preview!r}"
+        return f"❌ xdotool type --window başarısız (kod {code}): {err}"
+
+    # ── window_id yok: XTEST (hızlı, Unicode) → xdotool fallback ─────────
     if _xlib_type_available():
         display_str = _detect_display()
         xauth = _detect_xauthority()
@@ -282,7 +299,6 @@ async def xdotool_type(text: str, delay_ms: int = 12) -> str:
             return f"✅ Metin yazıldı: {preview!r}"
         logger.warning("xlib XTEST type başarısız (%s); xdotool'a düşülüyor", err)
 
-    # ── 2. xdotool fallback ──────────────────────────────────────────────
     if not _xdotool_available():
         return (
             "❌ Metin girilemedi: python-xlib XTEST başarısız ve "

@@ -11,14 +11,13 @@ from .deduplication import DedupGuard
 from .runtime_state import record_status, get_last_status
 from .output_filter import filter_response
 from .capability_guard import CapabilityGuard
-from ..config import settings as _settings
 
 blacklist_mgr    = BlacklistManager()
 perm_mgr         = PermissionManager()
 rate_limiter     = RateLimiter()
 session_mgr      = SessionManager()
 dedup            = DedupGuard()
-capability_guard = CapabilityGuard(_settings)
+capability_guard = CapabilityGuard()  # cfg=None → settings içsel olarak okunur
 
 
 # ── FastAPI Depends provider'ları (SOLID-DIP2) ───────────────────────────────

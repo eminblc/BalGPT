@@ -7,8 +7,10 @@ from fastapi import FastAPI
 
 def _make_app():
     from backend.routers.internal_router import router
+    from backend.routers._schedule_router import router as schedule_router
     app = FastAPI()
     app.include_router(router)
+    app.include_router(schedule_router)
     return app
 
 

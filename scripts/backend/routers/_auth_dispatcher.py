@@ -2,6 +2,10 @@
 
 Sorumluluk: Matematiksel auth, admin TOTP, TOTP, guardrail onayı akışlarını yönetmek.
 Genel mesaj dispatch: _dispatcher.py
+
+DIP-V2: handle_auth_flow() ve tüm dahili handler'lar messenger bağımlılığını
+parametre olarak alır. Test izolasyonu için mock messenger geçilebilir;
+verilmezse get_messenger() lazy fallback çalışır.
 """
 from __future__ import annotations
 
@@ -10,6 +14,7 @@ from collections.abc import Callable, Coroutine
 from typing import Any
 
 from ..guards import get_session_mgr
+from ..adapters.messenger import AbstractMessenger
 from ..adapters.messenger.messenger_factory import get_messenger
 from ..store.message_logger import log_outbound
 from ..i18n import t
@@ -20,17 +25,23 @@ logger = logging.getLogger(__name__)
 _CANCEL_WORDS = frozenset(("iptal", "cancel", "vazgeç", "!cancel"))
 
 
+def _messenger(injected: AbstractMessenger | None) -> AbstractMessenger:
+    """Enjekte edilen messenger'ı veya singleton fallback'i döndürür."""
+    return injected if injected is not None else get_messenger()
+
+
 async def _handle_math_auth(
-    sender: str, text: str, msg_type: str, msg_id: str, session: dict
+    sender: str, text: str, msg_type: str, msg_id: str, session: dict,
+    messenger: AbstractMessenger | None = None,
 ) -> None:
-    messenger = get_messenger()
+    m = _messenger(messenger)
     lang = session.get("lang", "tr")
     if msg_type == "text" and text.strip().lower() in _CANCEL_WORDS:
         async with get_session_mgr().lock(sender):
             session.clear_math_challenge()
             session.pop("pending_command", None)
             session.pop("pending_bridge_message", None)
-        await messenger.send_text(sender, t("cancel.generic", lang))
+        await m.send_text(sender, t("cancel.generic", lang))
         return
     async with get_session_mgr().lock(sender):
         if session.get("awaiting_math_challenge"):
@@ -40,14 +51,15 @@ async def _handle_math_auth(
 
 
 async def _handle_admin_totp_auth(
-    sender: str, text: str, msg_type: str, msg_id: str, session: dict
+    sender: str, text: str, msg_type: str, msg_id: str, session: dict,
+    messenger: AbstractMessenger | None = None,
 ) -> None:
-    messenger = get_messenger()
+    m = _messenger(messenger)
     lang = session.get("lang", "tr")
     if msg_type == "text" and text.strip().lower() in _CANCEL_WORDS:
         async with get_session_mgr().lock(sender):
             session.clear_admin_totp()
-        await messenger.send_text(sender, t("cancel.generic", lang))
+        await m.send_text(sender, t("cancel.generic", lang))
         return
     async with get_session_mgr().lock(sender):
         if session.get("awaiting_admin_totp"):
@@ -57,14 +69,15 @@ async def _handle_admin_totp_auth(
 
 
 async def _handle_totp_auth(
-    sender: str, text: str, msg_type: str, msg_id: str, session: dict
+    sender: str, text: str, msg_type: str, msg_id: str, session: dict,
+    messenger: AbstractMessenger | None = None,
 ) -> None:
-    messenger = get_messenger()
+    m = _messenger(messenger)
     lang = session.get("lang", "tr")
     if msg_type == "text" and text.strip().lower() in _CANCEL_WORDS:
         async with get_session_mgr().lock(sender):
             session.clear_totp()
-        await messenger.send_text(sender, t("cancel.generic", lang))
+        await m.send_text(sender, t("cancel.generic", lang))
         return
     async with get_session_mgr().lock(sender):
         if session.get("awaiting_totp"):
@@ -74,7 +87,8 @@ async def _handle_totp_auth(
 
 
 async def _handle_desktop_totp_auth(
-    sender: str, text: str, msg_type: str, msg_id: str, session: dict
+    sender: str, text: str, msg_type: str, msg_id: str, session: dict,
+    messenger: AbstractMessenger | None = None,
 ) -> None:
     """Desktop gate TOTP — sunucu tarafı akış (DESK-TOTP-2).
 
@@ -83,13 +97,13 @@ async def _handle_desktop_totp_auth(
     """
     from ._desktop_totp_gate import clear_totp_request_sent
 
-    messenger = get_messenger()
+    m = _messenger(messenger)
     lang = session.get("lang", "tr")
     if msg_type == "text" and text.strip().lower() in _CANCEL_WORDS:
         async with get_session_mgr().lock(sender):
             session.clear_desktop_totp()
             clear_totp_request_sent()
-        await messenger.send_text(sender, t("cancel.generic", lang))
+        await m.send_text(sender, t("cancel.generic", lang))
         return
     async with get_session_mgr().lock(sender):
         if session.get("awaiting_desktop_totp"):
@@ -99,9 +113,10 @@ async def _handle_desktop_totp_auth(
 
 
 async def _handle_guardrail_confirm(
-    sender: str, text: str, msg_type: str, msg_id: str, session: dict
+    sender: str, text: str, msg_type: str, msg_id: str, session: dict,
+    messenger: AbstractMessenger | None = None,
 ) -> None:
-    messenger   = get_messenger()
+    m           = _messenger(messenger)
     lang        = session.get("lang", "tr")
     context_id  = session.get("active_context", "main")
     body_lower  = text.strip().lower() if msg_type == "text" else ""
@@ -109,7 +124,7 @@ async def _handle_guardrail_confirm(
     if body_lower in _CANCEL_WORDS or body_lower in ("hayır", "hayir", "no"):
         async with get_session_mgr().lock(sender):
             session.clear_guardrail()
-        await messenger.send_text(sender, t("cancel.generic", lang))
+        await m.send_text(sender, t("cancel.generic", lang))
         log_outbound(sender, "text", "guardrail_cancelled", context_id=context_id)
         return
 
@@ -118,15 +133,17 @@ async def _handle_guardrail_confirm(
             action = session.pop("pending_guardrail_action", "")
             session.clear_guardrail()
             session.start_admin_totp(action=action)
-        await messenger.send_text(sender, t("auth.guardrail.admin_totp_prompt", lang))
+        await m.send_text(sender, t("auth.guardrail.admin_totp_prompt", lang))
         log_outbound(sender, "text", "guardrail_admin_totp_prompt", context_id=context_id)
         return
 
-    await messenger.send_text(sender, t("auth.guardrail.ask_yn", lang))
+    await m.send_text(sender, t("auth.guardrail.ask_yn", lang))
 
 
 # OCP-3: Yeni auth adımı = yeni handler + bu dict'e kayıt. Dispatcher'a dokunma.
-_AUTH_FLOW_REGISTRY: dict[str, Callable[..., Coroutine[Any, Any, None]]] = {
+_HandlerFn = Callable[..., Coroutine[Any, Any, None]]
+
+_AUTH_FLOW_REGISTRY: dict[str, _HandlerFn] = {
     "awaiting_math_challenge":    _handle_math_auth,
     "awaiting_admin_totp":        _handle_admin_totp_auth,
     "awaiting_totp":              _handle_totp_auth,
@@ -142,9 +159,18 @@ def has_active_auth_flow(session: dict) -> bool:
 
 
 async def handle_auth_flow(
-    sender: str, text: str, msg_type: str, msg_id: str, session: dict
+    sender: str,
+    text: str,
+    msg_type: str,
+    msg_id: str,
+    session: dict,
+    messenger: AbstractMessenger | None = None,
 ) -> bool:
     """Aktif auth state varsa ilgili handler'ı çalıştırır.
+
+    Args:
+        messenger: Opsiyonel inject edilmiş messenger. None ise get_messenger() kullanılır.
+                   Test izolasyonu için mock messenger geçilebilir.
 
     Returns:
         True  — auth handler çalıştı; caller return etmeli.
@@ -152,6 +178,6 @@ async def handle_auth_flow(
     """
     for session_key, auth_handler in _AUTH_FLOW_REGISTRY.items():
         if session.get(session_key):
-            await auth_handler(sender, text, msg_type, msg_id, session)
+            await auth_handler(sender, text, msg_type, msg_id, session, messenger)
             return True
     return False

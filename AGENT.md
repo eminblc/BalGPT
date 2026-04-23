@@ -34,6 +34,13 @@ Sohbet, iş planlaması, takvim, proje yönetimi ve zamanlanmış görevleri tek
 | Yetenek kısıtlamaları (FEAT-3) | `guards/capability_guard.py` | ✅ Tamamlandı |
 | Çalışma zamanı model değişikliği (FEAT-5) | `guards/commands/model_cmd.py` | ✅ Tamamlandı |
 | Kullanıcı ayarları kalıcılığı (FEAT-6) | `store/repositories/settings_repo.py` | ✅ Tamamlandı |
+| Desktop otomasyon | `features/desktop*.py` (9 modül) | ✅ Tamamlandı |
+| Tarayıcı otomasyonu (Playwright) | `features/browser/` paketi | ✅ Tamamlandı |
+| Terminal erişimi (!terminal) | `features/terminal.py`, `guards/commands/terminal_cmd.py` | ✅ Tamamlandı |
+| Kimlik bilgisi deposu | `features/credential_store.py` | ✅ Tamamlandı |
+| Token kullanım istatistikleri | `store/repositories/token_stat_repo.py`, `guards/commands/tokens_cmd.py` | ✅ Tamamlandı |
+| Uygulama kilidi / kilit açma | `guards/commands/lock_cmd.py`, `unlock_cmd.py` | ✅ Tamamlandı |
+| Çalışma zamanı saat dilimi değiştirme | `guards/commands/timezone_cmd.py` | ✅ Tamamlandı |
 
 ## Kapsam Dışı
 - Birden fazla kullanıcıya hizmet vermek (tek kullanıcı sistemi)

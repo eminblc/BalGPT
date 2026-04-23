@@ -1,0 +1,2 @@
+# Yetenek: browser (BROWSER_ENABLED=true)
+playwright==1.58.0

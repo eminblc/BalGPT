@@ -196,5 +196,5 @@ async def is_screen_locked() -> bool:
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
         result = stdout.decode().strip().lower()
         return result == "yes"
-    except Exception:
+    except (FileNotFoundError, OSError, asyncio.TimeoutError):
         return False

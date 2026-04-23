@@ -12,7 +12,7 @@ import mimetypes
 import time
 from pathlib import Path
 
-from ..whatsapp.cloud_api import download_media
+from ..adapters.media import get_media_downloader
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ async def save_media(media_id: str, mime_type: str) -> Path:
         return dest
 
     logger.info("Medya indiriliyor: media_id=%s mime=%s", media_id, mime_type)
-    content, _ = await download_media(media_id)
+    content, _ = await get_media_downloader().download(media_id)
     dest.write_bytes(content)
     logger.info("Medya kaydedildi: %s (%d bytes)", dest, len(content))
     return dest

@@ -16,6 +16,7 @@ import logging
 from ..adapters.llm.llm_factory import get_llm
 from ..config import settings
 from ..guards import guardrails_loader
+from ..store.repositories import token_stat_repo
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,7 @@ async def classify_admin_intent(text: str) -> str | None:
 
     try:
         llm = get_llm()
-        raw = await llm.complete(
+        completion = await llm.complete(
             messages=[
                 {"role": "system", "content": _ADMIN_INTENT_SYSTEM},
                 {"role": "user",   "content": t},
@@ -88,12 +89,20 @@ async def classify_admin_intent(text: str) -> str | None:
             model=_CLASSIFY_MODEL,
             max_tokens=16,
         )
-        stripped = raw.strip()
+        try:
+            await token_stat_repo.add_usage(
+                completion.model_id, completion.model_name, completion.backend,
+                completion.input_tokens, completion.output_tokens,
+                context="intent_classifier",
+            )
+        except Exception:
+            pass
+        stripped = completion.text.strip()
         if not stripped:
             return None
-        result = stripped.split()[0]
-        if result in ("!shutdown", "!restart", "!root-reset"):
-            return result
+        cmd = stripped.split()[0]
+        if cmd in ("!shutdown", "!restart", "!root-reset"):
+            return cmd
     except Exception as exc:
         logger.warning("Admin intent sınıflandırma hatası: %s", exc)
     return None
@@ -141,7 +150,7 @@ async def classify_destructive_intent(text: str) -> bool:
 
     try:
         llm = get_llm()
-        raw = await llm.complete(
+        completion = await llm.complete(
             messages=[
                 {"role": "system", "content": _DESTRUCTIVE_INTENT_SYSTEM},
                 {"role": "user",   "content": t},
@@ -149,11 +158,19 @@ async def classify_destructive_intent(text: str) -> bool:
             model=_CLASSIFY_MODEL,
             max_tokens=8,
         )
-        stripped = raw.strip()
+        try:
+            await token_stat_repo.add_usage(
+                completion.model_id, completion.model_name, completion.backend,
+                completion.input_tokens, completion.output_tokens,
+                context="intent_classifier",
+            )
+        except Exception:
+            pass
+        stripped = completion.text.strip()
         if not stripped:
             return False
-        result = stripped.lower().split()[0]
-        return result == "evet"
+        answer = stripped.lower().split()[0]
+        return answer == "evet"
     except Exception as exc:
         logger.warning("Yıkıcı niyet sınıflandırma hatası: %s", exc)
     return False

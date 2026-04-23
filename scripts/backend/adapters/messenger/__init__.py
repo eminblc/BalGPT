@@ -70,6 +70,19 @@ class InteractiveMessenger(AbstractMessenger, Protocol):
 
 
 @runtime_checkable
+class TypingMessenger(AbstractMessenger, Protocol):
+    """Yazıyor… göstergesi desteği — platforma özgü typing action.
+
+    Telegram: sendChatAction("typing")
+    WhatsApp/CLI: no-op (native destek yok)
+    """
+
+    async def send_typing(self, to: str) -> None:
+        """Kullanıcıya 'yazıyor…' göstergesi gönder (yaklaşık 5 sn aktif kalır)."""
+        ...
+
+
+@runtime_checkable
 class MediaMessenger(AbstractMessenger, Protocol):
     """Medya gönderim sözleşmesi — görsel, video ve belge desteği ekler.
 
@@ -97,14 +110,17 @@ class MediaMessenger(AbstractMessenger, Protocol):
 from .whatsapp_messenger import WhatsAppMessenger  # noqa: E402
 from .telegram_messenger import TelegramMessenger  # noqa: E402
 from .cli_messenger import CLIMessenger            # noqa: E402
-from .messenger_factory import get_messenger       # noqa: E402
+from .messenger_factory import get_messenger, set_messenger, reset_messenger  # noqa: E402
 
 __all__ = [
     "AbstractMessenger",
     "InteractiveMessenger",
+    "TypingMessenger",
     "MediaMessenger",
     "WhatsAppMessenger",
     "TelegramMessenger",
     "CLIMessenger",
     "get_messenger",
+    "set_messenger",
+    "reset_messenger",
 ]

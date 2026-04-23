@@ -6,8 +6,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-import re
 from pathlib import Path
 
 from .wizard_core import (
@@ -21,26 +19,10 @@ from .wizard_core import (
     clear_wizard,
     get_level_label,
 )
+from .wizard_validator import WizardValidator
 from ..i18n import t
 
 logger = logging.getLogger(__name__)
-
-# ── Adım-özel validasyon kalıpları ───────────────────────────────────
-
-# Cmd string'inden port çıkarma — genişletilmiş format desteği
-# --port 8020 / --port=8020 / -p 8020 / PORT=8020 / port=8020 / :8020
-_PORT_RE = re.compile(
-    r"(?:--port[=\s]+|-p\s+|[Pp][Oo][Rr][Tt]\s*=\s*|:)(\d{2,5})"
-)
-
-_PATH_TRAVERSAL_RE = re.compile(r"(^|/)\.\.(/|$)")
-# Kabul edilen kök dizinler — güvensiz sistem yollarını engeller
-_SAFE_PATH_PREFIXES = ("/home/", "/tmp/", "/opt/", "/srv/", "/var/projects/", "/projects/")
-
-_WINDOW_NAME_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,50}$")
-
-# Shell injection için tehlikeli karakter kalıbı
-_UNSAFE_CMD_RE = re.compile(r"[;&|`$<>]|\$\(|`|\n|\r|\x00")
 
 
 # ── Adım 2: Açıklama ─────────────────────────────────────────────────
@@ -297,32 +279,19 @@ async def handle_path_input(sender: str, text: str, session: dict) -> None:
 
     lang = session.get("lang", "tr")
     if stripped and stripped != "-":
-        # Mutlak yol zorunlu
-        if not stripped.startswith("/"):
+        err = WizardValidator.validate_path(stripped)
+        if err == "not_absolute":
             session.start_wizard_path()
-            await get_messenger().send_text(
-                sender,
-                t("wizard.path_absolute_required", lang),
-            )
+            await get_messenger().send_text(sender, t("wizard.path_absolute_required", lang))
             return
-
-        # Path traversal engelle
-        if _PATH_TRAVERSAL_RE.search(stripped):
+        if err == "traversal":
             session.start_wizard_path()
             await get_messenger().send_text(sender, t("wizard.path_traversal_error", lang))
             return
-
-        # Güvenli ön ek kontrolü
-        if not any(stripped.startswith(p) for p in _SAFE_PATH_PREFIXES):
-            home = os.path.expanduser("~")
-            if not stripped.startswith(home):
-                session.start_wizard_path()
-                await get_messenger().send_text(
-                    sender,
-                    t("wizard.path_unsafe_prefix", lang),
-                )
-                return
-
+        if err == "unsafe_prefix":
+            session.start_wizard_path()
+            await get_messenger().send_text(sender, t("wizard.path_unsafe_prefix", lang))
+            return
         session.set_wiz("wiz_path", stripped)
 
     await _proceed_after_path(sender, session)
@@ -373,12 +342,9 @@ async def handle_service_name(sender: str, text: str, session: dict) -> None:
     name = text.strip()
 
     lang = session.get("lang", "tr")
-    if not _WINDOW_NAME_RE.match(name):
+    if WizardValidator.validate_service_name(name) is not None:
         session.start_wizard_service_name()
-        await get_messenger().send_text(
-            sender,
-            t("wizard.service_name_invalid", lang),
-        )
+        await get_messenger().send_text(sender, t("wizard.service_name_invalid", lang))
         return
 
     session.clear_wizard_service_name()
@@ -397,19 +363,16 @@ async def handle_service_cmd(sender: str, text: str, session: dict) -> None:
 
     lang = session.get("lang", "tr")
     # Erken güvenlik kontrolü — wizard adımında reddet (O-1)
-    if _UNSAFE_CMD_RE.search(stripped):
+    if WizardValidator.validate_service_cmd(stripped) is not None:
         session.start_wizard_service_cmd()
-        await get_messenger().send_text(
-            sender,
-            t("wizard.service_cmd_unsafe", lang),
-        )
+        await get_messenger().send_text(sender, t("wizard.service_cmd_unsafe", lang))
         return
 
     session.clear_wizard_service_cmd()
     session.set_wiz("wiz_svc_cmd", stripped)
-    m = _PORT_RE.search(text)
-    if m:
-        session.set_wiz("wiz_svc_port", m.group(1))
+    port = WizardValidator.extract_port(text)
+    if port:
+        session.set_wiz("wiz_svc_port", port)
         await _ask_service_cwd(sender, session)
     else:
         session.start_wizard_service_port()
@@ -422,18 +385,10 @@ async def handle_service_port(sender: str, text: str, session: dict) -> None:
     port = text.strip()
 
     lang = session.get("lang", "tr")
-    if port and port != "-":
-        try:
-            port_int = int(port)
-            if not (1 <= port_int <= 65535):
-                raise ValueError
-        except ValueError:
-            session.start_wizard_service_port()
-            await get_messenger().send_text(
-                sender,
-                t("wizard.service_port_invalid", lang),
-            )
-            return
+    if WizardValidator.validate_port(port) is not None:
+        session.start_wizard_service_port()
+        await get_messenger().send_text(sender, t("wizard.service_port_invalid", lang))
+        return
 
     session.clear_wizard_service_port()
     session.set_wiz("wiz_svc_port", "" if port == "-" else port)

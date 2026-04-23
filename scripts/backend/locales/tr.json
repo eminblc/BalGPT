@@ -94,6 +94,7 @@
     "row_shutdown": "Kapat / Restart",
     "row_lang": "Dil Değiştir",
     "row_model": "Model Değiştir",
+    "row_tokens": "Token İstatistikleri",
     "model_hint_anthropic": "!model sonnet|haiku|opus — aktif: {current}",
     "model_hint_ollama": "!model <model_adı> — aktif: {current}",
     "model_hint_gemini": "!model gemini-2.0-flash vb. — aktif: {current}",
@@ -418,6 +419,16 @@
     "started": "✅ Kişisel ajan başlatıldı.",
     "started_with_url": "✅ Kişisel ajan başlatıldı.\n🌐 Webhook URL:\n{url}",
     "stopping": "🛑 Kişisel ajan kapatılıyor."
+  },
+  "tokens": {
+    "invalid_span": "❌ Geçersiz zaman aralığı: {span}\nKullanım: !tokens [24h|7d|30d]",
+    "empty": "📭 Son {span} içinde kayıtlı token kullanımı bulunamadı.",
+    "header": "📊 Token İstatistikleri (son {span})",
+    "total": "🔢 Toplam: {input} input + {output} output ({calls} çağrı)",
+    "model_header": "🤖 Model Kategorileri:",
+    "model_row": "  • {name}: {input} in + {output} out ({calls} çağrı)",
+    "backend_header": "⚙️ Backend'ler:",
+    "backend_row": "  • {name}: {input} in + {output} out ({calls} çağrı)"
   },
   "bridge_monitor": {
     "restart_timeout": "Bridge otomatik restart zaman aşımına uğradı. Manuel !restart gerekiyor.",

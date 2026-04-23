@@ -24,6 +24,9 @@ class WhatsAppMessenger:
         """buttons: [{"id": "btn_id", "title": "Başlık"}, ...] — max 3 buton."""
         await cloud_api.send_buttons(to, text, buttons)
 
+    async def send_typing(self, to: str) -> None:
+        """WhatsApp Cloud API'de native typing action yok — no-op."""
+
     async def send_list(self, to: str, text: str, sections: list[dict]) -> None:
         """WhatsApp açılır liste menüsü olarak gönder.
 

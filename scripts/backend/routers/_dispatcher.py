@@ -11,11 +11,16 @@ Alt modüller:
 OCP-3: Auth state dispatch _AUTH_FLOW_REGISTRY dict ile yönetilir.
   Yeni auth adımı = yeni handler fonksiyonu + _auth_dispatcher._AUTH_FLOW_REGISTRY'ye kayıt.
 
+OCP-MSG: Mesaj tipi dispatch _MSG_TYPE_HANDLERS dict ile yönetilir.
+  Yeni mesaj tipi = yeni _handle_<type>() fonksiyonu + _MSG_TYPE_HANDLERS kaydı.
+
 Bağımlılık yönü: Dispatcher → Guards → Features → Store
 """
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
+from typing import Any, Awaitable, Callable
 
 from ..config import settings
 from ..guards import get_session_mgr
@@ -28,6 +33,21 @@ from ._auth_dispatcher import handle_auth_flow, has_active_auth_flow
 from ._text_router import _route_text, _forward_to_bridge
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class _MsgCtx:
+    """Tek mesaj dispatch turundaki tüm bağlamı taşır (SRP: argüman listesi küçülür)."""
+    sender: str
+    msg_id: str
+    msg_type: str
+    text: str
+    reply_id: str
+    extra_desc: str
+    raw_payload: Any
+    context_id: str
+    session: dict
+    lang: str
 
 
 async def handle_common_message(
@@ -46,81 +66,111 @@ async def handle_common_message(
         session:  Mevcut oturum dict'i (session_mgr.get(sender)).
         inbound:  InboundMessage — text, reply_id, extra_desc, raw_payload (REFAC-19).
     """
-    inbound      = inbound or {}
-    text         = inbound.get("text", "")
-    reply_id     = inbound.get("reply_id", "")
-    extra_desc   = inbound.get("extra_desc", "")
-    raw_payload  = inbound.get("raw_payload")
-    context_id   = session.get("active_context", "main")
-    messenger    = get_messenger()
-    lang         = session.get("lang", "tr")
+    inbound = inbound or {}
+    ctx = _MsgCtx(
+        sender=sender,
+        msg_id=msg_id,
+        msg_type=msg_type,
+        text=inbound.get("text", ""),
+        reply_id=inbound.get("reply_id", ""),
+        extra_desc=inbound.get("extra_desc", ""),
+        raw_payload=inbound.get("raw_payload"),
+        context_id=session.get("active_context", "main"),
+        session=session,
+        lang=session.get("lang", "tr"),
+    )
 
     # ── Kilit kontrolü ────────────────────────────────────────────────
     if is_locked():
         has_auth_flow = has_active_auth_flow(session)
-        is_unlock_cmd = msg_type == "text" and text.strip().lower().startswith("!unlock")
+        is_unlock_cmd = msg_type == "text" and ctx.text.strip().lower().startswith("!unlock")
         if not has_auth_flow and not is_unlock_cmd:
-            await messenger.send_text(sender, t("lock.locked_msg", lang))
+            await get_messenger().send_text(sender, t("lock.locked_msg", ctx.lang))
             return
 
     # ── Auth state akışları (SRP-V2: _auth_dispatcher.handle_auth_flow) ─────
-    if await handle_auth_flow(sender, text, msg_type, msg_id, session):
+    if await handle_auth_flow(sender, ctx.text, msg_type, msg_id, session):
         return
 
-    # ── Mesaj tipine göre yönlendir ───────────────────────────────
-    if msg_type == "text":
-        if settings.conv_history_enabled:
-            log_inbound(msg_id, sender, "text", content=text,
-                        context_id=context_id, raw_payload=raw_payload)
-        await _route_text(sender, text, session)
+    # ── Mesaj tipine göre yönlendir (OCP-MSG: registry) ──────────────
+    handler = _MSG_TYPE_HANDLERS.get(msg_type, _handle_unsupported)
+    await handler(ctx)
 
-    elif msg_type == "interactive":
-        if settings.conv_history_enabled:
-            log_inbound(msg_id, sender, "interactive", content=reply_id,
-                        context_id=context_id, raw_payload=raw_payload)
-        # FEAT-4: Araç onayı butonları session kilidini beklemeden hemen işlenmeli.
-        # forward_locked zaten kilidi tutuyor olabilir (Bridge yanıtı bekleniyor);
-        # lock altında _route_interactive çağırmak deadlock'a yol açar.
-        if reply_id.startswith("perm_a:") or reply_id.startswith("perm_d:"):
-            short_id   = reply_id[7:]
-            allowed    = reply_id.startswith("perm_a:")
-            session_id = "main" if context_id == "main" else context_id.replace(":", "_")
-            from ._bridge_client import send_permission_response
-            await send_permission_response(short_id, session_id, allowed)
-            msg_key = "permission.allowed" if allowed else "permission.denied"
-            await messenger.send_text(sender, t(msg_key, lang))
-            return
-        async with get_session_mgr().lock(sender):
-            await _route_interactive(sender, reply_id, session)
 
-    elif msg_type == "location":
-        if settings.conv_history_enabled:
-            log_inbound(msg_id, sender, "location", content=extra_desc,
-                        context_id=context_id, raw_payload=raw_payload)
-        await _forward_to_bridge(sender, extra_desc, session)
+# ── Mesaj tipi handler'ları ───────────────────────────────────────
 
-    elif msg_type == "sticker":
-        lang = session.get("lang", "tr")
-        if settings.conv_history_enabled:
-            log_inbound(msg_id, sender, "sticker", content=extra_desc,
-                        context_id=context_id, raw_payload=raw_payload)
-        await messenger.send_text(sender, t("msg.sticker_ack", lang))
-        if settings.conv_history_enabled:
-            log_outbound(sender, "text", "sticker_ack", context_id=context_id)
+_HandlerFn = Callable[[_MsgCtx], Awaitable[None]]
 
-    elif msg_type == "reaction":
-        if settings.conv_history_enabled:
-            log_inbound(msg_id, sender, "reaction", content=extra_desc,
-                        context_id=context_id, raw_payload=raw_payload)
-        logger.info("Reaction: sender=%s %s", sender, extra_desc)
 
-    else:
-        lang = session.get("lang", "tr")
-        logger.info("Desteklenmeyen mesaj tipi: %s sender=%s", msg_type, sender)
-        if settings.conv_history_enabled:
-            log_inbound(msg_id, sender, msg_type,
-                        context_id=context_id, raw_payload=raw_payload)
-        await messenger.send_text(sender, t("msg.unsupported_type", lang, msg_type=msg_type))
+async def _handle_text(ctx: _MsgCtx) -> None:
+    if settings.conv_history_enabled:
+        log_inbound(ctx.msg_id, ctx.sender, "text", content=ctx.text,
+                    context_id=ctx.context_id, raw_payload=ctx.raw_payload)
+    await _route_text(ctx.sender, ctx.text, ctx.session)
+
+
+async def _handle_interactive(ctx: _MsgCtx) -> None:
+    if settings.conv_history_enabled:
+        log_inbound(ctx.msg_id, ctx.sender, "interactive", content=ctx.reply_id,
+                    context_id=ctx.context_id, raw_payload=ctx.raw_payload)
+    # FEAT-4: Araç onayı butonları session kilidini beklemeden hemen işlenmeli.
+    # forward_locked zaten kilidi tutuyor olabilir (Bridge yanıtı bekleniyor);
+    # lock altında _route_interactive çağırmak deadlock'a yol açar.
+    if ctx.reply_id.startswith("perm_a:") or ctx.reply_id.startswith("perm_d:"):
+        short_id = ctx.reply_id[7:]
+        allowed = ctx.reply_id.startswith("perm_a:")
+        session_id = "main" if ctx.context_id == "main" else ctx.context_id.replace(":", "_")
+        from ._bridge_client import send_permission_response
+        await send_permission_response(short_id, session_id, allowed)
+        msg_key = "permission.allowed" if allowed else "permission.denied"
+        await get_messenger().send_text(ctx.sender, t(msg_key, ctx.lang))
+        return
+    async with get_session_mgr().lock(ctx.sender):
+        await _route_interactive(ctx.sender, ctx.reply_id, ctx.session)
+
+
+async def _handle_location(ctx: _MsgCtx) -> None:
+    if settings.conv_history_enabled:
+        log_inbound(ctx.msg_id, ctx.sender, "location", content=ctx.extra_desc,
+                    context_id=ctx.context_id, raw_payload=ctx.raw_payload)
+    await _forward_to_bridge(ctx.sender, ctx.extra_desc, ctx.session)
+
+
+async def _handle_sticker(ctx: _MsgCtx) -> None:
+    if settings.conv_history_enabled:
+        log_inbound(ctx.msg_id, ctx.sender, "sticker", content=ctx.extra_desc,
+                    context_id=ctx.context_id, raw_payload=ctx.raw_payload)
+    await get_messenger().send_text(ctx.sender, t("msg.sticker_ack", ctx.lang))
+    if settings.conv_history_enabled:
+        log_outbound(ctx.sender, "text", "sticker_ack", context_id=ctx.context_id)
+
+
+async def _handle_reaction(ctx: _MsgCtx) -> None:
+    if settings.conv_history_enabled:
+        log_inbound(ctx.msg_id, ctx.sender, "reaction", content=ctx.extra_desc,
+                    context_id=ctx.context_id, raw_payload=ctx.raw_payload)
+    logger.info("Reaction: sender=%s %s", ctx.sender, ctx.extra_desc)
+
+
+async def _handle_unsupported(ctx: _MsgCtx) -> None:
+    logger.info("Desteklenmeyen mesaj tipi: %s sender=%s", ctx.msg_type, ctx.sender)
+    if settings.conv_history_enabled:
+        log_inbound(ctx.msg_id, ctx.sender, ctx.msg_type,
+                    context_id=ctx.context_id, raw_payload=ctx.raw_payload)
+    await get_messenger().send_text(
+        ctx.sender,
+        t("msg.unsupported_type", ctx.lang, msg_type=ctx.msg_type),
+    )
+
+
+# OCP-MSG: Yeni mesaj tipi = yeni _handle_<type>() + buraya kayıt
+_MSG_TYPE_HANDLERS: dict[str, _HandlerFn] = {
+    "text":        _handle_text,
+    "interactive": _handle_interactive,
+    "location":    _handle_location,
+    "sticker":     _handle_sticker,
+    "reaction":    _handle_reaction,
+}
 
 
 # ── Interactive yönlendirme ───────────────────────────────────────

@@ -30,13 +30,16 @@ data/*.json
 !data/.gitkeep
 
 # ── Logs ──────────────────────────────────────────────────────────
-outputs/
+outputs/*
 !outputs/.gitkeep
 *.log
 *.log.*
 
 # ── Reports (local/private) ───────────────────────────────────────
 reports/
+
+# ── Generated / pip-tools ─────────────────────────────────────────
+scripts/backend/requirements/compiled.txt
 
 # ── Python ────────────────────────────────────────────────────────
 scripts/backend/venv/
@@ -96,3 +99,4 @@ tmp/
 *.bak
 *.orig
 research/
+drafts/

@@ -1,11 +1,11 @@
 """Work Plans repository — work_plans tablosu için veri erişimi (SRP)."""
 from __future__ import annotations
 
-import asyncio
 import time
 import uuid
 
 from .._connection import _conn
+from ._thread_runner import run_in_thread
 
 
 def _sync_plan_create(title: str, description: str = "", priority: int = 2,
@@ -58,20 +58,20 @@ async def plan_create(
     due_date: float | None = None,
     project_id: str | None = None,
 ) -> dict:
-    return await asyncio.to_thread(_sync_plan_create, title, description, priority, due_date, project_id)
+    return await run_in_thread(_sync_plan_create, title, description, priority, due_date, project_id)
 
 
 async def plan_get(plan_id: str) -> dict | None:
-    return await asyncio.to_thread(_sync_plan_get, plan_id)
+    return await run_in_thread(_sync_plan_get, plan_id)
 
 
 async def plan_list(status: str = "active") -> list[dict]:
-    return await asyncio.to_thread(_sync_plan_list, status)
+    return await run_in_thread(_sync_plan_list, status)
 
 
 async def plan_complete(plan_id: str) -> None:
-    return await asyncio.to_thread(_sync_plan_complete, plan_id)
+    return await run_in_thread(_sync_plan_complete, plan_id)
 
 
 async def plan_delete(plan_id: str) -> None:
-    return await asyncio.to_thread(_sync_plan_delete, plan_id)
+    return await run_in_thread(_sync_plan_delete, plan_id)

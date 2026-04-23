@@ -37,7 +37,7 @@ def _fmt_log_entry(line: str) -> str | None:
 
         return f"⏰ {time_str} | 🔧 {tool}\n  → {input_preview}\n  ← {output_preview}"
     except (json.JSONDecodeError, KeyError):
-        return None
+        return line.strip() or None
 
 
 class RootLogCommand:

@@ -54,3 +54,26 @@ def get_messenger() -> AbstractMessenger:
         _instance = cls()
         logger.info("Messenger: %s", cls.__name__)
     return _instance
+
+
+def set_messenger(instance: AbstractMessenger) -> None:
+    """Test enjeksiyonu için singleton'ı override et.
+
+    Kullanım (pytest):
+        set_messenger(mock_messenger)
+        yield
+        reset_messenger()
+
+    Production kodunda çağrılmamalı.
+    """
+    global _instance
+    _instance = instance
+
+
+def reset_messenger() -> None:
+    """Test izolasyonu için singleton'ı sıfırla — bir sonraki get_messenger() yeniden oluşturur.
+
+    Production kodunda çağrılmamalı.
+    """
+    global _instance
+    _instance = None

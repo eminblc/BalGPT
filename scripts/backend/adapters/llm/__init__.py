@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
+from .result import CompletionResult
+
 
 @runtime_checkable
 class AbstractLLMProvider(Protocol):
@@ -34,7 +36,7 @@ class AbstractLLMProvider(Protocol):
         messages: list[dict],
         model: str | None = None,
         max_tokens: int = 4096,
-    ) -> str:
+    ) -> CompletionResult:
         """Verilen mesaj geçmişine göre bir yanıt üretir.
 
         Args:
@@ -46,7 +48,7 @@ class AbstractLLMProvider(Protocol):
             max_tokens: Üretilecek maksimum token sayısı.
 
         Returns:
-            Üretilen yanıt metni.
+            CompletionResult — metin, model bilgisi ve token istatistikleri.
 
         Raises:
             RuntimeError: API çağrısı başarısız olursa.

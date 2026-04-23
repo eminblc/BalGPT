@@ -18,6 +18,17 @@ from ..guards.commands import registry as cmd_registry
 from ..store.message_logger import log_outbound
 from ..adapters.messenger.messenger_factory import get_messenger
 from ..i18n import t
+from ..features.project_wizard import (
+    ask_description,
+    ask_auto_arch,
+    handle_arch_edit_input,
+    handle_path_input,
+    handle_service_name,
+    handle_service_cmd,
+    handle_service_port,
+    handle_service_cwd,
+    clear_wizard,
+)
 from . import _intent_classifier
 
 logger = logging.getLogger(__name__)
@@ -36,7 +47,6 @@ async def _wiz_project_name(sender: str, text: str, session: dict) -> None:
         log_outbound(sender, "text", "wiz_empty_name", context_id=context_id)
         return
     session.accept_project_name()
-    from ..features.project_wizard import ask_description
     await ask_description(sender, name, session)
     log_outbound(sender, "text", "wiz_ask_description", context_id=context_id)
 
@@ -47,49 +57,42 @@ async def _wiz_project_description(sender: str, text: str, session: dict) -> Non
     session.accept_project_description(desc)
     # WIZ-LLM-4: Açıklamadan sonra önce AI mimari önerisi sor (ask_auto_arch);
     # restrict_wizard_llm_scaffold=True ise ask_auto_arch sessizce ask_options'a düşer.
-    from ..features.project_wizard import ask_auto_arch
     await ask_auto_arch(sender, session)
     log_outbound(sender, "text", "wiz_ask_auto_arch", context_id=context_id)
 
 
 async def _wiz_arch_edit(sender: str, text: str, session: dict) -> None:
     context_id = session.get("active_context", "main")
-    from ..features.project_wizard import handle_arch_edit_input
     await handle_arch_edit_input(sender, text, session)
     log_outbound(sender, "text", "wiz_arch_edit_input", context_id=context_id)
 
 
 async def _wiz_project_path(sender: str, text: str, session: dict) -> None:
     context_id = session.get("active_context", "main")
-    from ..features.project_wizard import handle_path_input
     await handle_path_input(sender, text, session)
     log_outbound(sender, "text", "wiz_path_input", context_id=context_id)
 
 
 async def _wiz_service_name(sender: str, text: str, session: dict) -> None:
     context_id = session.get("active_context", "main")
-    from ..features.project_wizard import handle_service_name
     await handle_service_name(sender, text, session)
     log_outbound(sender, "text", "wiz_service_name", context_id=context_id)
 
 
 async def _wiz_service_cmd(sender: str, text: str, session: dict) -> None:
     context_id = session.get("active_context", "main")
-    from ..features.project_wizard import handle_service_cmd
     await handle_service_cmd(sender, text, session)
     log_outbound(sender, "text", "wiz_service_cmd", context_id=context_id)
 
 
 async def _wiz_service_port(sender: str, text: str, session: dict) -> None:
     context_id = session.get("active_context", "main")
-    from ..features.project_wizard import handle_service_port
     await handle_service_port(sender, text, session)
     log_outbound(sender, "text", "wiz_service_port", context_id=context_id)
 
 
 async def _wiz_service_cwd(sender: str, text: str, session: dict) -> None:
     context_id = session.get("active_context", "main")
-    from ..features.project_wizard import handle_service_cwd
     await handle_service_cwd(sender, text, session)
     log_outbound(sender, "text", "wiz_service_cwd", context_id=context_id)
 
@@ -136,7 +139,6 @@ async def _route_text(sender: str, text: str, session: dict) -> None:
     # ── Ana mod: ! ile başlıyorsa yerel komut ──
     cmd = text.split()[0].lower() if text.startswith("!") else ""
     if cmd and session.get("wiz_name"):
-        from ..features.project_wizard import clear_wizard
         clear_wizard(session)
         await messenger.send_text(sender, t("cmd.wiz_auto_cancelled", lang))
         log_outbound(sender, "text", "wiz_auto_cancel_on_cmd", context_id=context_id)

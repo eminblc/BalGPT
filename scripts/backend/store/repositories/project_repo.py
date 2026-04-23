@@ -1,11 +1,12 @@
 """Proje repository — projects tablosu için tüm veri erişimi (SRP).
 
-Sync implementasyonlar (_sync_*) ile asyncio.to_thread() sarmalayıcıları içerir.
+Sync implementasyonlar (_sync_*) ile run_in_thread() sarmalayıcıları içerir.
 """
 from __future__ import annotations
 
-import asyncio
 import re
+
+from ._thread_runner import run_in_thread
 import sqlite3
 import time
 import unicodedata
@@ -98,20 +99,20 @@ async def project_create(
     metadata: str = "{}",
     path: str | None = None,
 ) -> dict:
-    return await asyncio.to_thread(_sync_project_create, name, description, source_pdf, metadata, path)
+    return await run_in_thread(_sync_project_create, name, description, source_pdf, metadata, path)
 
 
 async def project_get(project_id: str) -> dict | None:
-    return await asyncio.to_thread(_sync_project_get, project_id)
+    return await run_in_thread(_sync_project_get, project_id)
 
 
 async def project_list() -> list[dict]:
-    return await asyncio.to_thread(_sync_project_list)
+    return await run_in_thread(_sync_project_list)
 
 
 async def project_update_status(project_id: str, status: str) -> None:
-    return await asyncio.to_thread(_sync_project_update_status, project_id, status)
+    return await run_in_thread(_sync_project_update_status, project_id, status)
 
 
 async def project_delete(project_id: str) -> bool:
-    return await asyncio.to_thread(_sync_project_delete, project_id)
+    return await run_in_thread(_sync_project_delete, project_id)

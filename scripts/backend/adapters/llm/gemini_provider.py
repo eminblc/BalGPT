@@ -20,10 +20,18 @@ import logging
 import httpx
 
 from ...config import settings
+from .result import CompletionResult
 
 logger = logging.getLogger(__name__)
 
 _API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+
+_MODEL_NAMES: dict[str, str] = {
+    "gemini-2.0-flash": "Gemini 2.0 Flash",
+    "gemini-2.5-flash-latest": "Gemini 2.5 Flash",
+    "gemini-2.5-flash": "Gemini 2.5 Flash",
+    "gemini-exp-1114": "Gemini Exp 1114",
+}
 
 
 class GeminiProvider:
@@ -44,8 +52,8 @@ class GeminiProvider:
         messages: list[dict],
         model: str | None = None,
         max_tokens: int = 4096,
-    ) -> str:
-        """Gemini generateContent API'ye istek gönderir, yanıt metnini döndürür.
+    ) -> CompletionResult:
+        """Gemini generateContent API'ye istek gönderir, CompletionResult döndürür.
 
         OpenAI uyumlu mesaj listesini Gemini formatına dönüştürür:
           - "system" role → systemInstruction
@@ -98,6 +106,16 @@ class GeminiProvider:
 
         data = resp.json()
         try:
-            return data["candidates"][0]["content"]["parts"][0]["text"]
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
         except (KeyError, IndexError, TypeError) as exc:
             raise RuntimeError(f"Gemini yanıt parse hatası: {data}") from exc
+
+        usage = data.get("usageMetadata", {})
+        return CompletionResult(
+            text=text,
+            model_id=resolved_model,
+            model_name=_MODEL_NAMES.get(resolved_model, resolved_model),
+            backend="gemini",
+            input_tokens=usage.get("promptTokenCount", 0),
+            output_tokens=usage.get("candidatesTokenCount", 0),
+        )

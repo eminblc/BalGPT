@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     # (yollar sqlite_store.py ve server.js içinde doğrudan tanımlı).
     # İleride merkezi yol yönetimi için bu alanlar aktif hale getirilecek (K6).
     projects_dir: str = ""   # Boş bırakılırsa DEFAULT_PROJECTS_DIR (33-projects/) kullanılır
+    pdf_tmp_dir: str = "/tmp/personal-agent-pdf"  # PDF indirme geçici dizini
 
     @property
     def resolved_projects_dir(self) -> Path:
@@ -79,6 +80,7 @@ class Settings(BaseSettings):
     # ── Webhook Proxy ─────────────────────────────────────────────
     webhook_proxy: str = "none"        # ngrok | cloudflared | external | none
     public_url: str = ""               # WEBHOOK_PROXY=external ise zorunlu (https://...)
+    ngrok_authtoken: str = ""          # NGROK_AUTHTOKEN — ngrok auth token (opsiyonel)
 
     # ── Messenger adaptörü ───────────────────────────────────────
     messenger_type: str = "whatsapp"   # "whatsapp" | "telegram"
@@ -188,6 +190,64 @@ class Settings(BaseSettings):
     def plans_enabled(self) -> bool:
         """İş planı yönetimi etkin mi? Env: RESTRICT_PLANS=true → False."""
         return not self.restrict_plans
+
+    # ── Güvenlik doğrulaması (SRP: startup mantığı config'e ait) ─────────────
+    def validate_for_environment(self) -> None:
+        """Ortama göre güvenlik gereksinimlerini doğrular.
+
+        Production: eksik kritik değerler RuntimeError fırlatır — servis başlamaz.
+        Development: yalnızca uyarı loglanır.
+
+        Raises:
+            RuntimeError: Production'da kritik güvenlik değeri eksikse.
+        """
+        import logging as _logging
+        _logger = _logging.getLogger(__name__)
+        is_prod = self.environment == "production"
+        errors: list[str] = []
+
+        # API Key — /agent/* endpoint'leri
+        if not self.api_key.get_secret_value():
+            msg = "api_key tanımlı değil — /agent/* endpoint'leri korumasız!"
+            if is_prod:
+                errors.append(msg)
+            else:
+                _logger.warning("GÜVENLIK: %s", msg)
+
+        # TOTP secret — rutin komutlar
+        if not self.totp_secret.get_secret_value():
+            _logger.warning("GÜVENLIK: totp_secret tanımlı değil — TOTP koruması devre dışı!")
+
+        # WhatsApp HMAC
+        if not self.whatsapp_app_secret.get_secret_value():
+            msg = "whatsapp_app_secret tanımlı değil — HMAC doğrulaması atlanıyor!"
+            if is_prod:
+                errors.append(msg)
+            else:
+                _logger.warning("GÜVENLIK: %s", msg)
+
+        # Telegram webhook secret
+        if self.messenger_type == "telegram" and not self.telegram_webhook_secret.get_secret_value():
+            msg = "telegram_webhook_secret tanımlı değil — Telegram webhook korumasız!"
+            if is_prod:
+                errors.append(msg)
+            else:
+                _logger.warning("GÜVENLIK: %s", msg)
+
+        # CORS origins
+        _parsed_cors = [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        if not _parsed_cors:
+            msg = "cors_origins boş — CORS yalnızca http://localhost:5678 için etkin!"
+            if is_prod:
+                errors.append(msg)
+            else:
+                _logger.warning("GÜVENLIK: %s", msg)
+
+        if errors:
+            raise RuntimeError(
+                "GÜVENLIK: Production ortamında kritik değerler eksik — servis başlatılmadı.\n"
+                + "\n".join(f"  • {e}" for e in errors)
+            )
 
     # ── Compat aliases (cloud_api.py uyumu) ──────────────────────
     @property

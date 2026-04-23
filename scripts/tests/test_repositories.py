@@ -1,6 +1,7 @@
 """Repository katmanı testleri — geçici SQLite DB ile.
 
-message_repo, plan_repo, project_repo, settings_repo, dedup_repo, event_repo, task_repo
+message_repo, plan_repo, project_repo, settings_repo, dedup_repo, event_repo, task_repo,
+token_stat_repo
 """
 import asyncio
 import pytest
@@ -297,3 +298,144 @@ def test_slugify_multiple_dashes():
     result = slugify_project_name("Test  --  Project")
     assert "--" not in result
     assert result == "test-project"
+
+
+# ── token_stat_repo ───────────────────────────────────────────────
+
+def test_token_add_and_get_totals(tmp_db):
+    """add_usage sonrası get_totals doğru toplamları döndürmeli."""
+    with patch("backend.store._connection._resolve_db_path", return_value=tmp_db):
+        from backend.store.repositories import token_stat_repo
+        asyncio.run(token_stat_repo.add_usage(
+            "claude-3-5-haiku-20241022", "Haiku 4.5", "anthropic",
+            input_tokens=100, output_tokens=50,
+        ))
+        asyncio.run(token_stat_repo.add_usage(
+            "claude-3-5-haiku-20241022", "Haiku 4.5", "anthropic",
+            input_tokens=200, output_tokens=80,
+        ))
+        totals = asyncio.run(token_stat_repo.get_totals(24))
+
+    assert totals["calls"] == 2
+    assert totals["input_tokens"] == 300
+    assert totals["output_tokens"] == 130
+    assert totals["total_tokens"] == 430
+
+
+def test_token_get_totals_empty(tmp_db):
+    """Kayıt yokken get_totals calls=0 dönmeli."""
+    with patch("backend.store._connection._resolve_db_path", return_value=tmp_db):
+        from backend.store.repositories import token_stat_repo
+        totals = asyncio.run(token_stat_repo.get_totals(24))
+
+    assert totals.get("calls") in (0, None)
+
+
+def test_token_get_summary_groups_by_model(tmp_db):
+    """Farklı modeller için get_summary ayrı satırlar döndürmeli."""
+    with patch("backend.store._connection._resolve_db_path", return_value=tmp_db):
+        from backend.store.repositories import token_stat_repo
+        asyncio.run(token_stat_repo.add_usage(
+            "claude-3-5-haiku-20241022", "Haiku 4.5", "anthropic", 100, 40,
+        ))
+        asyncio.run(token_stat_repo.add_usage(
+            "claude-3-5-haiku-20241022", "Haiku 4.5", "anthropic", 50, 20,
+        ))
+        asyncio.run(token_stat_repo.add_usage(
+            "gemini-2.0-flash", "Gemini 2.0 Flash", "gemini", 300, 100,
+        ))
+        summary = asyncio.run(token_stat_repo.get_summary(24))
+
+    model_names = {r["model_name"] for r in summary}
+    assert "Haiku 4.5" in model_names
+    assert "Gemini 2.0 Flash" in model_names
+
+    haiku = next(r for r in summary if r["model_name"] == "Haiku 4.5")
+    assert haiku["calls"] == 2
+    assert haiku["input_tokens"] == 150
+    assert haiku["output_tokens"] == 60
+
+
+def test_token_get_summary_empty(tmp_db):
+    """Kayıt yokken get_summary boş liste döndürmeli."""
+    with patch("backend.store._connection._resolve_db_path", return_value=tmp_db):
+        from backend.store.repositories import token_stat_repo
+        summary = asyncio.run(token_stat_repo.get_summary(24))
+
+    assert summary == []
+
+
+def test_token_total_tokens_stored_correctly(tmp_db):
+    """total_tokens = input_tokens + output_tokens olarak saklanmalı."""
+    with patch("backend.store._connection._resolve_db_path", return_value=tmp_db):
+        from backend.store.repositories import token_stat_repo
+        import sqlite3
+        asyncio.run(token_stat_repo.add_usage(
+            "llama3", "Ollama/llama3", "ollama", 111, 222,
+        ))
+        with sqlite3.connect(tmp_db) as con:
+            row = con.execute(
+                "SELECT input_tokens, output_tokens, total_tokens FROM token_usage LIMIT 1"
+            ).fetchone()
+
+    assert row[0] == 111
+    assert row[1] == 222
+    assert row[2] == 333
+
+
+def test_token_context_field_stored(tmp_db):
+    """context alanı doğru saklanmalı."""
+    with patch("backend.store._connection._resolve_db_path", return_value=tmp_db):
+        from backend.store.repositories import token_stat_repo
+        import sqlite3
+        asyncio.run(token_stat_repo.add_usage(
+            "claude-3-5-haiku-20241022", "Haiku 4.5", "anthropic", 10, 5,
+            context="intent_classifier",
+        ))
+        with sqlite3.connect(tmp_db) as con:
+            row = con.execute("SELECT context FROM token_usage LIMIT 1").fetchone()
+
+    assert row[0] == "intent_classifier"
+
+
+def test_token_session_id_optional(tmp_db):
+    """session_id None olarak geçilebilmeli."""
+    with patch("backend.store._connection._resolve_db_path", return_value=tmp_db):
+        from backend.store.repositories import token_stat_repo
+        asyncio.run(token_stat_repo.add_usage(
+            "claude-3-5-haiku-20241022", "Haiku 4.5", "anthropic", 5, 2,
+            session_id=None,
+        ))
+        totals = asyncio.run(token_stat_repo.get_totals(24))
+
+    assert totals["calls"] == 1
+
+
+def test_token_timespan_filters_old_entries(tmp_db):
+    """Zaman aralığı dışındaki kayıtlar get_totals'a dahil edilmemeli."""
+    import sqlite3, time
+    from datetime import datetime, timezone, timedelta
+
+    with patch("backend.store._connection._resolve_db_path", return_value=tmp_db):
+        from backend.store.repositories import token_stat_repo
+
+        # Şimdiki kayıt
+        asyncio.run(token_stat_repo.add_usage(
+            "claude-3-5-haiku-20241022", "Haiku 4.5", "anthropic", 100, 50,
+        ))
+        # 25 saat öncesine ait sahte kayıt
+        old_ts = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+        with sqlite3.connect(tmp_db) as con:
+            con.execute(
+                """INSERT INTO token_usage
+                   (id, timestamp, model_id, model_name, backend,
+                    input_tokens, output_tokens, total_tokens, context)
+                   VALUES ('old-id', ?, 'claude-3-5-haiku-20241022', 'Haiku 4.5',
+                           'anthropic', 500, 200, 700, 'bridge_query')""",
+                (old_ts,),
+            )
+        # 24 saatlik pencerede yalnızca güncel kayıt görünmeli
+        totals = asyncio.run(token_stat_repo.get_totals(24))
+
+    assert totals["calls"] == 1
+    assert totals["input_tokens"] == 100

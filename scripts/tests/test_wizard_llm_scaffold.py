@@ -16,6 +16,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from backend.adapters.llm.result import CompletionResult
+
+
+def _cr(text: str) -> CompletionResult:
+    """Test için minimal CompletionResult oluşturur."""
+    return CompletionResult(
+        text=text, model_id="claude-haiku-4-5-20251001",
+        model_name="Haiku 4.5", backend="anthropic",
+        input_tokens=10, output_tokens=5,
+    )
+
 
 # ══════════════════════════════════════════════════════════════════════
 # build_arch_prompt
@@ -278,7 +289,7 @@ async def test_generate_arch_preview_happy_path():
     llm_raw = "Yanıt:\n```json\n" + _json.dumps(payload) + "\n```"
 
     fake_llm = MagicMock()
-    fake_llm.complete = AsyncMock(return_value=llm_raw)
+    fake_llm.complete = AsyncMock(return_value=_cr(llm_raw))
 
     with patch.object(mod, "settings", _mock_settings()), \
          patch.object(mod, "get_llm", return_value=fake_llm):
@@ -333,7 +344,7 @@ async def test_generate_arch_preview_json_parse_error_returns_none():
     from backend.features import wizard_llm_scaffold as mod
 
     fake_llm = MagicMock()
-    fake_llm.complete = AsyncMock(return_value="{bozuk json ::: }")
+    fake_llm.complete = AsyncMock(return_value=_cr("{bozuk json ::: }"))
 
     with patch.object(mod, "settings", _mock_settings()), \
          patch.object(mod, "get_llm", return_value=fake_llm):
@@ -353,7 +364,7 @@ async def test_generate_arch_preview_sanitize_fail_returns_none():
     raw = _json.dumps(bad)
 
     fake_llm = MagicMock()
-    fake_llm.complete = AsyncMock(return_value=raw)
+    fake_llm.complete = AsyncMock(return_value=_cr(raw))
 
     with patch.object(mod, "settings", _mock_settings()), \
          patch.object(mod, "get_llm", return_value=fake_llm):
@@ -396,7 +407,7 @@ async def test_regenerate_arch_preview_passes_prev_and_feedback_to_llm():
 
     async def _capture(messages, model=None, max_tokens=1024):
         captured_prompt["content"] = messages[0]["content"]
-        return llm_raw
+        return _cr(llm_raw)
 
     fake_llm = MagicMock()
     fake_llm.complete = _capture

@@ -28,8 +28,33 @@ from ..adapters.messenger.messenger_factory import get_messenger
 from ..i18n import t
 from ..store.sqlite_wrapper import store as _store  # DIP-V3: StoreProtocol uyumlu wrapper
 from ._bridge_helpers import sanitize_filename as _sanitize_filename, CLAUDE_MD_CACHE as _CLAUDE_MD_CACHE
+from ..adapters.messenger import TypingMessenger
 
 logger = logging.getLogger(__name__)
+
+_TYPING_INTERVAL = 4.0  # Telegram typing action ~5 sn aktif; 4 sn'de yenile
+
+# D4: Persistent connection pool — her forward() çağrısında yeni TCP bağlantısı açmaz.
+# bridge_client_timeout uzun (1800 s) olduğundan pool'un read_timeout'u da buna uygun.
+_http_pool = httpx.AsyncClient(
+    timeout=httpx.Timeout(
+        connect=10.0,
+        read=float(settings.bridge_client_timeout),
+        write=30.0,
+        pool=5.0,
+    ),
+    limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+)
+
+
+async def _typing_loop(to: str) -> None:
+    """Messenger TypingMessenger ise her _TYPING_INTERVAL saniyede typing action gönder."""
+    messenger = get_messenger()
+    if not isinstance(messenger, TypingMessenger):
+        return
+    while True:
+        await messenger.send_typing(to)
+        await asyncio.sleep(_TYPING_INTERVAL)
 
 
 # ── SOLID-v2-3: Port keşfi helper ────────────────────────────────────
@@ -106,16 +131,15 @@ async def forward_document(
         return
 
     try:
-        async with httpx.AsyncClient(timeout=settings.bridge_client_timeout) as client:
-            r = await client.post(
-                f"http://localhost:{api_port}/whatsapp/internal/message",
-                json={
-                    "sender":   sender,
-                    "text":     "",
-                    "document": {"media_id": media_id, "filename": filename, "mime_type": mime},
-                },
-            )
-            r.raise_for_status()
+        r = await _http_pool.post(
+            f"http://localhost:{api_port}/whatsapp/internal/message",
+            json={
+                "sender":   sender,
+                "text":     "",
+                "document": {"media_id": media_id, "filename": filename, "mime_type": mime},
+            },
+        )
+        r.raise_for_status()
     except Exception as exc:
         logger.error(
             "Belge iletim hatası: sender=%s error=%s", _mask_phone(sender), exc
@@ -132,27 +156,27 @@ async def forward(sender: str, text: str, session: dict) -> None:
 
     t0 = time.monotonic()
     answer = ""
+    typing_task = asyncio.create_task(_typing_loop(sender))
     try:
-        async with httpx.AsyncClient(timeout=settings.bridge_client_timeout) as client:
-            if project_id:
-                r = await _forward_to_project(client, project_id, sender, text)
-            else:
-                r = await _forward_to_main_bridge(client, session_id, text)
+        if project_id:
+            r = await _forward_to_project(_http_pool, project_id, sender, text)
+        else:
+            r = await _forward_to_main_bridge(_http_pool, session_id, text)
 
-            r.raise_for_status()
-            data   = r.json()
-            answer = data.get("answer", "")
+        r.raise_for_status()
+        data   = r.json()
+        answer = data.get("answer", "")
 
-            latency_ms = int((time.monotonic() - t0) * 1000)
-            if settings.conv_history_enabled:
-                log_bridge_call(
-                    sender=sender,
-                    session_id=session_id,
-                    prompt=text,
-                    response=answer,
-                    latency_ms=latency_ms,
-                    success=True,
-                )
+        latency_ms = int((time.monotonic() - t0) * 1000)
+        if settings.conv_history_enabled:
+            log_bridge_call(
+                sender=sender,
+                session_id=session_id,
+                prompt=text,
+                response=answer,
+                latency_ms=latency_ms,
+                success=True,
+            )
 
     except Exception as exc:
         latency_ms = int((time.monotonic() - t0) * 1000)
@@ -179,6 +203,8 @@ async def forward(sender: str, text: str, session: dict) -> None:
         if settings.conv_history_enabled:
             log_outbound(sender, "text", "bridge_error_reply", context_id=context)
         return
+    finally:
+        typing_task.cancel()
 
     # Bridge yanıtını gönder — send_text hataları bridge hatasıyla karışmasın
     if answer:
@@ -245,7 +271,7 @@ def _error_message(exc: Exception, project_id: str | None, lang: str = "tr") -> 
             _p = _sync_project_get(project_id)
             if _p:
                 project_name = _p["name"]
-        except Exception:
+        except (OSError, ValueError, KeyError):
             pass
         return t("bridge.project_offline", lang, name=project_name)
     if "connection" in err_str or "connect" in err_str:

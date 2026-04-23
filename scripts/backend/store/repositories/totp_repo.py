@@ -1,8 +1,9 @@
 """TOTP Lockouts repository — totp_lockouts tablosu (SEC-A4 SRP)."""
 from __future__ import annotations
 
-import asyncio
 import time
+
+from ._thread_runner import run_in_thread
 
 from .._connection import _conn
 
@@ -58,14 +59,14 @@ def _sync_totp_reset_lockout(sender: str, totp_type: str) -> None:
 # ── Async public API ──────────────────────────────────────────────
 
 async def totp_get_lockout(sender: str, totp_type: str) -> tuple[int, float]:
-    return await asyncio.to_thread(_sync_totp_get_lockout, sender, totp_type)
+    return await run_in_thread(_sync_totp_get_lockout, sender, totp_type)
 
 
 async def totp_record_failure(
     sender: str, totp_type: str, lockout_duration: float = 900.0
 ) -> tuple[int, float]:
-    return await asyncio.to_thread(_sync_totp_record_failure, sender, totp_type, lockout_duration)
+    return await run_in_thread(_sync_totp_record_failure, sender, totp_type, lockout_duration)
 
 
 async def totp_reset_lockout(sender: str, totp_type: str) -> None:
-    return await asyncio.to_thread(_sync_totp_reset_lockout, sender, totp_type)
+    return await run_in_thread(_sync_totp_reset_lockout, sender, totp_type)

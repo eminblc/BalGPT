@@ -112,7 +112,7 @@ def test_known_commands_registered():
         "!model", "!cancel", "!root-reset", "!project", "!schedule",
         "!restart", "!shutdown", "!root-project", "!root-exit",
         "!beta-exit", "!root-check", "!root-log", "!project-delete",
-        "!terminal", "!timezone",
+        "!terminal", "!timezone", "!tokens",
     }
     registered = set(registry.all_ids())
     missing = expected - registered
@@ -1040,3 +1040,200 @@ async def test_timezone_valid_change():
 
     mock_messenger.send_text.assert_awaited_once()
     mock_setting.assert_awaited_once_with("905001234567", "timezone", "Europe/Istanbul")
+
+
+# ── !tokens komutu ────────────────────────────────────────────────
+
+_SAMPLE_SUMMARY = [
+    {"backend": "anthropic", "model_name": "Haiku 4.5", "model_id": "claude-3-5-haiku-20241022",
+     "calls": 42, "input_tokens": 1_200_000, "output_tokens": 340_000, "total_tokens": 1_540_000},
+    {"backend": "anthropic", "model_name": "Sonnet 4.6", "model_id": "claude-3-5-sonnet-20241022",
+     "calls": 18, "input_tokens": 1_000_000, "output_tokens": 280_000, "total_tokens": 1_280_000},
+    {"backend": "gemini", "model_name": "Gemini 2.0 Flash", "model_id": "gemini-2.0-flash",
+     "calls": 5, "input_tokens": 300_000, "output_tokens": 60_000, "total_tokens": 360_000},
+]
+
+_SAMPLE_TOTALS = {
+    "calls": 65,
+    "input_tokens": 2_500_000,
+    "output_tokens": 680_000,
+    "total_tokens": 3_180_000,
+}
+
+
+@pytest.mark.asyncio
+async def test_tokens_default_span_shows_stats():
+    """Veri varken !tokens özet satırları içermeli."""
+    mock_messenger = AsyncMock()
+    session = {"lang": "tr"}
+
+    with patch("backend.adapters.messenger.get_messenger", return_value=mock_messenger), \
+         patch("backend.store.repositories.token_stat_repo.get_totals",
+               AsyncMock(return_value=_SAMPLE_TOTALS)), \
+         patch("backend.store.repositories.token_stat_repo.get_summary",
+               AsyncMock(return_value=_SAMPLE_SUMMARY)):
+        from backend.guards.commands.tokens_cmd import TokensCommand
+        await TokensCommand().execute("905001234567", "", session)
+
+    mock_messenger.send_text.assert_awaited_once()
+    msg = mock_messenger.send_text.call_args[0][1]
+    assert "24h" in msg
+    assert "Haiku 4.5" in msg
+    assert "Sonnet 4.6" in msg
+    assert "Gemini 2.0 Flash" in msg
+
+
+@pytest.mark.asyncio
+async def test_tokens_shows_totals_line():
+    """Toplam token satırı input + output + çağrı sayısı içermeli."""
+    mock_messenger = AsyncMock()
+    session = {"lang": "tr"}
+
+    with patch("backend.adapters.messenger.get_messenger", return_value=mock_messenger), \
+         patch("backend.store.repositories.token_stat_repo.get_totals",
+               AsyncMock(return_value=_SAMPLE_TOTALS)), \
+         patch("backend.store.repositories.token_stat_repo.get_summary",
+               AsyncMock(return_value=_SAMPLE_SUMMARY)):
+        from backend.guards.commands.tokens_cmd import TokensCommand
+        await TokensCommand().execute("905001234567", "24h", session)
+
+    msg = mock_messenger.send_text.call_args[0][1]
+    # 2_500_000 → "2.5M", 680_000 → "680.0K"
+    assert "2.5M" in msg
+    assert "680.0K" in msg
+    assert "65" in msg
+
+
+@pytest.mark.asyncio
+async def test_tokens_7d_span():
+    """!tokens 7d argümanını kabul etmeli ve başlıkta göstermeli."""
+    mock_messenger = AsyncMock()
+    session = {"lang": "tr"}
+
+    with patch("backend.adapters.messenger.get_messenger", return_value=mock_messenger), \
+         patch("backend.store.repositories.token_stat_repo.get_totals",
+               AsyncMock(return_value=_SAMPLE_TOTALS)), \
+         patch("backend.store.repositories.token_stat_repo.get_summary",
+               AsyncMock(return_value=_SAMPLE_SUMMARY)):
+        from backend.guards.commands.tokens_cmd import TokensCommand
+        await TokensCommand().execute("905001234567", "7d", session)
+
+    msg = mock_messenger.send_text.call_args[0][1]
+    assert "7d" in msg
+
+
+@pytest.mark.asyncio
+async def test_tokens_30d_span():
+    """!tokens 30d argümanını kabul etmeli."""
+    mock_messenger = AsyncMock()
+    session = {"lang": "tr"}
+
+    with patch("backend.adapters.messenger.get_messenger", return_value=mock_messenger), \
+         patch("backend.store.repositories.token_stat_repo.get_totals",
+               AsyncMock(return_value=_SAMPLE_TOTALS)), \
+         patch("backend.store.repositories.token_stat_repo.get_summary",
+               AsyncMock(return_value=_SAMPLE_SUMMARY)):
+        from backend.guards.commands.tokens_cmd import TokensCommand
+        await TokensCommand().execute("905001234567", "30d", session)
+
+    msg = mock_messenger.send_text.call_args[0][1]
+    assert "30d" in msg
+
+
+@pytest.mark.asyncio
+async def test_tokens_invalid_span_shows_error():
+    """Geçersiz zaman aralığında hata mesajı gönderilmeli."""
+    mock_messenger = AsyncMock()
+    session = {"lang": "tr"}
+
+    with patch("backend.adapters.messenger.get_messenger", return_value=mock_messenger):
+        from backend.guards.commands.tokens_cmd import TokensCommand
+        await TokensCommand().execute("905001234567", "5m", session)
+
+    mock_messenger.send_text.assert_awaited_once()
+    msg = mock_messenger.send_text.call_args[0][1]
+    assert "5m" in msg
+
+
+@pytest.mark.asyncio
+async def test_tokens_empty_db_shows_empty_message():
+    """Veri yokken boş mesaj gönderilmeli."""
+    mock_messenger = AsyncMock()
+    session = {"lang": "tr"}
+
+    with patch("backend.adapters.messenger.get_messenger", return_value=mock_messenger), \
+         patch("backend.store.repositories.token_stat_repo.get_totals",
+               AsyncMock(return_value={"calls": 0, "input_tokens": 0,
+                                       "output_tokens": 0, "total_tokens": 0})), \
+         patch("backend.store.repositories.token_stat_repo.get_summary",
+               AsyncMock(return_value=[])):
+        from backend.guards.commands.tokens_cmd import TokensCommand
+        await TokensCommand().execute("905001234567", "24h", session)
+
+    mock_messenger.send_text.assert_awaited_once()
+    msg = mock_messenger.send_text.call_args[0][1]
+    # Boş mesaj locale key'i ile gelir
+    assert "24h" in msg
+
+
+@pytest.mark.asyncio
+async def test_tokens_single_backend_no_backend_section():
+    """Tek backend varken 'Backend'ler' bölümü gösterilmemeli."""
+    mock_messenger = AsyncMock()
+    session = {"lang": "tr"}
+    single_backend_summary = [_SAMPLE_SUMMARY[0], _SAMPLE_SUMMARY[1]]  # sadece anthropic
+
+    with patch("backend.adapters.messenger.get_messenger", return_value=mock_messenger), \
+         patch("backend.store.repositories.token_stat_repo.get_totals",
+               AsyncMock(return_value=_SAMPLE_TOTALS)), \
+         patch("backend.store.repositories.token_stat_repo.get_summary",
+               AsyncMock(return_value=single_backend_summary)):
+        from backend.guards.commands.tokens_cmd import TokensCommand
+        await TokensCommand().execute("905001234567", "24h", session)
+
+    msg = mock_messenger.send_text.call_args[0][1]
+    # Tek backend → backend bölümü gösterilmemeli
+    assert "Gemini" not in msg
+
+
+@pytest.mark.asyncio
+async def test_tokens_multiple_backends_shows_backend_section():
+    """Birden fazla backend varken backend bölümü görünmeli."""
+    mock_messenger = AsyncMock()
+    session = {"lang": "tr"}
+
+    with patch("backend.adapters.messenger.get_messenger", return_value=mock_messenger), \
+         patch("backend.store.repositories.token_stat_repo.get_totals",
+               AsyncMock(return_value=_SAMPLE_TOTALS)), \
+         patch("backend.store.repositories.token_stat_repo.get_summary",
+               AsyncMock(return_value=_SAMPLE_SUMMARY)):
+        from backend.guards.commands.tokens_cmd import TokensCommand
+        await TokensCommand().execute("905001234567", "24h", session)
+
+    msg = mock_messenger.send_text.call_args[0][1]
+    assert "Anthropic" in msg
+    assert "Gemini" in msg
+
+
+def test_tokens_fmt_millions():
+    """_fmt 1M+ değerleri M formatında göstermeli."""
+    from backend.guards.commands.tokens_cmd import _fmt
+    assert _fmt(1_200_000) == "1.2M"
+    assert _fmt(1_000_000) == "1.0M"
+    assert _fmt(2_500_000) == "2.5M"
+
+
+def test_tokens_fmt_thousands():
+    """_fmt 1K-999K değerleri K formatında göstermeli."""
+    from backend.guards.commands.tokens_cmd import _fmt
+    assert _fmt(12_345) == "12.3K"
+    assert _fmt(1_000) == "1.0K"
+    assert _fmt(999_999) == "1000.0K"
+
+
+def test_tokens_fmt_small():
+    """_fmt 1000 altı değerleri sayı olarak göstermeli."""
+    from backend.guards.commands.tokens_cmd import _fmt
+    assert _fmt(0) == "0"
+    assert _fmt(999) == "999"
+    assert _fmt(1) == "1"

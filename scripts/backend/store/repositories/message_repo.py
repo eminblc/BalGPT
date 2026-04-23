@@ -1,8 +1,9 @@
 """Message repository — messages, session_summaries, bridge_calls tabloları (SRP)."""
 from __future__ import annotations
 
-import asyncio
 import time
+
+from ._thread_runner import run_in_thread
 import uuid
 
 from .._connection import _conn
@@ -149,18 +150,18 @@ async def message_log(
     context_id: str = "main",
     raw_json: str = "{}",
 ) -> None:
-    return await asyncio.to_thread(
+    return await run_in_thread(
         _sync_message_log, msg_id, direction, sender, msg_type,
         content, media_id, media_path, mime_type, context_id, raw_json,
     )
 
 
 async def message_list(sender: str, limit: int = 50, offset: int = 0) -> list[dict]:
-    return await asyncio.to_thread(_sync_message_list, sender, limit, offset)
+    return await run_in_thread(_sync_message_list, sender, limit, offset)
 
 
 async def message_count(sender: str) -> int:
-    return await asyncio.to_thread(_sync_message_count, sender)
+    return await run_in_thread(_sync_message_count, sender)
 
 
 async def session_summary_save(
@@ -171,13 +172,13 @@ async def session_summary_save(
     msg_count: int,
     summary: str = "",
 ) -> dict:
-    return await asyncio.to_thread(
+    return await run_in_thread(
         _sync_session_summary_save, sender, context_id, started_at, ended_at, msg_count, summary
     )
 
 
 async def session_summaries_list(sender: str, limit: int = 20) -> list[dict]:
-    return await asyncio.to_thread(_sync_session_summaries_list, sender, limit)
+    return await run_in_thread(_sync_session_summaries_list, sender, limit)
 
 
 async def bridge_call_log(
@@ -189,10 +190,10 @@ async def bridge_call_log(
     success: bool = True,
     error_msg: str = "",
 ) -> None:
-    return await asyncio.to_thread(
+    return await run_in_thread(
         _sync_bridge_call_log, sender, session_id, prompt, response, latency_ms, success, error_msg
     )
 
 
 async def bridge_calls_list(sender: str, limit: int = 20) -> list[dict]:
-    return await asyncio.to_thread(_sync_bridge_calls_list, sender, limit)
+    return await run_in_thread(_sync_bridge_calls_list, sender, limit)

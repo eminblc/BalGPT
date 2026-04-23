@@ -172,7 +172,10 @@ async def test_anthropic_provider_complete_happy_path():
     with patch("backend.adapters.llm.anthropic_provider.httpx.AsyncClient", return_value=mock_client):
         result = await provider.complete([{"role": "user", "content": "Merhaba"}])
 
-    assert result == "Merhaba! Nasıl yardımcı olabilirim?"
+    assert result.text == "Merhaba! Nasıl yardımcı olabilirim?"
+    assert result.backend == "anthropic"
+    assert result.input_tokens == 0
+    assert result.output_tokens == 0
 
 
 @pytest.mark.asyncio
@@ -282,7 +285,9 @@ async def test_ollama_provider_complete_happy_path():
     with patch("backend.adapters.llm.ollama_provider.httpx.AsyncClient", return_value=mock_client):
         result = await provider.complete([{"role": "user", "content": "test"}])
 
-    assert result == "Ollama yanıtı"
+    assert result.text == "Ollama yanıtı"
+    assert result.backend == "ollama"
+    assert result.model_name == "Ollama/llama3"
 
 
 @pytest.mark.asyncio
@@ -337,7 +342,9 @@ async def test_gemini_provider_complete_happy_path():
     with patch("backend.adapters.llm.gemini_provider.httpx.AsyncClient", return_value=mock_client):
         result = await provider.complete([{"role": "user", "content": "Merhaba"}])
 
-    assert result == "Gemini yanıtı"
+    assert result.text == "Gemini yanıtı"
+    assert result.backend == "gemini"
+    assert result.model_name == "Gemini 2.0 Flash"
 
 
 @pytest.mark.asyncio
@@ -392,3 +399,206 @@ async def test_gemini_provider_no_api_key_raises():
 
     with pytest.raises(RuntimeError, match="API anahtarı"):
         await provider.complete([{"role": "user", "content": "test"}])
+
+
+# ── CompletionResult dataclass ────────────────────────────────────
+
+def test_completion_result_fields():
+    """CompletionResult tüm alanları erişilebilir olmalı."""
+    from backend.adapters.llm.result import CompletionResult
+    r = CompletionResult(
+        text="merhaba",
+        model_id="claude-3-5-haiku-20241022",
+        model_name="Haiku 4.5",
+        backend="anthropic",
+        input_tokens=100,
+        output_tokens=50,
+    )
+    assert r.text == "merhaba"
+    assert r.model_id == "claude-3-5-haiku-20241022"
+    assert r.model_name == "Haiku 4.5"
+    assert r.backend == "anthropic"
+    assert r.input_tokens == 100
+    assert r.output_tokens == 50
+
+
+def test_completion_result_immutable():
+    """CompletionResult frozen=True olduğu için atama hata vermeli."""
+    from backend.adapters.llm.result import CompletionResult
+    r = CompletionResult("t", "mid", "mname", "anthropic", 0, 0)
+    with pytest.raises(Exception):
+        r.text = "değişti"  # type: ignore[misc]
+
+
+# ── Token sayıları API yanıtından doğru okunmalı ──────────────────
+
+@pytest.mark.asyncio
+async def test_anthropic_token_counts_parsed():
+    """Anthropic API yanıtındaki usage.input_tokens/output_tokens CompletionResult'a yansımalı."""
+    mock_response = MagicMock()
+    mock_response.is_success = True
+    mock_response.json.return_value = {
+        "content": [{"text": "yanıt"}],
+        "usage": {"input_tokens": 123, "output_tokens": 45},
+    }
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = AsyncMock(return_value=mock_response)
+
+    mock_settings = MagicMock()
+    mock_settings.anthropic_api_key.get_secret_value.return_value = "k"
+    mock_settings.default_model = "claude-3-5-haiku-20241022"
+
+    with patch("backend.adapters.llm.anthropic_provider.settings", mock_settings):
+        from backend.adapters.llm.anthropic_provider import AnthropicProvider
+        provider = AnthropicProvider(api_key="k", default_model="claude-3-5-haiku-20241022")
+
+    with patch("backend.adapters.llm.anthropic_provider.httpx.AsyncClient", return_value=mock_client):
+        result = await provider.complete([{"role": "user", "content": "test"}])
+
+    assert result.input_tokens == 123
+    assert result.output_tokens == 45
+    assert result.model_name == "Haiku 4.5"
+
+
+@pytest.mark.asyncio
+async def test_anthropic_missing_usage_defaults_to_zero():
+    """Anthropic yanıtında usage alanı yoksa token sayıları 0 olmalı."""
+    mock_response = MagicMock()
+    mock_response.is_success = True
+    mock_response.json.return_value = {"content": [{"text": "ok"}]}  # usage yok
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = AsyncMock(return_value=mock_response)
+
+    mock_settings = MagicMock()
+    mock_settings.anthropic_api_key.get_secret_value.return_value = "k"
+    mock_settings.default_model = "claude-3-5-haiku-20241022"
+
+    with patch("backend.adapters.llm.anthropic_provider.settings", mock_settings):
+        from backend.adapters.llm.anthropic_provider import AnthropicProvider
+        provider = AnthropicProvider(api_key="k", default_model="claude-3-5-haiku-20241022")
+
+    with patch("backend.adapters.llm.anthropic_provider.httpx.AsyncClient", return_value=mock_client):
+        result = await provider.complete([{"role": "user", "content": "test"}])
+
+    assert result.input_tokens == 0
+    assert result.output_tokens == 0
+
+
+@pytest.mark.asyncio
+async def test_gemini_token_counts_parsed():
+    """Gemini usageMetadata.promptTokenCount/candidatesTokenCount CompletionResult'a yansımalı."""
+    mock_response = MagicMock()
+    mock_response.is_success = True
+    mock_response.json.return_value = {
+        "candidates": [{"content": {"parts": [{"text": "gemini yanıtı"}]}}],
+        "usageMetadata": {"promptTokenCount": 200, "candidatesTokenCount": 75},
+    }
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = AsyncMock(return_value=mock_response)
+
+    mock_settings = MagicMock()
+    mock_settings.gemini_api_key.get_secret_value.return_value = "k"
+    mock_settings.gemini_model = "gemini-2.0-flash"
+
+    with patch("backend.adapters.llm.gemini_provider.settings", mock_settings):
+        from backend.adapters.llm.gemini_provider import GeminiProvider
+        provider = GeminiProvider(api_key="k", default_model="gemini-2.0-flash")
+
+    with patch("backend.adapters.llm.gemini_provider.httpx.AsyncClient", return_value=mock_client):
+        result = await provider.complete([{"role": "user", "content": "test"}])
+
+    assert result.input_tokens == 200
+    assert result.output_tokens == 75
+    assert result.backend == "gemini"
+    assert result.model_name == "Gemini 2.0 Flash"
+
+
+@pytest.mark.asyncio
+async def test_ollama_token_counts_parsed():
+    """Ollama prompt_eval_count/eval_count CompletionResult'a yansımalı."""
+    mock_response = MagicMock()
+    mock_response.is_success = True
+    mock_response.json.return_value = {
+        "message": {"content": "ollama yanıtı"},
+        "prompt_eval_count": 88,
+        "eval_count": 33,
+    }
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = AsyncMock(return_value=mock_response)
+
+    mock_settings = MagicMock()
+    mock_settings.ollama_base_url = "http://localhost:11434"
+    mock_settings.ollama_model = "llama3"
+
+    with patch("backend.adapters.llm.ollama_provider.settings", mock_settings):
+        from backend.adapters.llm.ollama_provider import OllamaProvider
+        provider = OllamaProvider(base_url="http://localhost:11434", default_model="llama3")
+
+    with patch("backend.adapters.llm.ollama_provider.httpx.AsyncClient", return_value=mock_client):
+        result = await provider.complete([{"role": "user", "content": "test"}])
+
+    assert result.input_tokens == 88
+    assert result.output_tokens == 33
+    assert result.backend == "ollama"
+    assert result.model_name == "Ollama/llama3"
+
+
+@pytest.mark.asyncio
+async def test_ollama_missing_token_counts_default_zero():
+    """Ollama yanıtında eval sayaçları yoksa 0 olmalı."""
+    mock_response = MagicMock()
+    mock_response.is_success = True
+    mock_response.json.return_value = {"message": {"content": "ok"}}
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = AsyncMock(return_value=mock_response)
+
+    mock_settings = MagicMock()
+    mock_settings.ollama_base_url = "http://localhost:11434"
+    mock_settings.ollama_model = "llama3"
+
+    with patch("backend.adapters.llm.ollama_provider.settings", mock_settings):
+        from backend.adapters.llm.ollama_provider import OllamaProvider
+        provider = OllamaProvider(base_url="http://localhost:11434", default_model="llama3")
+
+    with patch("backend.adapters.llm.ollama_provider.httpx.AsyncClient", return_value=mock_client):
+        result = await provider.complete([{"role": "user", "content": "test"}])
+
+    assert result.input_tokens == 0
+    assert result.output_tokens == 0
+
+
+def test_anthropic_unknown_model_uses_model_id_as_name():
+    """Bilinmeyen model ID, model_name olarak model_id'yi kullanmalı."""
+    from backend.adapters.llm.anthropic_provider import _MODEL_NAMES
+    unknown = "claude-future-model-99"
+    assert unknown not in _MODEL_NAMES  # önceden kayıtlı olmamalı
+
+
+def test_anthropic_known_models_have_friendly_names():
+    """Bilinen Anthropic modellerin insan okunur isimleri olmalı."""
+    from backend.adapters.llm.anthropic_provider import _MODEL_NAMES
+    assert _MODEL_NAMES["claude-3-5-haiku-20241022"] == "Haiku 4.5"
+    assert _MODEL_NAMES["claude-3-5-sonnet-20241022"] == "Sonnet 4.6"
+    assert _MODEL_NAMES["claude-opus-4-6"] == "Opus 4.6"
+
+
+def test_gemini_known_models_have_friendly_names():
+    """Bilinen Gemini modellerin insan okunur isimleri olmalı."""
+    from backend.adapters.llm.gemini_provider import _MODEL_NAMES
+    assert _MODEL_NAMES["gemini-2.0-flash"] == "Gemini 2.0 Flash"
+    assert _MODEL_NAMES["gemini-2.5-flash-latest"] == "Gemini 2.5 Flash"

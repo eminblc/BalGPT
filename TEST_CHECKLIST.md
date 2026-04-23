@@ -105,6 +105,35 @@
 | RS-3 | Geçerli TOTP → servis yeniden başlatıldı | [ ] | |
 | RS-4 | Restart sonrası servis ayakta (`/health` 200) | [ ] | |
 
+### !lock / !unlock
+| # | Test | Durum | Not |
+|---|------|-------|-----|
+| LK-1 | `!lock` → TOTP isteniyor | [ ] | |
+| LK-2 | Geçerli TOTP → uygulama kilitlendi | [ ] | |
+| LK-3 | Kilitliyken normal mesaj → reddediliyor | [ ] | |
+| LK-4 | `!unlock` + geçerli TOTP → kilit açıldı | [ ] | |
+
+### !terminal
+| # | Test | Durum | Not |
+|---|------|-------|-----|
+| TRM-1 | `!terminal ls -la` → güvenli komut, doğrudan çalışıyor | [ ] | |
+| TRM-2 | `!terminal rm -rf /tmp/test` → admin TOTP isteniyor | [ ] | |
+| TRM-3 | Geçerli TOTP → tehlikeli komut çalışıyor | [ ] | |
+
+### !timezone
+| # | Test | Durum | Not |
+|---|------|-------|-----|
+| TZ-1 | `!timezone` → mevcut saat dilimi gösteriliyor | [ ] | |
+| TZ-2 | `!timezone Europe/London` → saat dilimi değişti, APScheduler güncellendi | [ ] | |
+| TZ-3 | Geçersiz timezone → hata mesajı | [ ] | |
+
+### !tokens
+| # | Test | Durum | Not |
+|---|------|-------|-----|
+| TK-1 | `!tokens` → 24 saatlik token istatistiği geliyor | [ ] | |
+| TK-2 | `!tokens 7d` → 7 günlük özet | [ ] | |
+| TK-3 | `!tokens 30d` → 30 günlük özet, model/backend dağılımı | [ ] | |
+
 ---
 
 ## 4. Proje Yönetimi
@@ -166,10 +195,10 @@
 |----------|--------|-------|------|
 | Servis Sağlığı | 4 | | |
 | Temel Sohbet | 3 | | |
-| Komutlar | 30 | | |
+| Komutlar | 43 | | |
 | Proje Yönetimi | 7 | | |
 | Takvim & Zamanlama | 3 | | |
 | Medya | 3 | | |
 | Güvenlik | 3 | | |
 | Kullanıcı Ayarları | 2 | | |
-| **Toplam** | **55** | | |
+| **Toplam** | **68** | | |

@@ -388,6 +388,90 @@ Monolitik `StoreProtocol` (199 satır) 9 domain-spesifik sub-protocol'e bölünd
 
 ---
 
+### APR-18 — Büyük Bug, Güvenlik ve Test Oturumu
+
+**Tarih:** 2026-04-18
+
+#### Güvenlik (SEC-H, SEC-M)
+- Admin TOTP brute-force koruması (3 deneme → 15 dk kilit), rate limiter IP spoofing yaması, symlink path traversal, HMAC/Telegram secret dev bypass
+- API key startup kontrolü, hata detay sızıntısı giderildi, Bridge mesaj sanitize, CORS startup doğrulaması
+
+#### Bug Fix (BUG-H, BUG-M, BUG-C)
+- Path traversal: `allowedRoots` kontrolü Bridge'e eklendi
+- Math cancel sonrası session corruption giderildi
+- Internal router timestamp bug, Telegram conv_history asimetri, Playwright kaynak sızıntısı, session TOCTOU
+- `import time` eksik (NameError), bare `send_text` çöküşü (3 dosya)
+
+#### Testler (TEST-1..11)
+- Guard, command, adapter, feature, router, desktop, browser unit/entegrasyon testleri eklendi
+
+**Durum:** ✅ Tamamlandı
+
+---
+
+### APR-19 — Büyük Refactor, Modüler Ajan ve Optimizasyon Oturumu
+
+**Tarih:** 2026-04-19
+
+#### Modüler Ajan (MOD-1, MOD-3..10)
+- Router kayıtları koşullu hale getirildi (`DESKTOP_ENABLED`, `BROWSER_ENABLED`, `TERMINAL_ENABLED` flag'leri)
+- Feature manifest / plugin registry sistemi: `features/_registry.py`, lifecycle startup/shutdown hook'ları
+
+#### OOP/SOLID İlk Tur (SOLID-1..9)
+- `GuardChain` + `MessageGuard` Protocol; `message_guards.py` dört concrete guard sınıfı
+- `StoreProtocol` (runtime-checkable); `SqliteStoreWrapper` singleton (DIP)
+- `_AUTH_FLOW_REGISTRY` dispatch tablosu (OCP); `BridgeMonitor` sınıfı `main.py`'den ayrıldı (SRP)
+
+#### Performans (PERF-1..3, PERF-OPT-1..7)
+- 556 Bridge çağrısı token analizi; `.claude-routes.json` 12→33 rota; init_prompt küçültme; Bridge timeout ayarı
+
+#### Wizard LLM Scaffold (WIZ-LLM-1..9)
+- 8 adımlı wizard (ask_description → confirm_create) tam LLM destekli mimari üretimi
+
+#### Diğer
+- i18n audit: 33 hardcode string `t()` ile değiştirildi; tr/en paritet
+- DEP-1..3: Python + Node CVE taraması (0 CVE)
+- `SensitiveHeaderFilter` — X-Api-Key/authorization header log sızıntısı kapatıldı
+- Telegram `owner_id` eşleştirmesi düzeltildi (`whatsapp_owner` → `settings.owner_id`)
+- BUG-DESK-SEND-1: Screenshot/video `/internal/send_media` üzerinden WhatsApp'a iletiliyor
+- DOC-SKILL-1: Skill dokümantasyonu `docs/skills.md`'e taşındı
+
+**Durum:** ✅ Tamamlandı
+
+---
+
+### APR-20 — Desktop Optimizasyon Oturumu
+
+**Tarih:** 2026-04-20
+
+#### Desktop Hız İyileştirmeleri (DESK-OPT-1..3)
+- DESK-OPT-1: Async X11 race condition → `asyncio.Lock()` ile seri erişim
+- DESK-OPT-2: `xdotool type` → python-xlib XTEST in-process giriş (Türkçe Unicode desteği)
+- DESK-OPT-3: `scrot` subprocess → `python-mss` — sıfır disk I/O, bellekten Base64
+
+#### Diğer
+- LOG-DESK-1: Her desktop aksiyonu ayrı ve detaylı loglanıyor
+- MOD-INSTALL-1a..1c: Modüler ajan kurulum adımları belgelendi
+
+**Durum:** ✅ Tamamlandı
+
+---
+
+### APR-23 — Token İstatistikleri ve .md Güncelleme
+
+**Tarih:** 2026-04-23
+
+#### Token İstatistikleri (TOKEN-STATS-1, TOKEN-STATS-2)
+- `store/repositories/token_stat_repo.py` — `token_usage` tablosu; her `complete()` çağrısı sonrası provider token bilgisi yazıyor
+- `guards/commands/tokens_cmd.py` — `!tokens [24h|7d|30d]` komutu; model/backend dağılımı özeti
+- `guards/commands/timezone_cmd.py` — `!timezone` komutu; çalışma zamanında APScheduler saat dilimi değişimi
+- `guards/commands/terminal_cmd.py` — `!terminal` komutu; tehlikeli komutlar için admin TOTP akışı
+
+#### Dokümantasyon Güncelliği
+- Tüm .md dosyaları gerçek kod durumuyla karşılaştırıldı, eksiklikler giderildi
+
+**Durum:** ✅ Tamamlandı
+
 ---
 
 ### Mevcut Servis Durumu (2026-04-11)

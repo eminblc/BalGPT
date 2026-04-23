@@ -95,6 +95,7 @@ class HelpCommand:
                             {"id": "cmd_shutdown",      "title": t("help.row_shutdown",      lang)},
                             {"id": "cmd_lang",          "title": t("help.row_lang",          lang)},
                             {"id": "cmd_model",         "title": t("help.row_model",         lang)},
+                            {"id": "cmd_tokens",        "title": t("help.row_tokens",        lang)},
                         ],
                     },
                 ],

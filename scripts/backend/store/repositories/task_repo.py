@@ -1,8 +1,9 @@
 """Scheduled Tasks repository — scheduled_tasks tablosu için veri erişimi (SRP)."""
 from __future__ import annotations
 
-import asyncio
 import json
+
+from ._thread_runner import run_in_thread
 import time
 import uuid
 
@@ -105,46 +106,46 @@ async def task_create(
     cron_expr: str | None = None,
     next_run: float | None = None,
 ) -> dict:
-    return await asyncio.to_thread(
+    return await run_in_thread(
         _sync_task_create, description, action_type, action_payload, cron_expr, next_run
     )
 
 
 async def task_get(task_id: str) -> dict | None:
-    return await asyncio.to_thread(_sync_task_get, task_id)
+    return await run_in_thread(_sync_task_get, task_id)
 
 
 async def task_list_active() -> list[dict]:
-    return await asyncio.to_thread(_sync_task_list_active)
+    return await run_in_thread(_sync_task_list_active)
 
 
 async def task_deactivate(task_id: str) -> None:
-    return await asyncio.to_thread(_sync_task_deactivate, task_id)
+    return await run_in_thread(_sync_task_deactivate, task_id)
 
 
 async def task_activate(task_id: str) -> None:
-    return await asyncio.to_thread(_sync_task_activate, task_id)
+    return await run_in_thread(_sync_task_activate, task_id)
 
 
 async def task_delete(task_id: str) -> None:
-    return await asyncio.to_thread(_sync_task_delete, task_id)
+    return await run_in_thread(_sync_task_delete, task_id)
 
 
 async def task_list_all() -> list[dict]:
-    return await asyncio.to_thread(_sync_task_list_all)
+    return await run_in_thread(_sync_task_list_all)
 
 
 async def task_find_by_prefix(prefix: str) -> dict | None:
-    return await asyncio.to_thread(_sync_task_find_by_prefix, prefix)
+    return await run_in_thread(_sync_task_find_by_prefix, prefix)
 
 
 async def task_update_last_run(task_id: str) -> None:
-    return await asyncio.to_thread(_sync_task_update_last_run, task_id)
+    return await run_in_thread(_sync_task_update_last_run, task_id)
 
 
 async def task_soft_delete(task_id: str) -> None:
-    return await asyncio.to_thread(_sync_task_soft_delete, task_id)
+    return await run_in_thread(_sync_task_soft_delete, task_id)
 
 
 async def task_update_status(task_id: str, status: str) -> None:
-    return await asyncio.to_thread(_sync_task_update_status, task_id, status)
+    return await run_in_thread(_sync_task_update_status, task_id, status)

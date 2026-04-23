@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 import logging
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Optional
 
 from .guard_chain import GuardContext, GuardResult
 
@@ -125,10 +125,25 @@ class CapabilityGuard:
     Guard zincirinde owner doğrulandıktan sonra çalışır. cfg.restrict_* = True olan
     ve matcher'ı tetiklenen ilk kuralda mesaj engellenir; kullanıcıya yerelleşmiş
     bildirim gönderilir.
+
+    DIP: messenger opsiyonel olarak inject edilebilir; verilmezse get_messenger() lazy çağrılır.
+    Bu sayede testlerde mock messenger geçilebilir.
     """
 
-    def __init__(self, cfg) -> None:
+    def __init__(self, cfg=None, messenger=None) -> None:
+        if cfg is None:
+            from ..config import settings
+            cfg = settings
         self._cfg = cfg
+        self._messenger = messenger  # None → lazy get_messenger()
+
+    def _get_messenger(self):
+        if self._messenger is not None:
+            return self._messenger
+        # Lazy import: guards paketi uygulama başında yüklenir; bu noktada
+        # messenger_factory henüz hazır olmayabilir. Döngüsel import riski de var.
+        from ..adapters.messenger.messenger_factory import get_messenger
+        return get_messenger()
 
     async def check(self, ctx: GuardContext) -> GuardResult:
         for rule in _RULES:
@@ -138,10 +153,9 @@ class CapabilityGuard:
                     rule.label, ctx.sender,
                 )
                 try:
-                    from ..adapters.messenger.messenger_factory import get_messenger
                     from ..i18n import t
                     cap_name = t(f"capability.{rule.label}", ctx.lang)
-                    await get_messenger().send_text(
+                    await self._get_messenger().send_text(
                         ctx.sender,
                         t("guard.capability_restricted", ctx.lang, capability=cap_name),
                     )

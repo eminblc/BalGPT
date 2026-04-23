@@ -216,7 +216,7 @@ async def _handle_type(body: DesktopRequest) -> dict:
     if not body.text:
         return {"ok": False, "message": "type aksiyonu için 'text' gerekli."}
     from ..features.desktop import xdotool_type
-    result = await xdotool_type(body.text, delay_ms=body.delay_ms)
+    result = await xdotool_type(body.text, delay_ms=body.delay_ms, window_id=body.window_id)
     ok = result.startswith("✅")
     logger.info("desktop/type: %d karakter → %s", len(body.text), "ok" if ok else "hata")
     return {"ok": ok, "message": result}

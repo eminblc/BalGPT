@@ -8,6 +8,9 @@ Brute-force koruması: `/internal/verify-admin-totp` ile aynı mekanizma
 (`totp_get_lockout`, `totp_record_failure`, `totp_reset_lockout`). 3 başarısız
 deneme → 15 dk kilit. Kilit "internal_desktop" sender key'i ile
 `totp_lockouts` tablosuna yazılır; WhatsApp admin TOTP kilidinden bağımsızdır.
+
+OOP-DIP: Tüm mutable state (unlock zamanı, TOTP istek bayrağı) DesktopTotpGate
+sınıfında kapsüllenmiştir. Modül düzeyinde global değişken mutasyonu yoktur.
 """
 from __future__ import annotations
 
@@ -27,12 +30,17 @@ class DesktopTotpGate:
     """Desktop endpoint erişimi için admin TOTP gate (oturum bazlı unlock).
 
     SRP: yalnızca unlock durumunu ve TOTP doğrulama akışını yönetir.
+    OOP: Tüm mutable state (unlock zamanı, TOTP istek bayrağı) instance
+         değişkenlerindedir; modül düzeyinde global mutasyon yoktur.
     DIP: TTL constructor üzerinden enjekte edilir; `settings` doğrudan okunmaz.
     """
 
     def __init__(self, ttl_seconds: float) -> None:
         self._ttl: float = float(ttl_seconds)
         self._unlock_until: float = 0.0
+        # Duplicate WA mesajı göndermeyi önler: True iken kilitliyse yeni çağrı
+        # ikinci mesaj göndermez. Başarılı unlock / iptal sonrası sıfırlanır.
+        self._totp_request_sent: bool = False
 
     @property
     def ttl_seconds(self) -> float:
@@ -51,6 +59,10 @@ class DesktopTotpGate:
     def reset(self) -> None:
         """Test veya elle kilitleme için unlock durumunu sıfırlar."""
         self._unlock_until = 0.0
+
+    def clear_totp_request_sent(self) -> None:
+        """TOTP başarılı / iptal / lockout sonrası istek bayrağını sıfırla."""
+        self._totp_request_sent = False
 
     async def try_unlock(self, code: str) -> tuple[bool, Optional[int]]:
         """
@@ -83,6 +95,7 @@ class DesktopTotpGate:
         if valid:
             await totp_reset_lockout(_SENDER, "admin")
             self._unlock_until = now + self._ttl
+            self._totp_request_sent = False  # başarılı unlock → bayrağı sıfırla
             logger.info(
                 "desktop_totp_gate: unlock başarılı TTL=%d sn", int(self._ttl),
             )
@@ -104,111 +117,106 @@ class DesktopTotpGate:
         )
         return False, None
 
+    async def request_totp(self, owner_id: str) -> None:
+        """Gate kilitliyse owner'a TOTP isteği gönderir ve session state'i ayarlar.
 
-# ── Singleton factory ────────────────────────────────────────────────────
-_gate: Optional[DesktopTotpGate] = None
+        DESK-TOTP-2: Bu metod LLM'den değil, sunucu tarafından çağrılır.
+        Duplicate mesaj göndermez (_totp_request_sent bayrağı ile korunur).
+        """
+        if self.is_unlocked() or self._totp_request_sent:
+            if self.is_unlocked():
+                return
+            logger.debug("desktop_totp_gate: TOTP isteği zaten gönderildi, atlanıyor")
+            return
 
-# ── TOTP istek bayrağı — duplicate WA mesajı göndermeyi önler ────────────
-# True iken gate kilitliyse yeni /internal/desktop çağrısı ikinci WA mesajı göndermez.
-# Başarılı unlock veya iptal sonrası False'a döndürülür.
-_totp_request_sent: bool = False
+        from ..guards import get_session_mgr
+        from ..adapters.messenger.messenger_factory import get_messenger
+
+        session = get_session_mgr().get(owner_id)
+        session.start_desktop_totp()
+
+        ttl_min = int(self._ttl) // 60
+        await get_messenger().send_text(
+            owner_id,
+            (
+                "🔒 Desktop işlemi için admin TOTP gerekli.\n"
+                f"Başarılı girişten sonra {ttl_min} dk geçerli olacak.\n"
+                "(!cancel ile iptal)"
+            ),
+        )
+        self._totp_request_sent = True
+        logger.info(
+            "desktop_totp_gate: TOTP isteği gönderildi owner=%s ttl_min=%d",
+            owner_id[-4:],
+            ttl_min,
+        )
+
+    async def enforce(self, code: Optional[str]) -> Optional[dict]:
+        """Endpoint başında çağrılır. Gate açıksa None döner (serbest geçiş).
+
+        Kapalıysa `code` ile unlock dener; başarısızsa hata dict'i döner.
+
+        Dönüş:
+            None → işleme devam et
+            dict → hata yanıtı (endpoint bu dict'i döndürmeli)
+        """
+        if self.is_unlocked():
+            return None
+
+        if not code:
+            return {
+                "ok": False,
+                "requires_totp": True,
+                "message": (
+                    "🔒 Admin TOTP gerekli. İsteğin gövdesine "
+                    "\"code\": \"<6 haneli kod>\" alanını ekleyerek tekrar gönder. "
+                    f"Başarılı doğrulama sonrası {int(self._ttl)} sn boyunca "
+                    "yeniden sorulmaz."
+                ),
+            }
+
+        valid, lockout_remaining = await self.try_unlock(code)
+        if valid:
+            return None
+
+        if lockout_remaining is not None:
+            mins = max(1, lockout_remaining // 60)
+            return {
+                "ok": False,
+                "requires_totp": True,
+                "message": (
+                    f"❌ TOTP kilidi aktif — yaklaşık {mins} dk sonra tekrar dene."
+                ),
+            }
+
+        return {
+            "ok": False,
+            "requires_totp": True,
+            "message": "❌ Geçersiz TOTP kodu. Tekrar dene.",
+        }
 
 
-def clear_totp_request_sent() -> None:
-    """TOTP başarılı / iptal / lockout sonrası istek bayrağını sıfırla."""
-    global _totp_request_sent
-    _totp_request_sent = False
+# ── Modül singleton — settings import zamanında hazır; lazy init / global mutasyon yok ──
+_gate = DesktopTotpGate(ttl_seconds=settings.desktop_totp_ttl_seconds)
 
 
 def get_desktop_totp_gate() -> DesktopTotpGate:
-    """Process-wide DesktopTotpGate singleton'u döner (lazy init)."""
-    global _gate
-    if _gate is None:
-        _gate = DesktopTotpGate(ttl_seconds=settings.desktop_totp_ttl_seconds)
+    """Process-wide DesktopTotpGate singleton'u döner."""
     return _gate
 
 
+# ── Backward-compat shim'ler — çağrı noktaları (_auth_flows, cancel_cmd) değişmez ──
+
+def clear_totp_request_sent() -> None:
+    """TOTP başarılı / iptal / lockout sonrası istek bayrağını sıfırla."""
+    _gate.clear_totp_request_sent()
+
+
 async def request_desktop_totp(owner_id: str) -> None:
-    """Gate kilitliyse owner'a WhatsApp TOTP isteği gönderir ve session state'i ayarlar.
-
-    DESK-TOTP-2: Bu fonksiyon LLM'den değil, sunucu tarafından çağrılır.
-    Duplicate mesaj göndermez (_totp_request_sent bayrağı ile korunur).
-    """
-    global _totp_request_sent
-    gate = get_desktop_totp_gate()
-    if gate.is_unlocked():
-        return
-
-    if _totp_request_sent:
-        logger.debug("request_desktop_totp: zaten gönderildi, atlanıyor")
-        return
-
-    from ..guards import get_session_mgr
-    from ..adapters.messenger.messenger_factory import get_messenger
-    from ..config import settings
-
-    # Owner session'ına desktop TOTP bekleme durumunu yaz
-    session = get_session_mgr().get(owner_id)
-    session.start_desktop_totp()
-
-    ttl_min = int(gate.ttl_seconds) // 60
-    await get_messenger().send_text(
-        owner_id,
-        (
-            "🔒 Desktop işlemi için admin TOTP gerekli.\n"
-            f"Başarılı girişten sonra {ttl_min} dk geçerli olacak.\n"
-            "(!cancel ile iptal)"
-        ),
-    )
-    _totp_request_sent = True
-    logger.info(
-        "request_desktop_totp: TOTP isteği gönderildi owner=%s ttl_min=%d",
-        owner_id[-4:],
-        ttl_min,
-    )
+    """Gate kilitliyse owner'a TOTP isteği gönderir (backward-compat shim)."""
+    await _gate.request_totp(owner_id)
 
 
 async def enforce_totp(code: Optional[str]) -> Optional[dict]:
-    """
-    Endpoint başında çağrılır. Gate açıksa None döner (serbest geçiş).
-    Kapalıysa, `code` ile unlock dener; başarısızsa hata dict'i döner.
-
-    Dönüş:
-        None             → işleme devam et
-        dict             → hata yanıtı (endpoint bu dict'i döndürmeli)
-    """
-    gate = get_desktop_totp_gate()
-    if gate.is_unlocked():
-        return None
-
-    if not code:
-        return {
-            "ok": False,
-            "requires_totp": True,
-            "message": (
-                "🔒 Admin TOTP gerekli. İsteğin gövdesine "
-                "\"code\": \"<6 haneli kod>\" alanını ekleyerek tekrar gönder. "
-                f"Başarılı doğrulama sonrası {int(gate.ttl_seconds)} sn boyunca "
-                "yeniden sorulmaz."
-            ),
-        }
-
-    valid, lockout_remaining = await gate.try_unlock(code)
-    if valid:
-        return None
-
-    if lockout_remaining is not None:
-        mins = max(1, lockout_remaining // 60)
-        return {
-            "ok": False,
-            "requires_totp": True,
-            "message": (
-                f"❌ TOTP kilidi aktif — yaklaşık {mins} dk sonra tekrar dene."
-            ),
-        }
-
-    return {
-        "ok": False,
-        "requires_totp": True,
-        "message": "❌ Geçersiz TOTP kodu. Tekrar dene.",
-    }
+    """Endpoint başında çağrılır; gate kontrolü yapar (backward-compat shim)."""
+    return await _gate.enforce(code)

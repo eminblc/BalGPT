@@ -35,6 +35,7 @@ from typing import Any, Callable
 
 from ..adapters.llm.llm_factory import get_llm
 from ..config import settings
+from ..store.repositories import token_stat_repo
 
 logger = logging.getLogger(__name__)
 
@@ -333,7 +334,7 @@ class WizardLLMScaffoldService:
 
         llm = self._llm_factory()
         try:
-            raw = await asyncio.wait_for(
+            completion = await asyncio.wait_for(
                 llm.complete(
                     messages=[{"role": "user", "content": prompt}],
                     model=self._config.resolve_model(),
@@ -351,7 +352,15 @@ class WizardLLMScaffoldService:
             logger.warning("wizard_llm_scaffold: LLM çağrısı başarısız: %s", exc)
             return None
 
-        block = self._extractor.extract(raw or "")
+        try:
+            await token_stat_repo.add_usage(
+                completion.model_id, completion.model_name, completion.backend,
+                completion.input_tokens, completion.output_tokens,
+                context="wizard_scaffold",
+            )
+        except Exception:
+            pass
+        block = self._extractor.extract(completion.text if completion else "")
         if block is None:
             logger.warning(
                 "wizard_llm_scaffold: yanıtta JSON bloğu bulunamadı (uzunluk=%d)",

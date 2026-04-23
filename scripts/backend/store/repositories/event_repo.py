@@ -1,8 +1,9 @@
 """Calendar Events repository — calendar_events tablosu için veri erişimi (SRP)."""
 from __future__ import annotations
 
-import asyncio
 import time
+
+from ._thread_runner import run_in_thread
 import uuid
 
 from .._connection import _conn
@@ -71,26 +72,26 @@ async def event_create(
     remind_before_minutes: int = 30,
     recurring: str | None = None,
 ) -> dict:
-    return await asyncio.to_thread(
+    return await run_in_thread(
         _sync_event_create, title, event_time, description, remind_before_minutes, recurring
     )
 
 
 async def event_get(event_id: str) -> dict | None:
-    return await asyncio.to_thread(_sync_event_get, event_id)
+    return await run_in_thread(_sync_event_get, event_id)
 
 
 async def event_list_upcoming(limit: int = 10) -> list[dict]:
-    return await asyncio.to_thread(_sync_event_list_upcoming, limit)
+    return await run_in_thread(_sync_event_list_upcoming, limit)
 
 
 async def event_mark_notified(event_id: str) -> None:
-    return await asyncio.to_thread(_sync_event_mark_notified, event_id)
+    return await run_in_thread(_sync_event_mark_notified, event_id)
 
 
 async def event_delete(event_id: str) -> None:
-    return await asyncio.to_thread(_sync_event_delete, event_id)
+    return await run_in_thread(_sync_event_delete, event_id)
 
 
 async def events_due_for_reminder() -> list[dict]:
-    return await asyncio.to_thread(_sync_events_due_for_reminder)
+    return await run_in_thread(_sync_events_due_for_reminder)

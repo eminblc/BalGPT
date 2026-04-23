@@ -550,7 +550,7 @@ ${claudeMdSizeNote}
 Bash, dosya okuma/yazma gibi araç çağrıları yaparken (sohbet/soru yanıtında HAYIR):
 curl -s -X POST ${FASTAPI_URL}/whatsapp/send \\
   -H "Content-Type: application/json" \\
-  -d '{"to":"${WHATSAPP_OWNER}","text":"⚙️ <ne yapıyorsun, tek cümle>"}'
+  -d '{"to":"${WHATSAPP_OWNER}","text":"<ne yapıyorsun, tek kısa cümle — ör: Dosyayı okuyorum…, Kodu çalıştırıyorum…, Kontrol ediyorum…>"}'
 Hata olursa: '{"to":"${WHATSAPP_OWNER}","text":"❌ Hata: <kısa açıklama>"}'
 
 ## KESİN YASAKLAR — İSTİSNASIZ, ASLA İHLAL ETME
@@ -1105,7 +1105,7 @@ app.post("/query", authenticate, async (req, res) => {
 
   // silent=true: scheduler gibi arka plan çağrıları "⚙️ İşleniyor..." bildirimi göndermez
   // (ardışık scheduler sorguları WA rate limit'ini tetikler — AUD-O24)
-  if (!silent) await sendWhatsAppNotification("⚙️ İşleniyor...");
+  if (!silent) await sendWhatsAppNotification("Düşünüyorum…");
 
   // R8: sendWhatsAppNotification sonrasında session dosyasını yeniden kontrol et
   // (eşzamanlı istek veya ağ gecikmesi sırasında dosya yaratılmış olabilir)

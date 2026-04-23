@@ -1,0 +1,2 @@
+# Yetenek: pdf_import (RESTRICT_PDF_IMPORT=false)
+pymupdf==1.27.2.2

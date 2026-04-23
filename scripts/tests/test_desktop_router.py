@@ -126,7 +126,7 @@ async def test_type_text_with_mock_returns_ok():
 
     with patch("backend.routers.desktop_router.is_localhost", return_value=True), \
          patch("backend.routers.desktop_router.settings", mock_settings), \
-         patch("backend.features.desktop_input.xdotool_type",
+         patch("backend.features.desktop.xdotool_type",
                AsyncMock(return_value="✅ Metin yazıldı")):
         resp = await desktop_router.desktop_action(
             desktop_router.DesktopRequest(action="type", text="merhaba dünya"),

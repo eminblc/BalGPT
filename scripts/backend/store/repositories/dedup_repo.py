@@ -1,8 +1,9 @@
 """Deduplication repository — seen_messages tablosu (SEC-RL2 SRP)."""
 from __future__ import annotations
 
-import asyncio
 import time
+
+from ._thread_runner import run_in_thread
 
 from .._connection import _conn
 
@@ -36,8 +37,8 @@ def _sync_dedup_load_recent(ttl: float = 300.0) -> set[str]:
 # ── Async public API ──────────────────────────────────────────────
 
 async def dedup_is_seen(message_id: str, now: float, ttl: float = 300.0) -> bool:
-    return await asyncio.to_thread(_sync_dedup_is_seen, message_id, now, ttl)
+    return await run_in_thread(_sync_dedup_is_seen, message_id, now, ttl)
 
 
 async def dedup_load_recent(ttl: float = 300.0) -> set[str]:
-    return await asyncio.to_thread(_sync_dedup_load_recent, ttl)
+    return await run_in_thread(_sync_dedup_load_recent, ttl)

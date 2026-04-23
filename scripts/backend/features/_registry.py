@@ -49,6 +49,12 @@ def _build_registry() -> list[FeatureManifest]:
             "router_module": "backend.routers.internal_router",
             "router_prefix": "",
         },
+        {
+            "name": "schedule",
+            "enabled": lambda: True,
+            "router_module": "backend.routers._schedule_router",
+            "router_prefix": "",
+        },
         # ── Webhook proxy (her zaman aktif, startup/shutdown var) ──────────
         {
             "name": "webhook_proxy",
