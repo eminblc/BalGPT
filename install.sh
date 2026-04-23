@@ -201,14 +201,22 @@ Press OK when ready."
     # ── Telegram credentials
     _S_WIZ_TG_INFO_TITLE="Telegram Credentials"
     _S_WIZ_TG_INFO_MSG="Create a bot with @BotFather on Telegram:
-  1. /newbot — create bot, get token
-  2. Send a message to your bot, then get chat_id:
-     t.me/userinfobot or API: api.telegram.org/bot<TOKEN>/getUpdates
+  1. Open Telegram → search @BotFather → /newbot
+  2. Choose a name and username (must end with 'bot')
+  3. BotFather gives you a token like: 123456789:ABCdef...
+
+Then find YOUR Chat ID (your personal Telegram account number):
+  • Easiest: open t.me/userinfobot — it instantly replies with your ID
+  • Alternative: send any message to your new bot, then:
+    curl 'https://api.telegram.org/bot<TOKEN>/getUpdates'
+    Look for result[0].message.chat.id
 
 Press OK when ready."
-    _S_WIZ_TG_TOKEN="(*) Bot Token (123456:ABC-DEF...):"
-    _S_WIZ_TG_CHAT="(*) Chat ID (owner's chat_id):"
-    _S_WIZ_TG_WSECRET="Webhook Secret Token (optional — recommended for production):"
+    _S_WIZ_TG_TOKEN="(*) Bot Token (123456789:ABCdef...):"
+    _S_WIZ_TG_CHAT="(*) Your Chat ID (from @userinfobot — e.g. 123456789):"
+    _S_TXT_TG_CHATID_TIP="Send any message to your bot first, then press Enter to auto-detect chat ID (or type it):"
+    _S_TXT_TG_CHATID_OK="Chat ID auto-detected"
+    _S_TXT_TG_CHATID_FAIL="Could not auto-detect. Open t.me/userinfobot — it will show your ID instantly."
 
     # ── Anthropic
     _S_WIZ_AN_KEY="(*) API Key (sk-ant-...):"
@@ -293,7 +301,13 @@ Store these keys somewhere safe!
     _S_TXT_AN="▶ Anthropic (claude.ai/settings → API Keys)"
     _S_TXT_OL="▶ Ollama"
     _S_TXT_GE="▶ Google Gemini (aistudio.google.com)"
-    _S_TXT_SEC="▶ Security Keys (Enter = auto-generate)"
+    _S_TXT_SEC="▶ Security Keys — auto-generating..."
+    _S_TXT_SEC_DONE="Security keys generated automatically (API key, TOTP secrets)"
+    _S_TXT_VERIFY_AUTO="Verify token auto-generated"
+    _S_TXT_WSECRET_AUTO="Webhook secret auto-generated"
+    _S_TOTP_GA_TITLE="Add to Google Authenticator"
+    _S_TOTP_GA_STEPS="  1. Open Google Authenticator (or any TOTP app)\n  2. Tap '+' → 'Scan QR code'\n  3. Scan the QR code above\n  4. Done — use the 6-digit code when prompted"
+    _S_TOTP_GA_NOQUR="  No QR code? Enter the secret manually in your TOTP app."
     _S_TXT_NOWHIPTAIL="whiptail not found or terminal not compatible — using text mode."
     _S_TXT_RERUN="[?] .env already filled. Run wizard again? [y/N]: "
     _S_TXT_RERUN_Y="y"
@@ -479,14 +493,22 @@ Hazır olduğunuzda OK'a basın."
     # ── Telegram bilgileri
     _S_WIZ_TG_INFO_TITLE="Telegram Bilgileri"
     _S_WIZ_TG_INFO_MSG="Telegram'da @BotFather'a yazarak bot oluşturun:
-  1. /newbot — bot oluştur, token al
-  2. Bota bir mesaj gönder, chat_id'yi öğren:
-     t.me/userinfobot veya API: api.telegram.org/bot<TOKEN>/getUpdates
+  1. Telegram'ı aç → @BotFather'ı ara → /newbot
+  2. Bot adı ve kullanıcı adı gir (kullanıcı adı 'bot' ile bitmeli)
+  3. BotFather token verir: 123456789:ABCdef...
+
+Ardından kendi Chat ID'nizi bulun (kişisel Telegram hesap numaranız):
+  • En kolay: t.me/userinfobot'a yaz — anında ID'nizi söyler
+  • Alternatif: yeni botunuza herhangi bir mesaj gönderin, sonra:
+    curl 'https://api.telegram.org/bot<TOKEN>/getUpdates'
+    result[0].message.chat.id değerine bakın
 
 Hazır olduğunuzda OK'a basın."
-    _S_WIZ_TG_TOKEN="(*) Bot Token (123456:ABC-DEF...):"
-    _S_WIZ_TG_CHAT="(*) Chat ID (Owner'ın chat_id'si):"
-    _S_WIZ_TG_WSECRET="Webhook Secret Token (opsiyonel — production için önerilir):"
+    _S_WIZ_TG_TOKEN="(*) Bot Token (123456789:ABCdef...):"
+    _S_WIZ_TG_CHAT="(*) Chat ID'niz (@userinfobot'tan — örn. 123456789):"
+    _S_TXT_TG_CHATID_TIP="Önce botunuza herhangi bir mesaj gönderin, sonra Enter'a basın (otomatik algılama) veya yazın:"
+    _S_TXT_TG_CHATID_OK="Chat ID otomatik algılandı"
+    _S_TXT_TG_CHATID_FAIL="Otomatik algılanamadı. t.me/userinfobot'a yazın — anında ID'nizi söyler."
 
     # ── Anthropic
     _S_WIZ_AN_KEY="(*) API Key (sk-ant-...):"
@@ -571,7 +593,13 @@ Bu anahtarları güvenli bir yerde saklayın!
     _S_TXT_AN="▶ Anthropic (claude.ai/settings → API Keys)"
     _S_TXT_OL="▶ Ollama"
     _S_TXT_GE="▶ Google Gemini (aistudio.google.com)"
-    _S_TXT_SEC="▶ Güvenlik Anahtarları (Enter = otomatik üret)"
+    _S_TXT_SEC="▶ Güvenlik Anahtarları — otomatik üretiliyor..."
+    _S_TXT_SEC_DONE="Güvenlik anahtarları otomatik üretildi (API key, TOTP secret'lar)"
+    _S_TXT_VERIFY_AUTO="Verify token otomatik üretildi"
+    _S_TXT_WSECRET_AUTO="Webhook secret otomatik üretildi"
+    _S_TOTP_GA_TITLE="Google Authenticator'a Ekle"
+    _S_TOTP_GA_STEPS="  1. Google Authenticator'ı aç (veya herhangi bir TOTP uygulaması)\n  2. '+' → 'QR kodu tara' seç\n  3. Yukarıdaki QR kodu tara\n  4. Hazır — istendiğinde 6 haneli kodu gir"
+    _S_TOTP_GA_NOQUR="  QR kod yok mu? TOTP uygulamanıza secret'ı manuel girin."
     _S_TXT_NOWHIPTAIL="whiptail bulunamadı veya terminal uygun değil — metin modu kullanılıyor."
     _S_TXT_RERUN="[?] .env zaten dolu. Sihirbazı tekrar çalıştır? [e/H]: "
     _S_TXT_RERUN_Y="e"
@@ -1052,10 +1080,7 @@ _wizard_whiptail() {
       wa_secret=$(_wt_password "$_S_WIZ_WA_INFO_TITLE" "$_S_WIZ_WA_SECRET") || return 1
       [[ -n "$wa_secret" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
     done
-    while true; do
-      wa_verify=$(_wt_input "$_S_WIZ_WA_INFO_TITLE" "$_S_WIZ_WA_VERIFY") || return 1
-      [[ -n "$wa_verify" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
-    done
+    wa_verify="$(_gen_api_key | head -c 32)"
     while true; do
       wa_owner=$(_wt_input "$_S_WIZ_WA_INFO_TITLE" "$_S_WIZ_WA_OWNER") || return 1
       [[ -n "$wa_owner" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
@@ -1067,11 +1092,25 @@ _wizard_whiptail() {
       tg_token=$(_wt_password "$_S_WIZ_TG_INFO_TITLE" "$_S_WIZ_TG_TOKEN") || return 1
       [[ -n "$tg_token" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
     done
-    while true; do
-      tg_chat_id=$(_wt_input "$_S_WIZ_TG_INFO_TITLE" "$_S_WIZ_TG_CHAT") || return 1
-      [[ -n "$tg_chat_id" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
-    done
-    tg_webhook_secret=$(_wt_password "$_S_WIZ_TG_INFO_TITLE" "$_S_WIZ_TG_WSECRET") || return 1
+    # Try auto-detect chat_id via getUpdates
+    local _tg_auto_id=""
+    _tg_auto_id="$(curl -s --max-time 6 "https://api.telegram.org/bot${tg_token}/getUpdates" 2>/dev/null \
+      | python3 -c "import sys,json
+try:
+    d=json.load(sys.stdin)
+    print(d['result'][0]['message']['chat']['id'])
+except: pass" 2>/dev/null || true)"
+    if [[ -n "$_tg_auto_id" ]]; then
+      _wt_msg "$_S_WIZ_TG_INFO_TITLE" "$_S_TXT_TG_CHATID_OK: $_tg_auto_id" || return 1
+      tg_chat_id="$_tg_auto_id"
+    else
+      _wt_msg "$_S_WIZ_TG_INFO_TITLE" "$_S_TXT_TG_CHATID_FAIL" || return 1
+      while true; do
+        tg_chat_id=$(_wt_input "$_S_WIZ_TG_INFO_TITLE" "$_S_WIZ_TG_CHAT") || return 1
+        [[ -n "$tg_chat_id" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+      done
+    fi
+    tg_webhook_secret="$(_gen_api_key | head -c 32)"
   fi
 
   local anthropic_key="" ollama_url="" ollama_model="" gemini_key="" gemini_model=""
@@ -1128,17 +1167,10 @@ _wizard_whiptail() {
     tz_value="$tz_choice"
   fi
 
-  local auto_api_key auto_totp auto_totp_admin
-  auto_api_key="$(_gen_api_key)"
-  auto_totp="$(_gen_totp)"
-  auto_totp_admin="$(_gen_totp)"
-
-  _wt_msg "$_S_WIZ_SEC_TITLE" "$_S_WIZ_SEC_MSG" || return 1
-
   local api_key totp_secret totp_admin
-  api_key=$(_wt_input "$_S_WIZ_SEC_TITLE"    "$_S_WIZ_SEC_APIKEY" "$auto_api_key")       || return 1
-  totp_secret=$(_wt_input "$_S_WIZ_SEC_TITLE" "$_S_WIZ_SEC_TOTP"  "$auto_totp")          || return 1
-  totp_admin=$(_wt_input "$_S_WIZ_SEC_TITLE"  "$_S_WIZ_SEC_ADMIN" "$auto_totp_admin")     || return 1
+  api_key="$(_gen_api_key)"
+  totp_secret="$(_gen_totp)"
+  totp_admin="$(_gen_totp)"
 
   local summary="Messenger  : $messenger\nLLM Backend: $llm\nProxy      : $proxy\nTimezone   : $tz_value"
   [[ -n "$public_url" ]] && summary+="\nPublic URL : $public_url"
@@ -1192,13 +1224,30 @@ _wizard_text() {
     while true; do read -rsp "  $_S_WIZ_WA_TOKEN " wa_token; echo; [[ -n "$wa_token" ]] && break; warn "$_S_REQUIRED"; done
     while true; do read -rp  "  $_S_WIZ_WA_PHONE " wa_phone_id;       [[ -n "$wa_phone_id" ]] && break; warn "$_S_REQUIRED"; done
     while true; do read -rsp "  $_S_WIZ_WA_SECRET " wa_secret; echo;  [[ -n "$wa_secret"   ]] && break; warn "$_S_REQUIRED"; done
-    while true; do read -rp  "  $_S_WIZ_WA_VERIFY " wa_verify;        [[ -n "$wa_verify"   ]] && break; warn "$_S_REQUIRED"; done
+    wa_verify="$(_gen_api_key | head -c 32)"
+    ok "  $_S_TXT_VERIFY_AUTO: $wa_verify"
     while true; do read -rp  "  $_S_WIZ_WA_OWNER "  wa_owner;         [[ -n "$wa_owner"    ]] && break; warn "$_S_REQUIRED"; done
   elif [[ "$messenger" == "telegram" ]]; then
     echo ""; echo "$_S_TXT_TG"
-    while true; do read -rsp "  $_S_WIZ_TG_TOKEN " tg_token; echo; [[ -n "$tg_token"   ]] && break; warn "$_S_REQUIRED"; done
-    while true; do read -rp  "  $_S_WIZ_TG_CHAT "  tg_chat_id;      [[ -n "$tg_chat_id" ]] && break; warn "$_S_REQUIRED"; done
-    read -rsp "  $_S_WIZ_TG_WSECRET " tg_webhook_secret; echo
+    while true; do read -rsp "  $_S_WIZ_TG_TOKEN " tg_token; echo; [[ -n "$tg_token" ]] && break; warn "$_S_REQUIRED"; done
+    echo ""; read -rp "  $_S_TXT_TG_CHATID_TIP " tg_chat_id
+    if [[ -z "$tg_chat_id" ]]; then
+      local _tg_updates
+      _tg_updates="$(curl -s --max-time 6 "https://api.telegram.org/bot${tg_token}/getUpdates" 2>/dev/null || true)"
+      tg_chat_id="$(echo "$_tg_updates" | python3 -c "import sys,json
+try:
+    d=json.load(sys.stdin)
+    print(d['result'][0]['message']['chat']['id'])
+except: pass" 2>/dev/null || true)"
+      if [[ -n "$tg_chat_id" ]]; then
+        ok "  $_S_TXT_TG_CHATID_OK: $tg_chat_id"
+      else
+        warn "  $_S_TXT_TG_CHATID_FAIL"
+        while true; do read -rp "  $_S_WIZ_TG_CHAT " tg_chat_id; [[ -n "$tg_chat_id" ]] && break; warn "$_S_REQUIRED"; done
+      fi
+    fi
+    tg_webhook_secret="$(_gen_api_key | head -c 32)"
+    ok "  $_S_TXT_WSECRET_AUTO"
   fi
 
   local anthropic_key="" ollama_url="" ollama_model="" gemini_key="" gemini_model=""
@@ -1250,12 +1299,11 @@ _wizard_text() {
   esac
 
   echo ""; echo "$_S_TXT_SEC"
-  local auto_api_key auto_totp auto_totp_admin
-  auto_api_key="$(_gen_api_key)"; auto_totp="$(_gen_totp)"; auto_totp_admin="$(_gen_totp)"
   local api_key totp_secret totp_admin
-  read -rp "  API_KEY [$auto_api_key]: "                  api_key;      api_key="${api_key:-$auto_api_key}"
-  read -rp "  TOTP_SECRET [$auto_totp]: "                 totp_secret;  totp_secret="${totp_secret:-$auto_totp}"
-  read -rp "  TOTP_SECRET_ADMIN [$auto_totp_admin]: "     totp_admin;   totp_admin="${totp_admin:-$auto_totp_admin}"
+  api_key="$(_gen_api_key)"
+  totp_secret="$(_gen_totp)"
+  totp_admin="$(_gen_totp)"
+  ok "  $_S_TXT_SEC_DONE"
 
   _write_env "$env_dst" "$messenger" "$llm" "$proxy" \
     "$wa_token" "$wa_phone_id" "$wa_secret" "$wa_verify" "$wa_owner" \
@@ -1574,6 +1622,10 @@ PYEOF
     else
       echo "  $_S_TOTP_QR_HINT"
     fi
+    echo ""
+    echo "  ── $_S_TOTP_GA_TITLE ──"
+    printf "  %b\n" "$_S_TOTP_GA_STEPS"
+    echo "  $_S_TOTP_GA_NOQUR"
     echo "  ────────────────────────────────────────────────────"
   }
 
@@ -1628,11 +1680,24 @@ step_show_webhook_url() {
     fi
 
   elif [[ "$messenger" == "telegram" ]]; then
-    local tg_token
+    local tg_token tg_secret
     tg_token="$(grep '^TELEGRAM_BOT_TOKEN=' "$env_dst" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true)"
+    tg_secret="$(grep '^TELEGRAM_WEBHOOK_SECRET=' "$env_dst" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true)"
     echo ""; echo "  $_S_WH_TG_SETUP"
-    if [[ -n "$public_url" ]]; then
-      echo "  → curl -s \"https://api.telegram.org/bot${tg_token}/setWebhook?url=${public_url}/telegram/webhook\""
+    if [[ -n "$public_url" && -n "$tg_token" ]]; then
+      local _wh_url="${public_url}/telegram/webhook"
+      local _wh_result
+      _wh_result="$(curl -s --max-time 8 -X POST \
+        "https://api.telegram.org/bot${tg_token}/setWebhook" \
+        -H "Content-Type: application/json" \
+        -d "{\"url\":\"${_wh_url}\",\"secret_token\":\"${tg_secret}\",\"allowed_updates\":[\"message\",\"callback_query\"]}" \
+        2>/dev/null || true)"
+      if echo "$_wh_result" | grep -q '"ok":true'; then
+        ok "  Webhook registered: $_wh_url"
+      else
+        echo "  → $_wh_url"
+        warn "  $_S_WH_TG_SETUP (manual): curl -s -X POST 'https://api.telegram.org/bot${tg_token}/setWebhook' -d 'url=${_wh_url}'"
+      fi
     else
       echo "  → $_S_WH_TG_NO_URL"
       echo "    $_S_WH_TG_SETWEBHOOK"

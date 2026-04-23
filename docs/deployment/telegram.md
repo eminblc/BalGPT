@@ -1,129 +1,139 @@
-# Telegram Kurulum Kılavuzu
+# Telegram Setup Guide
 
-Bu kılavuz ajanı WhatsApp yerine Telegram üzerinden çalıştırmak için gereken adımları açıklar.
-
----
-
-## Mevcut Durum
-
-| Özellik | Durum |
-|---------|-------|
-| Giden mesajlar (`send_text`, `send_buttons`, `send_list`) | ✅ Hazır |
-| Gelen mesajlar (kullanıcıdan bot'a) | ❌ Eksik — Telegram webhook router yazılmadı |
-
-**Şu an `MESSENGER_TYPE=telegram` yapılandırması yalnızca ajanın göndereceği mesajları Telegram üzerinden iletir.** Kullanıcıdan gelen mesajları almak için `routers/telegram_router.py` ve `main.py`'ye router kaydı eklenmesi gerekiyor (bkz. [Eksik Parça](#eksik-parça)).
+Set up the agent with Telegram in about 5 minutes. No business account needed.
 
 ---
 
-## Adım 1 — Bot Oluştur
+## Step 1 — Create a Bot
 
-1. Telegram'da [@BotFather](https://t.me/BotFather) ile sohbet başlat
-2. `/newbot` komutunu gönder
-3. Bot adı ve kullanıcı adı gir (kullanıcı adı `bot` ile bitmeli, ör. `benimajan_bot`)
-4. BotFather'ın verdiği token'ı kopyala:
+1. Open Telegram → search for **@BotFather** → tap **Start**
+2. Send `/newbot`
+3. Enter a display name (e.g. `My Agent`)
+4. Enter a username — must end with `bot` (e.g. `myagent_bot`)
+5. BotFather sends you a token:
+
+```
+123456789:ABCDefGhIJKlmNoPQRsTUVwxyZ
+```
+
+Keep this token — you'll enter it in the wizard.
+
+---
+
+## Step 2 — Find Your Chat ID
+
+Your Chat ID is your personal Telegram account number. The agent uses it to know who is the owner.
+
+**Easiest method — @userinfobot:**
+1. Open Telegram → search **@userinfobot** → tap **Start**
+2. It instantly replies with your ID:
    ```
-   123456789:ABCDefGhIJKlmNoPQRsTUVwxyZ
+   Id: 123456789
    ```
+
+**Alternative — getUpdates API:**
+1. Send any message to your new bot (e.g. "hello")
+2. Run:
+   ```bash
+   curl -s "https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates" | python3 -m json.tool
+   ```
+3. Find `result[0].message.chat.id` in the output
+
+> **Note:** The install wizard tries to auto-detect your Chat ID via `getUpdates` after you enter the bot token. Just send a message to your bot first, then press Enter when prompted.
 
 ---
 
-## Adım 2 — Chat ID'ni Bul
-
-Bot'un mesaj göndereceği hedef chat_id'yi öğrenmek için:
+## Step 3 — Run the Wizard
 
 ```bash
-# Bot token'ını kullanarak getUpdates çağır
-# (önce bota herhangi bir mesaj gönder)
-curl -s "https://api.telegram.org/bot<TOKEN>/getUpdates" | python3 -m json.tool
+bash install.sh --docker   # Docker
+# or
+sudo bash install.sh       # systemd
 ```
 
-Yanıt içindeki `result[0].message.chat.id` değeri senin `chat_id`'n.
-
-Alternatif: [@userinfobot](https://t.me/userinfobot) veya [@RawDataBot](https://t.me/RawDataBot) ile chat_id'ni öğren.
+Select **Telegram** when asked for the messenger. The wizard will:
+- Ask for your Bot Token (hidden input)
+- Auto-detect your Chat ID from `getUpdates` — or let you type it manually
+- Auto-generate the webhook secret (no input needed)
 
 ---
 
-## Adım 3 — `.env` Ayarları
+## Step 4 — Register the Webhook
 
-```env
-MESSENGER_TYPE=telegram
-TELEGRAM_BOT_TOKEN=123456789:ABCDefGhIJKlmNoPQRsTUVwxyZ
-TELEGRAM_CHAT_ID=123456789
-```
+Telegram needs a public HTTPS URL to deliver messages to your bot.
 
-`TELEGRAM_CHAT_ID`, ajanın bildirim göndereceği varsayılan hedef (owner chat_id'si).
+**If you used ngrok, Cloudflare Tunnel, or an external URL:** the wizard auto-registers the webhook for you.
 
----
-
-## Adım 4 — Webhook URL Ayarla
-
-Telegram'a gelen mesajları iletmek için bot'un webhook URL'sini kaydetmesi gerekir. Webhook endpoint'i hazır olduğunda (bkz. [Eksik Parça](#eksik-parça)) aşağıdaki komutla kaydet:
+**If you're on a VPS with a static IP/domain:** run this after the services start:
 
 ```bash
 curl -s -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://yourdomain.com/telegram/webhook", "allowed_updates": ["message", "callback_query"]}'
+  -d '{
+    "url": "https://yourdomain.com/telegram/webhook",
+    "secret_token": "<TELEGRAM_WEBHOOK_SECRET from .env>",
+    "allowed_updates": ["message", "callback_query"]
+  }'
 ```
 
-Başarılı yanıt:
+Expected response:
 ```json
 {"ok": true, "result": true, "description": "Webhook was set"}
 ```
 
-Webhook'u kaldırmak için:
+Verify:
+```bash
+curl -s "https://api.telegram.org/bot<TOKEN>/getWebhookInfo" | python3 -m json.tool
+```
+
+---
+
+## Step 5 — Test
+
+Send a message to your bot. You should get a response from the agent.
+
+Check service health:
+```bash
+curl -s http://localhost:8010/health
+curl -s http://localhost:8013/health
+```
+
+Check logs:
+```bash
+# Docker
+docker compose logs -f 99-api
+
+# systemd
+journalctl -u personal-agent.service -f
+```
+
+---
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `MESSENGER_TYPE` | Set to `telegram` |
+| `TELEGRAM_BOT_TOKEN` | Token from @BotFather |
+| `TELEGRAM_CHAT_ID` | Your personal chat ID (from @userinfobot) |
+| `TELEGRAM_WEBHOOK_SECRET` | Auto-generated; used to verify webhook authenticity |
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| Bot doesn't respond | Check webhook is registered (`getWebhookInfo`), check service logs |
+| `{"ok":false,"description":"Unauthorized"}` | Bot token is wrong |
+| Chat ID mismatch — bot responds to others | Make sure `TELEGRAM_CHAT_ID` is your own ID, not the bot's ID |
+| Webhook returns 403 | `TELEGRAM_WEBHOOK_SECRET` mismatch — re-register webhook with correct secret |
+| ngrok URL changed after restart | Re-run `step_show_webhook_url` or re-register manually |
+
+---
+
+## Remove Webhook (Reset)
+
 ```bash
 curl -s "https://api.telegram.org/bot<TOKEN>/deleteWebhook"
 ```
-
----
-
-## Adım 5 — Servisi Yeniden Başlat
-
-```bash
-sudo systemctl restart personal-agent.service
-```
-
-Kontrol:
-```bash
-curl -s http://localhost:8010/health | python3 -m json.tool
-```
-
----
-
-## WhatsApp ile Farklar
-
-| Özellik | WhatsApp | Telegram |
-|---------|----------|----------|
-| Buton tipi | Reply button (max 3) | InlineKeyboard |
-| Liste menüsü | Native `send_list` | Markdown düz metin (fallback) |
-| Mesaj limiti | 4096 karakter | 4096 karakter |
-| Webhook doğrulama | HMAC-SHA256 imza | Telegram'ın kendi mekanizması |
-| Medya mesajları | `_media_handlers.py` ile işleniyor | Henüz desteklenmiyor |
-
----
-
-## Eksik Parça
-
-Telegram'dan **gelen** mesajları (kullanıcı → bot) işlemek için iki adım gerekiyor:
-
-### 1. `routers/telegram_router.py` oluştur
-
-`whatsapp_router.py` modelinde, gelen Telegram güncellemelerini (`message` ve `callback_query`) alıp mevcut guard zincirine yönlendiren bir router. Temel yapı:
-
-```python
-# POST /telegram/webhook
-# Payload: Telegram Update objesi
-# sender: str(update["message"]["from"]["id"])
-# text:   update["message"]["text"]
-```
-
-Guard zinciri (`dedup → blacklist → rate_limit → permission`) değişmeden kullanılabilir; sadece payload parse etme ve `sender` çıkarma değişir.
-
-### 2. `main.py`'ye router kaydı ekle
-
-```python
-from backend.routers.telegram_router import router as telegram_router
-app.include_router(telegram_router)
-```
-
-Bu iki adım tamamlanana kadar Telegram yalnızca **çıkış kanalı** olarak çalışır; kullanıcıdan gelen mesajlar işlenmez.
