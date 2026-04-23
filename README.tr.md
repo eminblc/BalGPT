@@ -22,7 +22,9 @@ WhatsApp / Telegram → POST /whatsapp/webhook  veya  POST /telegram/webhook
 
 ## Hızlı Başlangıç
 
-### Seçenek A — Docker (önerilen, her işletim sisteminde çalışır)
+### Seçenek A — Docker ✅ Önerilen
+
+> Çoğu kullanıcı için en iyi seçenek. Her işletim sisteminde çalışır, host'ta Python/Node gerekmez.
 
 ```bash
 git clone https://github.com/kullanici-adin/99-root.git
@@ -30,15 +32,22 @@ cd 99-root
 bash install.sh --docker
 ```
 
-Sihirbaz hangi messenger, LLM backend, kimlik bilgileri ve yeteneklerin istediğini sorar. Ardından `.env` dosyasını yazar, `CAPABILITIES` build-arg içeren bir `docker-compose.override.yml` oluşturur, yalnızca seçili paketlerin kurulu olduğu image'ı build eder ve container'ları başlatır.
+Sihirbaz hangi messenger, LLM backend, webhook proxy, kimlik bilgileri ve yeteneklerin istediğini sorar. Ardından `.env` dosyasını yazar, `CAPABILITIES` build-arg içeren bir `docker-compose.override.yml` oluşturur, yalnızca seçili paketlerin kurulu olduğu image'ı build eder ve container'ları başlatır.
 
-Compose dosyası `./data` ve `./outputs/logs` dizinlerini volume olarak bağlar; tüm veriler konteyner dışında kalıcı olarak saklanır.
+Güvenlik anahtarları (`API_KEY`, `TOTP_SECRET`, `TOTP_SECRET_ADMIN`) ve webhook token'ları sihirbaz tarafından **otomatik üretilir** — elle giriş gerekmez. TOTP QR kodları kurulum sonunda ekrana gösterilir; Google Authenticator'a okutabilirsin.
+
+Compose dosyası `./data` ve `./outputs/logs` dizinlerini volume olarak bağlar; tüm veriler container dışında kalıcı olarak saklanır.
 
 Yetenekleri yeniden yapılandırmak ve image'ı rebuild etmek için:
 
 ```bash
 bash install.sh --docker --reconfigure-capabilities
 ```
+
+> **Windows kullanıcıları:** PowerShell'de `bash` komutu yoktur — `bash install.sh --docker` çalışmaz. Şu seçeneklerden birini kullanmanız gerekir:
+> - **Git Bash** (önerilen): [Git for Windows](https://git-scm.com/download/win) kur, Git Bash'i aç, komutu çalıştır.
+> - **WSL**: PowerShell'de `wsl --install -d Ubuntu` çalıştır, Ubuntu terminalini aç, komutu çalıştır.
+> - **Sihirbaz olmadan**: `.env.example`'ı `.env`'e kopyala, elle doldur, ardından PowerShell'den `docker compose up -d --build` çalıştır. Tüm yetenekler kurulur (daha büyük image).
 
 Servis sağlığını kontrol et:
 
@@ -63,15 +72,15 @@ docker compose restart
 
 ### Seçenek B — systemd (yalnızca Linux)
 
+> Yerel performans ve otomatik başlatma istediğiniz Linux sunucu veya Raspberry Pi için en iyi seçenek.
+
 ```bash
 git clone https://github.com/kullanici-adin/99-root.git
 cd 99-root
-cp scripts/backend/.env.example scripts/backend/.env
-# .env dosyasını doldur (aşağıdaki Zorunlu Ortam Değişkenleri tablosuna bak)
 sudo bash install.sh
 ```
 
-`install.sh` etkileşimli bir sihirbaz çalıştırır (messenger, LLM backend, saat dilimi, yetenekler), Python sanal ortamını oluşturur, yalnızca etkin yeteneklerin gerektirdiği paketleri kurar (pip-compile + pip-sync), Node bağımlılıklarını kurar, systemd unit dosyalarını oluşturur ve servisleri etkinleştirir.
+`install.sh` etkileşimli bir sihirbaz çalıştırır (messenger, LLM backend, webhook proxy, saat dilimi, yetenekler), Python venv'i oluşturur, yalnızca etkin yeteneklerin gerektirdiği paketleri kurar (pip-compile + pip-sync), Node bağımlılıklarını kurar, systemd unit dosyalarını oluşturur ve servisleri etkinleştirir.
 
 > `sudo` ile çalıştırılırsa systemd unit'leri otomatik olarak kurulur ve etkinleştirilir. `sudo` olmadan çalıştırılırsa sihirbaz ve bağımlılık kurulumu tamamlanır, ardından manuel `systemctl` komutları ekrana yazdırılır.
 
@@ -99,8 +108,6 @@ Systemd yoksa PM2 kullan (macOS, Windows WSL, root'suz VPS).
 ```bash
 git clone https://github.com/kullanici-adin/99-root.git
 cd 99-root
-cp scripts/backend/.env.example scripts/backend/.env
-# .env dosyasını doldur (aşağıdaki Zorunlu Ortam Değişkenleri tablosuna bak)
 bash install.sh --pm2
 ```
 
@@ -116,19 +123,37 @@ pm2 logs 99-bridge
 
 ## Zorunlu Ortam Değişkenleri
 
+Sihirbaz yalnızca dışarıdan alman gereken kimlik bilgilerini sorar. Geri kalanı otomatik üretilir.
+
+**Sihirbaz tarafından otomatik üretilir (giriş gerekmez):**
+`API_KEY`, `TOTP_SECRET`, `TOTP_SECRET_ADMIN`, `WHATSAPP_VERIFY_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`
+
+### WhatsApp
+
 | Değişken | Açıklama |
 |----------|----------|
-| `WHATSAPP_ACCESS_TOKEN` | Meta WhatsApp Cloud API erişim tokeni |
-| `WHATSAPP_PHONE_NUMBER_ID` | Meta Developer'dan WhatsApp telefon numarası ID'si |
-| `WHATSAPP_APP_SECRET` | Webhook HMAC doğrulaması için uygulama sırrı |
-| `WHATSAPP_VERIFY_TOKEN` | Webhook doğrulaması için kendin belirlediğin string |
-| `WHATSAPP_OWNER` | Ülke koduyla WhatsApp numaran (`+90...`) |
-| `ANTHROPIC_API_KEY` | Anthropic API anahtarı (`sk-ant-...`) |
-| `API_KEY` | `/agent/*` endpoint'leri için dahili API anahtarı |
-| `TOTP_SECRET` | Base32 TOTP sırrı — `python -c "import pyotp; print(pyotp.random_base32())"` |
-| `TOTP_SECRET_ADMIN` | Yıkıcı komutlar için ayrı TOTP (`!restart`, `!shutdown`) |
+| `WHATSAPP_ACCESS_TOKEN` | Meta WhatsApp Cloud API erişim tokeni (Meta Developer Console'dan) |
+| `WHATSAPP_PHONE_NUMBER_ID` | Meta Developer Console'daki sayısal telefon numarası ID'si |
+| `WHATSAPP_APP_SECRET` | Webhook HMAC imza doğrulaması için uygulama sırrı |
+| `WHATSAPP_OWNER` | Kendi WhatsApp numaranız ülke koduyla (`+90...`) |
 
-Telegram, Ollama, Gemini, saat dilimi ve yetenek flag'leri dahil tüm seçenekler için bkz. [`scripts/backend/.env.example`](scripts/backend/.env.example).
+### Telegram
+
+| Değişken | Açıklama |
+|----------|----------|
+| `TELEGRAM_BOT_TOKEN` | @BotFather'dan alınan bot token'ı (`123456789:ABCdef...`) |
+| `TELEGRAM_CHAT_ID` | Kişisel Telegram chat ID'n — [@userinfobot](https://t.me/userinfobot)'tan öğren |
+
+### LLM
+
+| Değişken | Açıklama |
+|----------|----------|
+| `ANTHROPIC_API_KEY` | Anthropic API key (`sk-ant-api03-...`) — [console.anthropic.com](https://console.anthropic.com)'dan |
+| `GEMINI_API_KEY` | Google Gemini API key — [aistudio.google.com](https://aistudio.google.com)'dan |
+| `OLLAMA_BASE_URL` | Ollama base URL (varsayılan: `http://localhost:11434`) |
+| `OLLAMA_MODEL` | Ollama model adı (varsayılan: `llama3`) |
+
+Saat dilimi ve yetenek flag'leri dahil tüm seçenekler için bkz. [`scripts/backend/.env.example`](scripts/backend/.env.example).
 
 ---
 
@@ -151,8 +176,8 @@ Telegram, Ollama, Gemini, saat dilimi ve yetenek flag'leri dahil tüm seçenekle
 | `!lang <tr\|en>` | Arayüz dilini değiştir | Owner |
 | `!timezone [IANA]` | Aktif saat dilimini göster veya değiştir (APScheduler yeniden yapılandırılır) | Owner |
 | `!cancel` | Aktif TOTP akışını, bekleyen işlemi veya Bridge sorgusunu iptal et | Owner |
-| `!lock` | Uygulamayı kilitle (açmak için TOTP gerekir) | Owner TOTP |
-| `!unlock` | Uygulamanın kilidini aç | Owner TOTP |
+| `!lock` | Uygulamayı kilitle (açmak için TOTP gerekir) | Owner + TOTP |
+| `!unlock` | Uygulamanın kilidini aç | Owner + TOTP |
 | `!beta-exit` | Proje beta modundan çık | Owner |
 | `!project-delete` | Projeyi veritabanından sil | Math + Admin TOTP |
 | `!restart` | Her iki servisi yeniden başlat | Math + Admin TOTP |
@@ -160,8 +185,8 @@ Telegram, Ollama, Gemini, saat dilimi ve yetenek flag'leri dahil tüm seçenekle
 
 **Yetki seviyeleri:**
 - **Owner** — mesaj, yapılandırılmış sahip telefon/sohbet kimliğinden gelmeli
-- **Owner TOTP** — sahip + 6 haneli TOTP kodu (kimlik doğrulayıcı uygulama, `TOTP_SECRET`)
-- **Math + Admin TOTP** — sahip + basit matematik sorusu + 6 haneli admin TOTP kodu (`TOTP_SECRET_ADMIN`)
+- **Owner + TOTP** — sahip + kimlik doğrulayıcı uygulamadan 6 haneli kod (`TOTP_SECRET`)
+- **Math + Admin TOTP** — sahip + basit matematik sorusu + 6 haneli admin kodu (`TOTP_SECRET_ADMIN`)
 
 Komut olmayan mesajlar serbest konuşma için Claude Code'a iletilir.
 
@@ -169,13 +194,48 @@ Yetenek flag'leri, sistem gereksinimleri ve dahili API endpoint'leri için bkz. 
 
 ---
 
+## Webhook Proxy
+
+Ajanın çalışması için WhatsApp veya Telegram'ın sunucuna mesaj gönderebileceği genel HTTPS URL'e ihtiyacı var. Sihirbaz dört seçenek sunar:
+
+| Seçenek | Ne zaman kullanılır |
+|---------|---------------------|
+| **Yok** | Sabit genel IP'si veya domain'i olan VPS |
+| **ngrok** ✅ Yerel kurulum için önerilen | Ücretsiz hesapta kalıcı static domain mevcut; binary kurulumu gerekmez |
+| **Cloudflare Tunnel** | Kalıcı ücretsiz seçenek — Cloudflare hesabı ve DNS ayarı gerektirir |
+| **Harici URL** | Bu makineye yönlendirilmiş kendi domain'in var |
+
+### ngrok kurulumu
+
+Ajan ngrok'u `pyngrok` Python paketi aracılığıyla yönetir — **ngrok binary'sini manuel kurman gerekmez**. pyngrok binary'yi otomatik indirir ve çalıştırır.
+
+1. [ngrok.com](https://ngrok.com)'da ücretsiz hesap oluştur.
+2. **Ücretsiz static domain** al: ngrok Dashboard → Domains → New Domain → domain'i kopyala (ör. `adın.ngrok-free.app`). Bu URL kalıcıdır, hiç değişmez.
+3. Auth token'ını kopyala: **ngrok Dashboard → Your Authtoken**.
+4. `bash install.sh --docker` (veya `install.sh`) çalıştır, proxy olarak **ngrok** seç — sihirbaz auth token'ını sorar ve `.env`'e yazar.
+5. Servis başladıktan sonra ngrok otomatik olarak static domain'inde tünel açar. Public URL başlangıçta loglanır ve sihirbazın sonunda webhook bilgisinde gösterilir.
+6. Webhook URL'ini Meta Developer Console'a (WhatsApp) veya `setWebhook` ile (Telegram) kaydet — sihirbaz tam komutu yazdırır.
+
+> **Ücretsiz hesaplarda bir adet kalıcı static domain bulunur** — auth token ve static domain kullandığın sürece URL her yeniden başlatmada değişmez.
+>
+> **Hesabın yok mu?** Auth token alanını boş bırakabilirsin — ngrok anonim çalışır ancak URL rastgele üretilir ve her yeniden başlatmada değişir.
+
+---
+
 ## Messenger Seçimi
 
 | Messenger | `.env` ayarı | Notlar |
 |-----------|-------------|--------|
-| WhatsApp (varsayılan) | `MESSENGER_TYPE=whatsapp` | Meta Cloud API uygulaması ve webhook URL'i gerektirir |
-| Telegram | `MESSENGER_TYPE=telegram` | `TELEGRAM_BOT_TOKEN` ve `TELEGRAM_CHAT_ID` ayarla — bkz. [docs/deployment/telegram.md](docs/deployment/telegram.md) |
-| CLI (yerel test) | `MESSENGER_TYPE=cli` | Stdout'a yazar; hesap gerekmez |
+| Telegram ✅ Önerilen | `MESSENGER_TYPE=telegram` | En kolay kurulum — @BotFather ile 2 dakikada bot oluştur, iş hesabı gerekmez. Sihirbaz chat ID'yi otomatik algılar. |
+| WhatsApp | `MESSENGER_TYPE=whatsapp` | Meta iş hesabı, Meta Developer Console'da doğrulanmış uygulama ve HMAC webhook kurulumu gerektirir. |
+| CLI (yerel test) | `MESSENGER_TYPE=cli` | Stdout'a yazar; hesap gerekmez. |
+
+**Telegram mı WhatsApp mı?**
+
+- Hızlı kurulum istiyorsan **Telegram** seç. İş doğrulaması yok, Meta hesabı yok, 5 dakikada çalışır.
+- Ajanı özellikle WhatsApp'tan kontrol etmen gerekiyorsa (örn. Telegram kullanmıyorsan) **WhatsApp** seç.
+
+Ayrıntılı Telegram kurulum adımları için bkz. [docs/deployment/telegram.md](docs/deployment/telegram.md).
 
 ---
 
@@ -183,11 +243,11 @@ Yetenek flag'leri, sistem gereksinimleri ve dahili API endpoint'leri için bkz. 
 
 | Backend | `.env` ayarı | Maliyet | Gizlilik | Notlar |
 |---------|-------------|---------|----------|--------|
-| Anthropic (varsayılan) | `LLM_BACKEND=anthropic` | Kullanım başına ücret | Bulut | `ANTHROPIC_API_KEY` gerekli. Birincil, test edilmiş backend. |
-| Ollama (yerel) | `LLM_BACKEND=ollama` | Ücretsiz | Tamamen yerel | `OLLAMA_BASE_URL` ve `OLLAMA_MODEL` ayarla. Daha az test edildi — temel sohbet çalışır; karmaşık araç kullanımı güvenilmez olabilir. |
-| Gemini | `LLM_BACKEND=gemini` | Ücretsiz kota | Bulut | `GEMINI_API_KEY` gerekli; `GEMINI_MODEL` opsiyonel (varsayılan: `gemini-2.0-flash`). Daha az test edildi — temel sohbet çalışır; uç durumlar farklı davranabilir. |
+| Anthropic ✅ Önerilen | `LLM_BACKEND=anthropic` | Kullanım başına ücret | Bulut | `ANTHROPIC_API_KEY` gerekli. Tam araç desteği, zamanlama ve tüm özellikler güvenilir çalışır. |
+| Gemini | `LLM_BACKEND=gemini` | Ücretsiz kota | Bulut | `GEMINI_API_KEY` gerekli; `GEMINI_MODEL` opsiyonel (varsayılan: `gemini-2.0-flash`). Temel sohbet çalışır. |
+| Ollama (yerel) | `LLM_BACKEND=ollama` | Ücretsiz | Tamamen yerel | `OLLAMA_BASE_URL` ve `OLLAMA_MODEL` gerekli. Önce `ollama pull llama3` çalıştır. Karmaşık araç kullanımı güvenilmeyebilir. |
 
-> `INTENT_CLASSIFIER_MODEL` ayarı yalnızca Anthropic backend için geçerlidir. Ollama veya Gemini kullanılırken intent sınıflandırıcı ilgili backend'in varsayılan modelini kullanır.
+> `INTENT_CLASSIFIER_MODEL` ayarı yalnızca Anthropic backend için geçerlidir.
 
 Ayrıntılar için bkz. [docs/deployment/byok.md](docs/deployment/byok.md).
 
@@ -195,11 +255,19 @@ Ayrıntılar için bkz. [docs/deployment/byok.md](docs/deployment/byok.md).
 
 ## Ön Koşullar
 
+**Docker (Seçenek A):**
+- Docker Engine + Docker Compose v2 (`docker compose version`)
+- Host'ta kurulu ve kimliği doğrulanmış `claude` CLI (`npm install -g @anthropic-ai/claude-code`)
+
+**systemd / PM2 (Seçenek B & C):**
 - Python 3.11+
 - Node.js 18+
-- `claude` CLI kurulu ve kimliği doğrulanmış (`npm install -g @anthropic-ai/claude-code`)
-- Webhook URL'i olan bir Meta WhatsApp Cloud API uygulaması (yerel kurulum için ngrok veya Cloudflare Tunnel) **veya** bir Telegram bot token'ı
-- Systemd servis kurulumu için `sudo` erişimi
+- Kurulu ve kimliği doğrulanmış `claude` CLI (`npm install -g @anthropic-ai/claude-code`)
+- systemd servis kurulumu için `sudo` erişimi (yalnızca Seçenek B)
+
+**Tüm seçenekler:**
+- Telegram bot token'ı **veya** Meta WhatsApp Cloud API uygulaması
+- Webhook için genel HTTPS URL — yukarıdaki [Webhook Proxy](#webhook-proxy) bölümüne bak
 
 ---
 
