@@ -279,14 +279,15 @@ Press OK when ready."
     _S_WIZ_CF_MISSING="cloudflared binary not found — install it before starting services."
     _S_WIZ_NGROK_INFO_TITLE="ngrok"
     _S_WIZ_NGROK_INFO_MSG="ngrok creates a public HTTPS tunnel to your local server.
+  No binary installation needed — the agent manages ngrok via the pyngrok package.
 
   Free tier:  URL changes on every restart (not suitable for permanent setups).
   Paid tier:  Permanent subdomain (ngrok.com → pricing).
 
-  If you have an ngrok account:
-    ngrok.com → Dashboard → Your Authtoken → copy and paste below.
+  To get your auth token (optional but recommended):
+    ngrok.com → Sign up (free) → Dashboard → Your Authtoken
 
-  Leave the token blank to use ngrok without an account (rate-limited, URL still changes)."
+  Leave the token blank to use ngrok anonymously (more rate-limited, URL still changes)."
     _S_WIZ_NGROK_TOKEN="ngrok Auth Token (leave blank for anonymous):"
     _S_WIZ_EXT_URL="(*) Public URL (https://yourdomain.com):"
 
@@ -626,14 +627,15 @@ Hazır olduğunuzda OK'a basın."
     _S_WIZ_CF_MISSING="cloudflared bulunamadı — servisleri başlatmadan önce kurun."
     _S_WIZ_NGROK_INFO_TITLE="ngrok Bilgileri"
     _S_WIZ_NGROK_INFO_MSG="ngrok, yerel sunucunuza genel HTTPS tüneli oluşturur.
+  Binary kurulumu gerekmez — ajan ngrok'u pyngrok paketi aracılığıyla yönetir.
 
   Ücretsiz: Her yeniden başlatmada URL değişir (kalıcı kurulum için uygun değil).
   Ücretli:  Kalıcı subdomain (ngrok.com → pricing).
 
-  ngrok hesabınız varsa:
-    ngrok.com → Dashboard → Your Authtoken → kopyalayıp aşağıya yapıştırın.
+  Auth token almak için (opsiyonel ama önerilir):
+    ngrok.com → Ücretsiz kayıt → Dashboard → Your Authtoken
 
-  Token boş bırakılırsa hesapsız kullanılır (hız sınırlı, URL yine değişir)."
+  Token boş bırakılırsa anonim kullanılır (daha sınırlı, URL yine değişir)."
     _S_WIZ_NGROK_TOKEN="ngrok Auth Token (anonim kullanım için boş bırakın):"
     _S_WIZ_EXT_URL="(*) Public URL (https://alanadi.com):"
 

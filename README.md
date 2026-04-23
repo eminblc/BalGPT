@@ -187,19 +187,17 @@ The agent needs a public HTTPS URL so WhatsApp or Telegram can reach your server
 
 ### ngrok setup
 
-1. Create a free account at [ngrok.com](https://ngrok.com) and copy your auth token from the dashboard.
-2. Install the binary:
-   ```bash
-   # Linux
-   curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
-   echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
-   sudo apt update && sudo apt install ngrok
-   ```
+The agent manages ngrok through the `pyngrok` Python package — **no manual ngrok binary installation required**. pyngrok downloads and runs the ngrok binary automatically.
+
+1. Create a free account at [ngrok.com](https://ngrok.com).
+2. Copy your auth token: **ngrok Dashboard → Your Authtoken**.
 3. Run `bash install.sh --docker` (or `install.sh`) and select **ngrok** as the proxy — the wizard will ask for your auth token and write it to `.env`.
 4. After the service starts, ngrok automatically opens a tunnel. The public URL is logged on startup and shown in the webhook info printed at the end of the wizard.
-5. Register the webhook URL in Meta Developer Console (WhatsApp) or via `setWebhook` (Telegram).
+5. Register the webhook URL in Meta Developer Console (WhatsApp) or via `setWebhook` (Telegram) — the wizard prints the exact command.
 
 > **Note:** Free ngrok URLs change on every restart. For a stable URL, use a paid ngrok plan, Cloudflare Tunnel, or a VPS with a static IP.
+>
+> **No account?** You can leave the auth token blank — ngrok works anonymously but with tighter rate limits and the URL still changes on restart.
 
 ---
 
