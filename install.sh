@@ -688,6 +688,14 @@ _wt_msg() {
 # ── Prerequisites / Önkoşullar ────────────────────────────────────────────────
 
 check_prereqs() {
+  if $USE_DOCKER; then
+    # Docker modunda host'ta Python/Node/Claude gerekmez; docker ve compose yeterli
+    if ! command -v docker &>/dev/null; then die "$_S_DOCKER_NOT_FOUND"; fi
+    if ! docker compose version &>/dev/null 2>&1; then die "$_S_DOCKER_COMPOSE_NOT_FOUND"; fi
+    ok "Docker: $(docker --version)"
+    return
+  fi
+
   if ! command -v python3 &>/dev/null; then die "$_S_PRE_PY_MISSING"; fi
   local py_major py_minor
   py_major="$(python3 -c 'import sys; print(sys.version_info.major)' 2>/dev/null || echo 0)"
@@ -1472,12 +1480,16 @@ step_show_totp() {
     echo "  ── $heading ──────────────────────────────"
     echo "  $_S_TOTP_SECRET : $secret"
     echo "  $_S_TOTP_URI    : $uri"
+    # QR renderer: qrencode → venv python → system python3 → hint text
+    local _py=""
+    "$BACKEND_DIR/venv/bin/python" -c "import qrcode" 2>/dev/null && _py="$BACKEND_DIR/venv/bin/python"
+    [[ -z "$_py" ]] && python3 -c "import qrcode" 2>/dev/null && _py="python3"
     if command -v qrencode &>/dev/null; then
       echo ""
       qrencode -t ANSIUTF8 -m 2 "$uri"
-    elif "$BACKEND_DIR/venv/bin/python" -c "import qrcode" 2>/dev/null; then
+    elif [[ -n "$_py" ]]; then
       echo ""
-      "$BACKEND_DIR/venv/bin/python" - <<PYEOF
+      "$_py" - <<PYEOF
 import qrcode
 qr = qrcode.QRCode(border=1)
 qr.add_data("${uri}")
@@ -1602,8 +1614,6 @@ main() {
     step_data_dirs
     step_docker_group
     step_docker_build
-    step_show_totp
-    step_show_webhook_url
   else
     step_venv          # seçili yeteneklere göre paketleri kur
     step_npm
@@ -1611,34 +1621,34 @@ main() {
     step_docker_group
     step_systemd
     step_pm2
-  fi
 
-  echo ""
-  log "$_S_STEP_SYNTAX"
-  (cd "$SCRIPTS_DIR" && backend/venv/bin/python -c "from backend.main import app; print('[✓] Python import OK')")
-  node --check "$BRIDGE_DIR/server.js" && echo "[✓] Node syntax OK"
-
-  echo ""
-  log "$_S_STEP_TESTS"
-  if (cd "$SCRIPTS_DIR" && backend/venv/bin/python -m pytest tests/ -q --tb=short 2>&1); then
-    echo "[✓] Tüm unit testler geçti"
-  else
-    warn "Bazı unit testler başarısız — log yukarıda. Kurulum tamamlandı ama testleri incele."
-  fi
-
-  if $USE_PM2; then
     echo ""
-    log "$_S_STEP_HEALTH_PM2"
-    sleep 3
-    if curl -sf "http://localhost:${API_PORT}/health" > /dev/null 2>&1; then
-      echo "[✓] FastAPI sağlıklı (port ${API_PORT})"
+    log "$_S_STEP_SYNTAX"
+    (cd "$SCRIPTS_DIR" && backend/venv/bin/python -c "from backend.main import app; print('[✓] Python import OK')")
+    node --check "$BRIDGE_DIR/server.js" && echo "[✓] Node syntax OK"
+
+    echo ""
+    log "$_S_STEP_TESTS"
+    if (cd "$SCRIPTS_DIR" && backend/venv/bin/python -m pytest tests/ -q --tb=short 2>&1); then
+      echo "[✓] Tüm unit testler geçti"
     else
-      warn "FastAPI yanıt vermiyor — 'pm2 logs 99-api' ile kontrol et"
+      warn "Bazı unit testler başarısız — log yukarıda. Kurulum tamamlandı ama testleri incele."
     fi
-    if curl -sf "http://localhost:${BRIDGE_PORT}/health" > /dev/null 2>&1; then
-      echo "[✓] Bridge sağlıklı (port ${BRIDGE_PORT})"
-    else
-      warn "Bridge yanıt vermiyor — 'pm2 logs 99-bridge' ile kontrol et"
+
+    if $USE_PM2; then
+      echo ""
+      log "$_S_STEP_HEALTH_PM2"
+      sleep 3
+      if curl -sf "http://localhost:${API_PORT}/health" > /dev/null 2>&1; then
+        echo "[✓] FastAPI sağlıklı (port ${API_PORT})"
+      else
+        warn "FastAPI yanıt vermiyor — 'pm2 logs 99-api' ile kontrol et"
+      fi
+      if curl -sf "http://localhost:${BRIDGE_PORT}/health" > /dev/null 2>&1; then
+        echo "[✓] Bridge sağlıklı (port ${BRIDGE_PORT})"
+      else
+        warn "Bridge yanıt vermiyor — 'pm2 logs 99-bridge' ile kontrol et"
+      fi
     fi
   fi
 
@@ -1647,7 +1657,9 @@ main() {
 
   echo ""
   ok "$_S_DONE_TITLE"
-  if $USE_PM2; then
+  if $USE_DOCKER; then
+    echo "$_S_DONE_DOCKER"
+  elif $USE_PM2; then
     echo "$_S_DONE_PM2"
   elif ! $NO_SYSTEMD && command -v systemctl &>/dev/null; then
     echo "$_S_DONE_SYSTEMD"
