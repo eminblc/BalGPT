@@ -202,9 +202,14 @@ The agent needs a public HTTPS URL so WhatsApp or Telegram can reach your server
 
 | Messenger | `.env` setting | Notes |
 |-----------|---------------|-------|
-| WhatsApp (default) | `MESSENGER_TYPE=whatsapp` | Requires Meta Cloud API app and a webhook URL |
-| Telegram | `MESSENGER_TYPE=telegram` | Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` — see [docs/deployment/telegram.md](docs/deployment/telegram.md) |
-| CLI (local testing) | `MESSENGER_TYPE=cli` | Writes to stdout; no account needed |
+| Telegram ✅ Recommended | `MESSENGER_TYPE=telegram` | Easiest setup — create a bot with @BotFather in 2 minutes, no business account needed. Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`. |
+| WhatsApp | `MESSENGER_TYPE=whatsapp` | Requires a Meta Business account, a verified app in Meta Developer Console, and HMAC webhook setup. More involved but works well if you already have a Meta app. |
+| CLI (local testing) | `MESSENGER_TYPE=cli` | Writes to stdout; no account needed. |
+
+**Telegram vs WhatsApp — quick guide:**
+
+- Choose **Telegram** if you want the fastest setup. No business verification, no Meta account, bot is live in under 5 minutes. Works on any phone that has Telegram.
+- Choose **WhatsApp** if you specifically need to control the agent from WhatsApp (e.g. you don't use Telegram, or you want to share it with non-technical people who already use WhatsApp).
 
 ---
 
@@ -212,9 +217,9 @@ The agent needs a public HTTPS URL so WhatsApp or Telegram can reach your server
 
 | Backend | `.env` setting | Cost | Privacy | Notes |
 |---------|---------------|------|---------|-------|
-| Anthropic (default) | `LLM_BACKEND=anthropic` | Pay-per-token | Cloud | Set `ANTHROPIC_API_KEY`. Primary tested backend. |
-| Ollama (local) | `LLM_BACKEND=ollama` | Free | Fully local | Set `OLLAMA_BASE_URL` and `OLLAMA_MODEL`. Less tested — basic conversation works; complex tool use may be unreliable. |
-| Gemini | `LLM_BACKEND=gemini` | Free quota | Cloud | Set `GEMINI_API_KEY`; optionally `GEMINI_MODEL` (default: `gemini-2.0-flash`). Less tested — basic conversation works; edge cases may behave differently. |
+| Anthropic ✅ Recommended | `LLM_BACKEND=anthropic` | Pay-per-token | Cloud | Set `ANTHROPIC_API_KEY`. Primary tested backend — full tool use, scheduling, and all features work reliably. |
+| Gemini | `LLM_BACKEND=gemini` | Free quota | Cloud | Set `GEMINI_API_KEY`; optionally `GEMINI_MODEL` (default: `gemini-2.0-flash`). Basic conversation works; edge cases may behave differently. |
+| Ollama (local) | `LLM_BACKEND=ollama` | Free | Fully local | Set `OLLAMA_BASE_URL` and `OLLAMA_MODEL`. Basic conversation works; complex tool use may be unreliable. |
 
 > The `INTENT_CLASSIFIER_MODEL` setting only applies to the Anthropic backend. When using Ollama or Gemini, the intent classifier uses the backend's default model.
 
