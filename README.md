@@ -27,12 +27,18 @@ WhatsApp / Telegram → POST /whatsapp/webhook  or  POST /telegram/webhook
 ```bash
 git clone https://github.com/your-username/99-root.git
 cd 99-root
-cp scripts/backend/.env.example scripts/backend/.env
-# Fill in .env (see Required Environment Variables below)
-docker compose up -d
+bash install.sh --docker
 ```
 
+The wizard asks which messenger, LLM backend, credentials, and capabilities you want. It then writes `.env`, generates a `docker-compose.override.yml` with a `CAPABILITIES` build-arg, builds the image with only the selected packages installed, and starts the containers.
+
 The compose file mounts `./data` and `./outputs/logs` as volumes so all data persists outside the containers.
+
+To reconfigure capabilities and rebuild:
+
+```bash
+bash install.sh --docker --reconfigure-capabilities
+```
 
 Check service health:
 

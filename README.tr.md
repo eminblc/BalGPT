@@ -27,12 +27,18 @@ WhatsApp / Telegram → POST /whatsapp/webhook  veya  POST /telegram/webhook
 ```bash
 git clone https://github.com/kullanici-adin/99-root.git
 cd 99-root
-cp scripts/backend/.env.example scripts/backend/.env
-# .env dosyasını doldur (aşağıdaki Zorunlu Ortam Değişkenleri tablosuna bak)
-docker compose up -d
+bash install.sh --docker
 ```
 
+Sihirbaz hangi messenger, LLM backend, kimlik bilgileri ve yeteneklerin istediğini sorar. Ardından `.env` dosyasını yazar, `CAPABILITIES` build-arg içeren bir `docker-compose.override.yml` oluşturur, yalnızca seçili paketlerin kurulu olduğu image'ı build eder ve container'ları başlatır.
+
 Compose dosyası `./data` ve `./outputs/logs` dizinlerini volume olarak bağlar; tüm veriler konteyner dışında kalıcı olarak saklanır.
+
+Yetenekleri yeniden yapılandırmak ve image'ı rebuild etmek için:
+
+```bash
+bash install.sh --docker --reconfigure-capabilities
+```
 
 Servis sağlığını kontrol et:
 

@@ -9,9 +9,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+# CAPABILITIES: install.sh --docker tarafından ayarlanır.
+# "all" (varsayılan/CI) → requirements.txt (tüm paketler)
+# "core dev scheduler browser" gibi → yalnızca seçili requirements/*.txt dosyaları
+ARG CAPABILITIES="all"
+
 # Bağımlılıkları önce kopyala — Docker layer cache optimizasyonu
 COPY scripts/backend/requirements.txt scripts/backend/requirements.txt
-RUN pip install --no-cache-dir -r scripts/backend/requirements.txt
+COPY scripts/backend/requirements/ scripts/backend/requirements/
+RUN if [ "$CAPABILITIES" = "all" ]; then \
+      pip install --no-cache-dir -r scripts/backend/requirements.txt; \
+    else \
+      args=""; \
+      for cap in $CAPABILITIES; do \
+        args="$args -r scripts/backend/requirements/$cap.txt"; \
+      done; \
+      pip install --no-cache-dir $args; \
+    fi
 
 # Kaynak kodun tamamını kopyala
 COPY . .
