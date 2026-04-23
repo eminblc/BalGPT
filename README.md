@@ -42,6 +42,11 @@ To reconfigure capabilities and rebuild:
 bash install.sh --docker --reconfigure-capabilities
 ```
 
+> **Windows users:** PowerShell does not have `bash` — running `bash install.sh --docker` will fail. You need one of the following:
+> - **Git Bash** (recommended): install [Git for Windows](https://git-scm.com/download/win), open Git Bash, then run the command above.
+> - **WSL**: run `wsl --install -d Ubuntu` in PowerShell, open the Ubuntu terminal, then run the command.
+> - **Without the wizard**: copy `.env.example` to `.env`, fill it in manually, then run `docker compose up -d --build` from PowerShell. All capabilities will be installed (larger image).
+
 Check service health:
 
 ```bash
