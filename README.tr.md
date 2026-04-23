@@ -152,6 +152,11 @@ Telegram, Ollama, Gemini, saat dilimi ve yetenek flag'leri dahil tüm seçenekle
 | `!restart` | Her iki servisi yeniden başlat | Math + Admin TOTP |
 | `!shutdown` | FastAPI servisini durdur | Math + Admin TOTP |
 
+**Yetki seviyeleri:**
+- **Owner** — mesaj, yapılandırılmış sahip telefon/sohbet kimliğinden gelmeli
+- **Owner TOTP** — sahip + 6 haneli TOTP kodu (kimlik doğrulayıcı uygulama, `TOTP_SECRET`)
+- **Math + Admin TOTP** — sahip + basit matematik sorusu + 6 haneli admin TOTP kodu (`TOTP_SECRET_ADMIN`)
+
 Komut olmayan mesajlar serbest konuşma için Claude Code'a iletilir.
 
 Yetenek flag'leri, sistem gereksinimleri ve dahili API endpoint'leri için bkz. [docs/skills.md](docs/skills.md).

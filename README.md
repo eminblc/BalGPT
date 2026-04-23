@@ -152,6 +152,11 @@ See [`scripts/backend/.env.example`](scripts/backend/.env.example) for all optio
 | `!restart` | Restart both services | Math + Admin TOTP |
 | `!shutdown` | Stop the FastAPI service | Math + Admin TOTP |
 
+**Auth levels:**
+- **Owner** — message must come from the configured owner phone/chat ID
+- **Owner TOTP** — owner + 6-digit TOTP code (via authenticator app, `TOTP_SECRET`)
+- **Math + Admin TOTP** — owner + simple math challenge + 6-digit admin TOTP code (`TOTP_SECRET_ADMIN`)
+
 Non-command messages are forwarded to Claude Code for free-form conversation.
 
 For capability flags, system requirements, and internal API endpoints, see [docs/skills.md](docs/skills.md).
