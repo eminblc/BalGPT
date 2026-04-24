@@ -143,6 +143,14 @@ from .features._registry import register_routers  # noqa: E402
 register_routers(app)
 
 
+def _get_public_url() -> str:
+    try:
+        from .features import webhook_proxy
+        return webhook_proxy.get_public_url() or ""
+    except Exception:
+        return ""
+
+
 @app.get("/health")
 async def health():
     import httpx
@@ -174,4 +182,5 @@ async def health():
         "bridge_detail": bridge_detail,
         "db": "ok" if db_ok else "down",
         "scheduler": "disabled" if not settings.scheduler_enabled else ("ok" if scheduler_ok else "down"),
+        "public_url": _get_public_url(),
     }

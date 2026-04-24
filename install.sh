@@ -108,13 +108,11 @@ _load_strings() {
 
     # ── Claude auth
     _S_AUTH_ALREADY="Claude CLI already authenticated"
-    _S_AUTH_NEEDED="Claude CLI is not authenticated."
+    _S_AUTH_NEEDED="Claude CLI — login required. Starting 'claude auth login'..."
     _S_AUTH_APIKEY="ANTHROPIC_API_KEY is set — API key auth will be used (no login needed)"
-    _S_AUTH_INSTR="Run the following in another terminal, then press Enter here:"
-    _S_AUTH_CMD="  claude auth login"
-    _S_AUTH_PROMPT="Press Enter after completing login: "
-    _S_AUTH_OK="Claude CLI authenticated"
-    _S_AUTH_WARN="Credentials not found — run 'claude auth login' before starting services"
+    _S_AUTH_INSTR="A browser window will open (or follow the URL shown below). Log in with your Claude account."
+    _S_AUTH_OK="Claude CLI authenticated successfully"
+    _S_AUTH_WARN="Authentication may be incomplete — run 'claude auth login' manually if Bridge fails to start"
     _S_AUTH_SKIP="Claude CLI not found — skipping auth step"
 
     # ── Steps
@@ -402,6 +400,9 @@ Store the secrets in a password manager as backup."
     _S_DOCKER_COMPOSE_NOT_FOUND="docker compose not found — install Docker Compose v2."
     _S_DOCKER_CRED_CREATED="Created empty ~/.claude/.credentials.json so Docker mounts a file (not a directory). Re-run 'claude auth login' to populate it if using a Claude subscription."
     _S_DOCKER_CRED_OK="~/.claude/.credentials.json found — will be mounted in bridge container"
+    _S_DOCKER_WAIT_URL="  ↳ Waiting for proxy public URL (up to 30s)..."
+    _S_DOCKER_URL_FOUND="  ↳ Public URL detected"
+    _S_DOCKER_URL_TIMEOUT="  ↳ Public URL not yet available — register webhook manually after services are ready"
 
     # ── Test / health
     _S_WH_TG_REGISTERED="Telegram webhook auto-registered"
@@ -468,13 +469,11 @@ Store the secrets in a password manager as backup."
 
     # ── Claude auth
     _S_AUTH_ALREADY="Claude CLI zaten authenticate edilmiş"
-    _S_AUTH_NEEDED="Claude CLI authenticate edilmemiş."
+    _S_AUTH_NEEDED="Claude CLI — giriş gerekli. 'claude auth login' başlatılıyor..."
     _S_AUTH_APIKEY="ANTHROPIC_API_KEY tanımlı — API key auth kullanılacak (giriş gerekmez)"
-    _S_AUTH_INSTR="Başka bir terminalde şunu çalıştır, ardından buraya dön:"
-    _S_AUTH_CMD="  claude auth login"
-    _S_AUTH_PROMPT="Girişi tamamladıktan sonra Enter'a bas: "
-    _S_AUTH_OK="Claude CLI authenticate edildi"
-    _S_AUTH_WARN="Credentials bulunamadı — servisi başlatmadan önce 'claude auth login' çalıştır"
+    _S_AUTH_INSTR="Tarayıcı açılacak (veya aşağıdaki URL'yi açın). Claude hesabınızla giriş yapın."
+    _S_AUTH_OK="Claude CLI başarıyla authenticate edildi"
+    _S_AUTH_WARN="Kimlik doğrulama tamamlanmamış olabilir — Bridge başlamazsa 'claude auth login' çalıştırın"
     _S_AUTH_SKIP="Claude CLI bulunamadı — auth adımı atlanıyor"
 
     # ── Adımlar
@@ -762,6 +761,9 @@ Secret'ları yedek olarak bir parola yöneticisine kaydedin."
     _S_DOCKER_COMPOSE_NOT_FOUND="docker compose bulunamadı — Docker Compose v2 kur."
     _S_DOCKER_CRED_CREATED="Boş ~/.claude/.credentials.json oluşturuldu (Docker directory değil dosya mount etsin diye). Claude subscription kullanıyorsanız 'claude auth login' ile doldurun."
     _S_DOCKER_CRED_OK="~/.claude/.credentials.json mevcut — bridge container'a mount edilecek"
+    _S_DOCKER_WAIT_URL="  ↳ Proxy public URL bekleniyor (max 30s)..."
+    _S_DOCKER_URL_FOUND="  ↳ Public URL tespit edildi"
+    _S_DOCKER_URL_TIMEOUT="  ↳ Public URL henüz hazır değil — servisler hazırlandıktan sonra webhook'u manuel kaydet"
 
     # ── Test / sağlık kontrolü
     _S_WH_TG_REGISTERED="Telegram webhook otomatik kaydedildi"
@@ -1097,6 +1099,50 @@ EOF
                  up -d
 
   ok "$_S_DOCKER_BUILD_DONE"
+
+  # ── Webhook auto-registration for ngrok/cloudflared proxy ─────────────────
+  # Public URL is only known at runtime (ngrok starts inside the container).
+  # Poll /health until public_url appears, then register the webhook.
+  local _env_dst="$BACKEND_DIR/.env"
+  local _proxy _messenger
+  _proxy="$(grep '^WEBHOOK_PROXY=' "$_env_dst" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true)"
+  _messenger="$(grep '^MESSENGER_TYPE=' "$_env_dst" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true)"
+  _messenger="${_messenger:-whatsapp}"
+
+  if [[ "$_proxy" == "ngrok" || "$_proxy" == "cloudflared" ]]; then
+    log "$_S_DOCKER_WAIT_URL"
+    local _pub_url="" _retry=0 _health
+    while [[ -z "$_pub_url" && $_retry -lt 15 ]]; do
+      sleep 2
+      _retry=$((_retry + 1))
+      _health="$(curl -s --max-time 3 "http://localhost:${API_PORT}/health" 2>/dev/null || true)"
+      _pub_url="$(echo "$_health" | python3 -c "import sys,json
+try: print(json.load(sys.stdin).get('public_url',''))
+except: pass" 2>/dev/null || true)"
+    done
+
+    if [[ -n "$_pub_url" ]]; then
+      ok "$_S_DOCKER_URL_FOUND: $_pub_url"
+      if [[ "$_messenger" == "telegram" ]]; then
+        local _tg_token _tg_secret _wh_url _wh_result
+        _tg_token="$(grep '^TELEGRAM_BOT_TOKEN=' "$_env_dst" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true)"
+        _tg_secret="$(grep '^TELEGRAM_WEBHOOK_SECRET=' "$_env_dst" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true)"
+        _wh_url="${_pub_url}/telegram/webhook"
+        _wh_result="$(curl -s --max-time 8 -X POST \
+          "https://api.telegram.org/bot${_tg_token}/setWebhook" \
+          -H "Content-Type: application/json" \
+          -d "{\"url\":\"${_wh_url}\",\"secret_token\":\"${_tg_secret}\",\"allowed_updates\":[\"message\",\"callback_query\"]}" \
+          2>/dev/null || true)"
+        if echo "$_wh_result" | grep -q '"ok":true'; then
+          ok "$_S_WH_TG_REGISTERED: $_wh_url"
+        else
+          warn "  Webhook registration failed. Manual: curl -s -X POST 'https://api.telegram.org/bot${_tg_token}/setWebhook' -d 'url=${_wh_url}'"
+        fi
+      fi
+    else
+      warn "$_S_DOCKER_URL_TIMEOUT"
+    fi
+  fi
 }
 
 # ── Step 7: Systemd ───────────────────────────────────────────────────────────
@@ -1239,10 +1285,10 @@ _wizard_whiptail() {
       tg_token=$(_wt_password "$_S_WIZ_TG_INFO_TITLE" "$_S_WIZ_TG_TOKEN") || return 1
       [[ -n "$tg_token" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
     done
-    # Ask user to send a message to bot, then auto-detect chat_id via getUpdates
+    # Ask user to send a message to bot, then auto-detect chat_id via getUpdates (long-poll 20s)
     _wt_msg "$_S_WIZ_TG_SEND_MSG_TITLE" "$_S_WIZ_TG_SEND_MSG" || return 1
     local _tg_auto_id=""
-    _tg_auto_id="$(curl -s --max-time 6 "https://api.telegram.org/bot${tg_token}/getUpdates" 2>/dev/null \
+    _tg_auto_id="$(curl -s --max-time 25 "https://api.telegram.org/bot${tg_token}/getUpdates?timeout=20&limit=1" 2>/dev/null \
       | python3 -c "import sys,json
 try:
     d=json.load(sys.stdin)
@@ -1354,21 +1400,21 @@ _wizard_text() {
   local messenger
   case "${_m:-1}" in 2) messenger="telegram";; 3) messenger="cli";; *) messenger="whatsapp";; esac
 
-  echo ""; echo "  ──────────────────────────────────────"
+  echo ""; echo "  ======================================"; echo "  ======================================"
   echo ""; echo "$_S_TXT_LLM"
   echo "  $_S_TXT_L1"; echo "  $_S_TXT_L2"; echo "  $_S_TXT_L3"
   read -rp "  [1]: " _l
   local llm
   case "${_l:-1}" in 2) llm="ollama";; 3) llm="gemini";; *) llm="anthropic";; esac
 
-  echo ""; echo "  ──────────────────────────────────────"
+  echo ""; echo "  ======================================"; echo "  ======================================"
   echo ""; echo "$_S_TXT_PROXY"
   echo "  $_S_TXT_P1"; echo "  $_S_TXT_P2"; echo "  $_S_TXT_P3"; echo "  $_S_TXT_P4"
   read -rp "  [1]: " _p
   local proxy
   case "${_p:-1}" in 2) proxy="ngrok";; 3) proxy="cloudflared";; 4) proxy="external";; *) proxy="none";; esac
 
-  echo ""; echo "  ──────────────────────────────────────"
+  echo ""; echo "  ======================================"; echo "  ======================================"
   local wa_token="" wa_phone_id="" wa_secret="" wa_verify="" wa_owner=""
   local tg_token="" tg_chat_id="" tg_webhook_secret=""
 
@@ -1390,7 +1436,8 @@ _wizard_text() {
     read -rp "  $_S_TXT_TG_CHATID_TIP " tg_chat_id
     if [[ -z "$tg_chat_id" ]]; then
       local _tg_updates
-      _tg_updates="$(curl -s --max-time 6 "https://api.telegram.org/bot${tg_token}/getUpdates" 2>/dev/null || true)"
+      log "  $_S_WIZ_TG_SEND_MSG_TITLE..."
+      _tg_updates="$(curl -s --max-time 25 "https://api.telegram.org/bot${tg_token}/getUpdates?timeout=20&limit=1" 2>/dev/null || true)"
       tg_chat_id="$(echo "$_tg_updates" | python3 -c "import sys,json
 try:
     d=json.load(sys.stdin)
@@ -1407,7 +1454,7 @@ except: pass" 2>/dev/null || true)"
     ok "  $_S_TXT_WSECRET_AUTO"
   fi
 
-  echo ""; echo "  ──────────────────────────────────────"
+  echo ""; echo "  ======================================"; echo "  ======================================"
   local anthropic_key="" ollama_url="" ollama_model="" gemini_key="" gemini_model=""
 
   if [[ "$llm" == "anthropic" ]]; then
@@ -1427,7 +1474,7 @@ except: pass" 2>/dev/null || true)"
     gemini_model="${gemini_model:-gemini-2.0-flash}"
   fi
 
-  echo ""; echo "  ──────────────────────────────────────"
+  echo ""; echo "  ======================================"; echo "  ======================================"
   local public_url="" ngrok_token="" ngrok_domain=""
   if [[ "$proxy" == "external" ]]; then
     while true; do read -rp "  $_S_WIZ_EXT_URL " public_url; [[ "$public_url" == https://* ]] && break; warn "$_S_URL_HTTPS"; done
@@ -1444,7 +1491,7 @@ except: pass" 2>/dev/null || true)"
     if ! command -v cloudflared &>/dev/null; then warn "$_S_WIZ_CF_MISSING"; fi
   fi
 
-  echo ""; echo "  ──────────────────────────────────────"
+  echo ""; echo "  ======================================"; echo "  ======================================"
   # ── Timezone / Saat Dilimi
   echo ""; echo "▶ $_S_WIZ_TZ_TITLE"
   echo "  1) $_S_WIZ_TZ_TRT"
@@ -1468,7 +1515,7 @@ except: pass" 2>/dev/null || true)"
     *) tz_value="Europe/Istanbul" ;;
   esac
 
-  echo ""; echo "  ──────────────────────────────────────"
+  echo ""; echo "  ======================================"; echo "  ======================================"
   echo ""; echo "$_S_TXT_SEC"
   local api_key totp_secret totp_admin
   api_key="$(_gen_api_key)"
@@ -1727,9 +1774,13 @@ step_claude_auth() {
     warn "$_S_AUTH_SKIP"; return
   fi
 
-  # Zaten authenticate ise atla
+  # Zaten authenticate ise atla — empty {} (Docker pre-flight) sayılmaz
   if [[ -f "$HOME/.claude/.credentials.json" ]]; then
-    ok "$_S_AUTH_ALREADY"; return
+    local _cred_content
+    _cred_content="$(tr -d ' \n\r\t' < "$HOME/.claude/.credentials.json" 2>/dev/null || echo "{}")"
+    if [[ "$_cred_content" != "{}" && ${#_cred_content} -gt 5 ]]; then
+      ok "$_S_AUTH_ALREADY"; return
+    fi
   fi
 
   # ANTHROPIC_API_KEY .env'de tanımlıysa OAuth gerekmez
@@ -1740,15 +1791,16 @@ step_claude_auth() {
     ok "$_S_AUTH_APIKEY"; return
   fi
 
-  # Kullanıcıdan manuel login istenecek
+  # claude auth login'i doğrudan çalıştır
   echo ""
-  echo "  ── $_S_AUTH_NEEDED ──────────────────────────────"
+  log "$_S_AUTH_NEEDED"
   echo "  $_S_AUTH_INSTR"
-  echo "  $_S_AUTH_CMD"
   echo ""
-  read -rp "  $_S_AUTH_PROMPT" _
+  claude auth login
 
-  if [[ -f "$HOME/.claude/.credentials.json" ]]; then
+  local _cred_after
+  _cred_after="$(tr -d ' \n\r\t' < "$HOME/.claude/.credentials.json" 2>/dev/null || echo "{}")"
+  if [[ "$_cred_after" != "{}" && ${#_cred_after} -gt 5 ]]; then
     ok "$_S_AUTH_OK"
   else
     warn "$_S_AUTH_WARN"
@@ -1775,30 +1827,59 @@ step_show_totp() {
     echo "  ── $heading ──────────────────────────────"
     echo "  $_S_TOTP_SECRET : $secret"
     echo "  $_S_TOTP_URI    : $uri"
-    # QR renderer: qrencode → venv python → system python3 → hint text
-    local _py=""
+    # QR renderer: qrencode → venv python → python3/python + qrcode → pip install → hint
+    local _py="" _py_extra_path=""
     "$BACKEND_DIR/venv/bin/python" -c "import qrcode" 2>/dev/null && _py="$BACKEND_DIR/venv/bin/python"
     [[ -z "$_py" ]] && python3 -c "import qrcode" 2>/dev/null && _py="python3"
+    [[ -z "$_py" ]] && python  -c "import qrcode" 2>/dev/null && _py="python"
+    # No qrcode yet — try a quick pip install into a temp dir
+    if [[ -z "$_py" ]]; then
+      local _tmpdir
+      _tmpdir="$(mktemp -d 2>/dev/null || echo /tmp/qrcode_tmp)"
+      for _candidate in python3 python; do
+        if command -v "$_candidate" &>/dev/null; then
+          if "$_candidate" -m pip install --quiet --target "$_tmpdir" qrcode 2>/dev/null \
+              && PYTHONPATH="$_tmpdir" "$_candidate" -c "import qrcode" 2>/dev/null; then
+            _py="$_candidate"
+            _py_extra_path="$_tmpdir"
+          fi
+          break
+        fi
+      done
+    fi
+    # Write Python script to a temp file so we can pass it directly (no eval/heredoc race)
+    local _qr_script
+    _qr_script="$(mktemp /tmp/qr_XXXXXX.py 2>/dev/null || echo /tmp/qr_print.py)"
+    cat > "$_qr_script" <<'PYEOF'
+import sys, qrcode
+uri = sys.argv[1]
+qr = qrcode.QRCode(border=1)
+qr.add_data(uri)
+qr.make(fit=True)
+qr.print_ascii(invert=True)
+PYEOF
     if command -v qrencode &>/dev/null; then
       echo ""
       qrencode -t ANSIUTF8 -m 2 "$uri"
     elif [[ -n "$_py" ]]; then
       echo ""
-      "$_py" - <<PYEOF
-import qrcode
-qr = qrcode.QRCode(border=1)
-qr.add_data("${uri}")
-qr.make(fit=True)
-qr.print_ascii(invert=True)
-PYEOF
+      PYTHONPATH="$_py_extra_path" "$_py" "$_qr_script" "$uri"
     else
-      echo "  $_S_TOTP_QR_HINT"
+      echo ""
+      echo "  ┌─ Manuel Giriş (QR kod oluşturulamadı) ──────────────┐"
+      echo "  │  1. Authenticator uygulamasını aç (Google/Authy)     │"
+      echo "  │  2. '+' → 'Kurulum anahtarı gir' seç                 │"
+      echo "  │  3. Hesap: 99-root                                    │"
+      echo "  │  4. Anahtar: $secret"
+      echo "  │  5. Tür: Zamana dayalı (TOTP)                        │"
+      echo "  └──────────────────────────────────────────────────────┘"
     fi
     echo ""
     echo "  ── $_S_TOTP_GA_TITLE ──"
     printf "  %b\n" "$_S_TOTP_GA_STEPS"
     echo "  $_S_TOTP_GA_NOQUR"
     echo "  ────────────────────────────────────────────────────"
+    rm -f "$_qr_script" 2>/dev/null || true
   }
 
   echo ""
@@ -1922,7 +2003,9 @@ main() {
   step_capabilities  # RESTRICT_* / *_ENABLED flag'lerini yaz
 
   if $USE_DOCKER; then
-    # Docker modu: venv/npm kurma, image build et ve başlat
+    # Docker modu: auth → data dirs → build & start
+    # claude auth login BEFORE docker_build so credentials are ready for the bind mount
+    step_claude_auth
     step_data_dirs
     step_docker_group
     step_docker_build
@@ -1964,7 +2047,7 @@ main() {
     fi
   fi
 
-  step_claude_auth
+  if ! $USE_DOCKER; then step_claude_auth; fi
   step_show_totp
   step_show_webhook_url
 
