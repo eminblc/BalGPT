@@ -406,7 +406,7 @@ Store the secrets in a password manager as backup."
     _S_DOCKER_COMPOSE_NOT_FOUND="docker compose not found — install Docker Compose v2."
     _S_DOCKER_CRED_CREATED="Created empty ~/.claude/.credentials.json so Docker mounts a file (not a directory). Re-run 'claude auth login' to populate it if using a Claude subscription."
     _S_DOCKER_CRED_OK="~/.claude/.credentials.json found — will be mounted in bridge container"
-    _S_DOCKER_WAIT_URL="  ↳ Waiting for proxy public URL (up to 30s)..."
+    _S_DOCKER_WAIT_URL="  ↳ Waiting for proxy public URL (up to 90s)..."
     _S_DOCKER_URL_FOUND="  ↳ Public URL detected"
     _S_DOCKER_URL_TIMEOUT="  ↳ Public URL not yet available — register webhook manually after services are ready"
 
@@ -773,7 +773,7 @@ Secret'ları yedek olarak bir parola yöneticisine kaydedin."
     _S_DOCKER_COMPOSE_NOT_FOUND="docker compose bulunamadı — Docker Compose v2 kur."
     _S_DOCKER_CRED_CREATED="Boş ~/.claude/.credentials.json oluşturuldu (Docker directory değil dosya mount etsin diye). Claude subscription kullanıyorsanız 'claude auth login' ile doldurun."
     _S_DOCKER_CRED_OK="~/.claude/.credentials.json mevcut — bridge container'a mount edilecek"
-    _S_DOCKER_WAIT_URL="  ↳ Proxy public URL bekleniyor (max 30s)..."
+    _S_DOCKER_WAIT_URL="  ↳ Proxy public URL bekleniyor (max 90s)..."
     _S_DOCKER_URL_FOUND="  ↳ Public URL tespit edildi"
     _S_DOCKER_URL_TIMEOUT="  ↳ Public URL henüz hazır değil — servisler hazırlandıktan sonra webhook'u manuel kaydet"
 
@@ -1124,13 +1124,25 @@ EOF
   if [[ "$_proxy" == "ngrok" || "$_proxy" == "cloudflared" ]]; then
     log "$_S_DOCKER_WAIT_URL"
     local _pub_url="" _retry=0 _health
-    while [[ -z "$_pub_url" && $_retry -lt 15 ]]; do
+
+    # Helper: extract public_url from JSON without requiring python3
+    _extract_pub_url() {
+      local _json="$1"
+      # Try python3 first, fall back to grep+sed
+      if command -v python3 &>/dev/null; then
+        echo "$_json" | python3 -c "import sys,json
+try: print(json.load(sys.stdin).get('public_url',''))
+except: pass" 2>/dev/null || true
+      else
+        echo "$_json" | grep -o '"public_url":"[^"]*"' | cut -d'"' -f4 || true
+      fi
+    }
+
+    while [[ -z "$_pub_url" && $_retry -lt 45 ]]; do
       sleep 2
       _retry=$((_retry + 1))
-      _health="$(curl -s --max-time 3 "http://localhost:${API_PORT}/health" 2>/dev/null || true)"
-      _pub_url="$(echo "$_health" | python3 -c "import sys,json
-try: print(json.load(sys.stdin).get('public_url',''))
-except: pass" 2>/dev/null || true)"
+      _health="$(curl -s --max-time 4 "http://localhost:${API_PORT}/health" 2>/dev/null || true)"
+      [[ -n "$_health" ]] && _pub_url="$(_extract_pub_url "$_health")"
     done
 
     if [[ -n "$_pub_url" ]]; then
