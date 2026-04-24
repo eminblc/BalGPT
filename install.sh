@@ -1621,7 +1621,12 @@ _write_env() {
   if [[ -n "$tg_webhook_secret" ]]; then _env_set "TELEGRAM_WEBHOOK_SECRET" "$tg_webhook_secret" "$env_dst"; fi
 
   _env_set "LLM_BACKEND" "$llm" "$env_dst"
-  [[ -n "$anthropic_key" ]] && _env_set "ANTHROPIC_API_KEY" "$anthropic_key" "$env_dst"
+  if [[ -n "$anthropic_key" ]]; then
+    _env_set "ANTHROPIC_API_KEY" "$anthropic_key" "$env_dst"
+  else
+    # Claude Login seçildi — placeholder satırını sil ki step_claude_auth atlama
+    sed -i '/^ANTHROPIC_API_KEY=/d' "$env_dst"
+  fi
   [[ -n "$ollama_url"    ]] && _env_set "OLLAMA_BASE_URL"   "$ollama_url"    "$env_dst"
   [[ -n "$ollama_model"  ]] && _env_set "OLLAMA_MODEL"      "$ollama_model"  "$env_dst"
   [[ -n "$gemini_key"    ]] && _env_set "GEMINI_API_KEY"    "$gemini_key"    "$env_dst"
@@ -1849,7 +1854,7 @@ step_claude_auth() {
   local env_dst="$BACKEND_DIR/.env"
   local api_key
   api_key="$(_read_env_var "ANTHROPIC_API_KEY" "$env_dst" 2>/dev/null || true)"
-  if [[ -n "$api_key" && "$api_key" != *"FILL"* && "$api_key" != *"DOLDUR"* ]]; then
+  if [[ -n "$api_key" && "$api_key" != *"FILL"* && "$api_key" != *"DOLDUR"* && "$api_key" != *"YOUR_"* ]]; then
     ok "$_S_AUTH_APIKEY"; return
   fi
 
