@@ -31,6 +31,7 @@ CURRENT_USER="${SUDO_USER:-${USER:-$(whoami)}}"
 NODE_PATH="$(command -v node 2>/dev/null || echo /usr/bin/node)"
 API_PORT="${PORT:-8010}"
 BRIDGE_PORT="${BRIDGE_PORT:-8013}"
+_WA_API_VER="v21.0"
 
 NO_SYSTEMD=false
 USE_PM2=false
@@ -1250,13 +1251,20 @@ EOF
 
 render_template() {
   local template="$1" output="$2"
-  sed \
-    -e "s|{{USER}}|$CURRENT_USER|g" \
-    -e "s|{{ROOT_DIR}}|$ROOT_DIR|g" \
-    -e "s|{{NODE_PATH}}|$NODE_PATH|g" \
-    -e "s|{{API_PORT}}|$API_PORT|g" \
-    -e "s|{{BRIDGE_PORT}}|$BRIDGE_PORT|g" \
-    "$template" > "$output"
+  python3 - "$template" "$output" \
+    "$CURRENT_USER" "$ROOT_DIR" "$NODE_PATH" "$API_PORT" "$BRIDGE_PORT" <<'PYEOF'
+import sys
+tpl, out, user, root, node, api_port, bridge_port = sys.argv[1:]
+with open(tpl) as f:
+    t = f.read()
+for placeholder, value in [
+    ("{{USER}}", user), ("{{ROOT_DIR}}", root), ("{{NODE_PATH}}", node),
+    ("{{API_PORT}}", api_port), ("{{BRIDGE_PORT}}", bridge_port),
+]:
+    t = t.replace(placeholder, value)
+with open(out, "w") as f:
+    f.write(t)
+PYEOF
 }
 
 step_systemd() {
@@ -1290,7 +1298,8 @@ step_pm2() {
   if ! $USE_PM2; then return; fi
   log "$_S_STEP_PM2_START"
   if ! command -v pm2 &>/dev/null; then
-    npm install -g pm2; ok "$_S_STEP_PM2_INSTALLED"
+    npm install -g pm2 || die "npm install -g pm2 $_S_ERROR"
+    ok "$_S_STEP_PM2_INSTALLED"
   else
     ok "$_S_STEP_PM2_EXISTS $(pm2 --version)"
   fi
@@ -1318,13 +1327,18 @@ _gen_totp() {
     python -c 'import pyotp; print(pyotp.random_base32())'
   # pyotp yoksa base32 uyumlu rastgele string üret
   else
-    local raw
+    local raw=""
     if command -v openssl &>/dev/null; then
-      raw="$(openssl rand -base64 20 | tr -dc 'A-Z2-7' | head -c 32)"
+      # Generate enough bytes so after filtering we get at least 32 chars
+      while [[ ${#raw} -lt 32 ]]; do
+        raw+="$(openssl rand -base64 64 | tr -dc 'A-Z2-7')"
+      done
     else
-      raw="$(date +%s%N | sha256sum | tr -dc 'A-Z2-7' | head -c 32)"
+      while [[ ${#raw} -lt 32 ]]; do
+        raw+="$(date +%s%N | sha256sum | tr -dc 'A-Z2-7')"
+      done
     fi
-    echo "$raw"
+    echo "${raw:0:32}"
   fi
 }
 
@@ -1350,7 +1364,8 @@ _run_messenger_wizard() {
 _parse_wiz() {
   local _json="$1" _key="$2" _def="${3:-}"
   echo "$_json" | python3 -c \
-    "import sys,json; d=json.load(sys.stdin); print(d.get('$_key','$_def'))" \
+    "import sys,json; d=json.load(sys.stdin); print(d.get(sys.argv[1],sys.argv[2]))" \
+    "$_key" "$_def" \
     2>/dev/null || echo "$_def"
 }
 
@@ -1359,11 +1374,17 @@ _parse_wiz() {
 _wa_notify() {
   local _tok="$1" _pid="$2" _owner="${3#+}" _msg="$4"
   [ -z "$_tok" ] || [ -z "$_pid" ] || [ -z "$_owner" ] && return 0
+  local _body
+  _body="$(python3 -c "
+import sys, json
+msg, owner = sys.argv[1], sys.argv[2]
+print(json.dumps({'messaging_product':'whatsapp','to':owner,'type':'text','text':{'body':msg}}))
+" "$_msg" "$_owner" 2>/dev/null)" || return 0
   curl -s --max-time 10 \
     -H "Authorization: Bearer $_tok" \
     -H "Content-Type: application/json" \
-    -d "{\"messaging_product\":\"whatsapp\",\"to\":\"$_owner\",\"type\":\"text\",\"text\":{\"body\":\"$_msg\"}}" \
-    "https://graph.facebook.com/v19.0/$_pid/messages" \
+    -d "$_body" \
+    "https://graph.facebook.com/${_WA_API_VER}/$_pid/messages" \
     >/dev/null 2>&1 || true
 }
 
@@ -1399,7 +1420,7 @@ _wizard_whiptail() {
       wa_secret=$(_wt_password "$_S_WIZ_WA_INFO_TITLE" "$_S_WIZ_WA_SECRET") || return 1
       [[ -n "$wa_secret" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
     done
-    wa_verify="$(_gen_api_key | head -c 32)"
+    wa_verify="$(_gen_api_key)"
     while true; do
       wa_owner=$(_wt_input "$_S_WIZ_WA_INFO_TITLE" "$_S_WIZ_WA_OWNER") || return 1
       [[ -n "$wa_owner" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
@@ -1436,7 +1457,7 @@ except: pass" 2>/dev/null || true)"
         [[ -n "$tg_chat_id" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
       done
     fi
-    tg_webhook_secret="$(_gen_api_key | head -c 32)"
+    tg_webhook_secret="$(_gen_api_key)"
   fi
 
   # ── Phase 2: LLM / Proxy / Timezone / Capabilities ────────────────────────
@@ -1601,7 +1622,7 @@ _wizard_text() {
     while true; do read -rp "  $_S_WIZ_WA_TOKEN " wa_token; [[ -n "$wa_token" ]] && break; warn "$_S_REQUIRED"; done
     while true; do read -rp  "  $_S_WIZ_WA_PHONE " wa_phone_id;  [[ -n "$wa_phone_id" ]] && break; warn "$_S_REQUIRED"; done
     while true; do read -rp "  $_S_WIZ_WA_SECRET " wa_secret;    [[ -n "$wa_secret"   ]] && break; warn "$_S_REQUIRED"; done
-    wa_verify="$(_gen_api_key | head -c 32)"
+    wa_verify="$(_gen_api_key)"
     ok "  $_S_TXT_VERIFY_AUTO: $wa_verify"
     while true; do read -rp  "  $_S_WIZ_WA_OWNER "  wa_owner;    [[ -n "$wa_owner"    ]] && break; warn "$_S_REQUIRED"; done
   elif [[ "$messenger" == "telegram" ]]; then
@@ -1634,7 +1655,7 @@ except: pass" 2>/dev/null || true)"
         while true; do read -rp "  $_S_WIZ_TG_CHAT " tg_chat_id; [[ -n "$tg_chat_id" ]] && break; warn "$_S_REQUIRED"; done
       fi
     fi
-    tg_webhook_secret="$(_gen_api_key | head -c 32)"
+    tg_webhook_secret="$(_gen_api_key)"
     ok "  $_S_TXT_WSECRET_AUTO"
   fi
 
@@ -1905,6 +1926,7 @@ _write_capabilities() {
     "RESTRICT_SCHEDULER" "RESTRICT_PDF_IMPORT" "RESTRICT_CONV_HISTORY" "RESTRICT_PLANS" "RESTRICT_INTENT_CLASSIFIER"
     "RESTRICT_WIZARD_LLM_SCAFFOLD"
   )
+  [[ ${#cap_keys[@]} -ne ${#cap_envs[@]} ]] && die "cap_keys/cap_envs length mismatch (${#cap_keys[@]} vs ${#cap_envs[@]})"
   local i
   for (( i=0; i<${#cap_keys[@]}; i++ )); do
     local key="${cap_keys[$i]}"
@@ -2269,7 +2291,7 @@ Google Authenticator:
       -H "Authorization: Bearer $_wtok" \
       -H "Content-Type: application/json" \
       -d "{\"messaging_product\":\"whatsapp\",\"to\":\"$_wown\",\"type\":\"text\",\"text\":{\"body\":$_msg_json}}" \
-      "https://graph.facebook.com/v19.0/${_wpid}/messages" \
+      "https://graph.facebook.com/${_WA_API_VER}/${_wpid}/messages" \
       | python3 -c "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('messages') else 1)" 2>/dev/null
     return $?
   fi
