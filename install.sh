@@ -1450,21 +1450,21 @@ _wizard_text() {
   local messenger
   case "${_m:-1}" in 2) messenger="telegram";; 3) messenger="cli";; *) messenger="whatsapp";; esac
 
-  echo ""; echo "  ======================================"; echo "  ======================================"
+  echo ""; echo "  ════════════════════════════════════════════════════"; echo "  ════════════════════════════════════════════════════"
   echo ""; echo "$_S_TXT_LLM"
   echo "  $_S_TXT_L1"; echo "  $_S_TXT_L2"; echo "  $_S_TXT_L3"
   read -rp "  [1]: " _l
   local llm
   case "${_l:-1}" in 2) llm="ollama";; 3) llm="gemini";; *) llm="anthropic";; esac
 
-  echo ""; echo "  ======================================"; echo "  ======================================"
+  echo ""; echo "  ════════════════════════════════════════════════════"; echo "  ════════════════════════════════════════════════════"
   echo ""; echo "$_S_TXT_PROXY"
   echo "  $_S_TXT_P1"; echo "  $_S_TXT_P2"; echo "  $_S_TXT_P3"; echo "  $_S_TXT_P4"
   read -rp "  [1]: " _p
   local proxy
   case "${_p:-1}" in 2) proxy="ngrok";; 3) proxy="cloudflared";; 4) proxy="external";; *) proxy="none";; esac
 
-  echo ""; echo "  ======================================"; echo "  ======================================"
+  echo ""; echo "  ════════════════════════════════════════════════════"; echo "  ════════════════════════════════════════════════════"
   local wa_token="" wa_phone_id="" wa_secret="" wa_verify="" wa_owner=""
   local tg_token="" tg_chat_id="" tg_webhook_secret=""
 
@@ -1517,7 +1517,7 @@ except: pass" 2>/dev/null || true)"
     ok "  $_S_TXT_WSECRET_AUTO"
   fi
 
-  echo ""; echo "  ======================================"; echo "  ======================================"
+  echo ""; echo "  ════════════════════════════════════════════════════"; echo "  ════════════════════════════════════════════════════"
   local anthropic_key="" ollama_url="" ollama_model="" gemini_key="" gemini_model=""
 
   if [[ "$llm" == "anthropic" ]]; then
@@ -1544,7 +1544,7 @@ except: pass" 2>/dev/null || true)"
     gemini_model="${gemini_model:-gemini-2.0-flash}"
   fi
 
-  echo ""; echo "  ======================================"; echo "  ======================================"
+  echo ""; echo "  ════════════════════════════════════════════════════"; echo "  ════════════════════════════════════════════════════"
   local public_url="" ngrok_token="" ngrok_domain=""
   if [[ "$proxy" == "external" ]]; then
     while true; do read -rp "  $_S_WIZ_EXT_URL " public_url; [[ "$public_url" == https://* ]] && break; warn "$_S_URL_HTTPS"; done
@@ -1561,7 +1561,7 @@ except: pass" 2>/dev/null || true)"
     if ! command -v cloudflared &>/dev/null; then warn "$_S_WIZ_CF_MISSING"; fi
   fi
 
-  echo ""; echo "  ======================================"; echo "  ======================================"
+  echo ""; echo "  ════════════════════════════════════════════════════"; echo "  ════════════════════════════════════════════════════"
   # ── Timezone / Saat Dilimi
   echo ""; echo "▶ $_S_WIZ_TZ_TITLE"
   echo "  1) $_S_WIZ_TZ_TRT"
@@ -1585,7 +1585,7 @@ except: pass" 2>/dev/null || true)"
     *) tz_value="Europe/Istanbul" ;;
   esac
 
-  echo ""; echo "  ======================================"; echo "  ======================================"
+  echo ""; echo "  ════════════════════════════════════════════════════"; echo "  ════════════════════════════════════════════════════"
   echo ""; echo "$_S_TXT_SEC"
   local api_key totp_secret totp_admin
   api_key="$(_gen_api_key)"
