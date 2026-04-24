@@ -416,6 +416,7 @@ Store the secrets in a password manager as backup."
     _S_DOCKER_WAIT_URL="  ↳ Waiting for proxy public URL (up to 90s)..."
     _S_DOCKER_URL_FOUND="  ↳ Public URL detected"
     _S_DOCKER_URL_TIMEOUT="  ↳ Public URL not yet available — register webhook manually after services are ready"
+    _S_DOCKER_URL_DEBUG="To diagnose (check ngrok startup in container logs):"
 
     # ── Test / health
     _S_WH_TG_REGISTERED="Telegram webhook auto-registered"
@@ -790,6 +791,7 @@ Secret'ları yedek olarak bir parola yöneticisine kaydedin."
     _S_DOCKER_WAIT_URL="  ↳ Proxy public URL bekleniyor (max 90s)..."
     _S_DOCKER_URL_FOUND="  ↳ Public URL tespit edildi"
     _S_DOCKER_URL_TIMEOUT="  ↳ Public URL henüz hazır değil — servisler hazırlandıktan sonra webhook'u manuel kaydet"
+    _S_DOCKER_URL_DEBUG="Teşhis için (container loglarında ngrok başlangıcına bak):"
 
     # ── Test / sağlık kontrolü
     _S_WH_TG_REGISTERED="Telegram webhook otomatik kaydedildi"
@@ -848,6 +850,40 @@ _env_set() {
     mv "$tmp" "$file"
   else
     printf '%s=%s\n' "$key" "$val" >> "$file"
+  fi
+}
+
+# _tg_extract_next_offset <getUpdates_json>
+# getUpdates yanıtından en son update_id + 1 değerini döner (long-poll için).
+# python3 varsa onu kullanır, yoksa awk fallback. Başarısızsa 0.
+_tg_extract_next_offset() {
+  local _json="$1"
+  if command -v python3 &>/dev/null; then
+    printf '%s' "$_json" | python3 -c "
+import sys,json
+try:
+    r=json.load(sys.stdin)['result']
+    print(r[-1]['update_id']+1 if r else 0)
+except: print(0)" 2>/dev/null || echo 0
+  else
+    # awk: "update_id":12345 pattern'lerinden sonuncusunu bul, +1 yaz
+    local _last
+    _last="$(printf '%s' "$_json" | grep -oE '"update_id":[0-9]+' | tail -1 | grep -oE '[0-9]+' || true)"
+    if [[ -n "$_last" ]]; then echo $((_last + 1)); else echo 0; fi
+  fi
+}
+
+# _extract_json_field <json> <field_name>
+# Basit JSON string field extractor (string values için). python3 > grep fallback.
+_extract_json_field() {
+  local _json="$1" _field="$2"
+  if command -v python3 &>/dev/null; then
+    printf '%s' "$_json" | python3 -c "
+import sys,json
+try: print(json.load(sys.stdin).get('$_field',''))
+except: pass" 2>/dev/null || true
+  else
+    printf '%s' "$_json" | grep -oE "\"${_field}\":\"[^\"]*\"" | head -1 | cut -d'"' -f4 || true
   fi
 }
 
@@ -1142,24 +1178,11 @@ EOF
     log "$_S_DOCKER_WAIT_URL"
     local _pub_url="" _retry=0 _health
 
-    # Helper: extract public_url from JSON without requiring python3
-    _extract_pub_url() {
-      local _json="$1"
-      # Try python3 first, fall back to grep+sed
-      if command -v python3 &>/dev/null; then
-        echo "$_json" | python3 -c "import sys,json
-try: print(json.load(sys.stdin).get('public_url',''))
-except: pass" 2>/dev/null || true
-      else
-        echo "$_json" | grep -o '"public_url":"[^"]*"' | cut -d'"' -f4 || true
-      fi
-    }
-
     while [[ -z "$_pub_url" && $_retry -lt 45 ]]; do
       sleep 2
       _retry=$((_retry + 1))
       _health="$(curl -s --max-time 4 "http://localhost:${API_PORT}/health" 2>/dev/null || true)"
-      [[ -n "$_health" ]] && _pub_url="$(_extract_pub_url "$_health")"
+      [[ -n "$_health" ]] && _pub_url="$(_extract_json_field "$_health" "public_url")"
     done
 
     if [[ -n "$_pub_url" ]]; then
@@ -1177,11 +1200,18 @@ except: pass" 2>/dev/null || true
         if echo "$_wh_result" | grep -q '"ok":true'; then
           ok "$_S_WH_TG_REGISTERED: $_wh_url"
         else
-          warn "  Webhook registration failed. Manual: curl -s -X POST 'https://api.telegram.org/bot${_tg_token}/setWebhook' -d 'url=${_wh_url}'"
+          # Telegram API hatasını göster (örn. bad token, URL unreachable)
+          local _wh_desc
+          _wh_desc="$(_extract_json_field "$_wh_result" "description")"
+          warn "  Webhook registration failed: ${_wh_desc:-unknown error}"
+          echo "  Manual: curl -s -X POST 'https://api.telegram.org/bot${_tg_token}/setWebhook' -d 'url=${_wh_url}'"
         fi
       fi
     else
       warn "$_S_DOCKER_URL_TIMEOUT"
+      # Kullanıcıya ngrok başlatma hatasını görmesi için yönlendir
+      echo "  $_S_DOCKER_URL_DEBUG"
+      echo "    docker compose logs 99-api 2>&1 | grep -iE 'ngrok|tunnel|webhook_proxy'"
     fi
   fi
 }
@@ -1331,14 +1361,7 @@ _wizard_whiptail() {
     # Flush old updates so only the next fresh message is returned
     local _tg_flush _tg_next_offset=0
     _tg_flush="$(curl -s --max-time 8 "https://api.telegram.org/bot${tg_token}/getUpdates?limit=100" 2>/dev/null || true)"
-    _tg_next_offset="$(echo "$_tg_flush" | python3 -c "
-import sys,json
-try:
-    r=json.load(sys.stdin)['result']
-    if r: print(r[-1]['update_id']+1)
-    else: print(0)
-except: print(0)" 2>/dev/null || \
-    echo "$_tg_flush" | grep -o '"update_id":[0-9]*' | tail -1 | grep -o '[0-9]*' | awk '{print $1+1}' 2>/dev/null || echo 0)"
+    _tg_next_offset="$(_tg_extract_next_offset "$_tg_flush")"
     # Ask user to send a message, then long-poll for the NEW message only
     _wt_msg "$_S_WIZ_TG_SEND_MSG_TITLE" "$_S_WIZ_TG_SEND_MSG" || return 1
     local _tg_auto_id=""
@@ -1500,14 +1523,7 @@ _wizard_text() {
     # Flush old updates first
     local _tg_flush2 _tg_next_offset2=0
     _tg_flush2="$(curl -s --max-time 8 "https://api.telegram.org/bot${tg_token}/getUpdates?limit=100" 2>/dev/null || true)"
-    _tg_next_offset2="$(echo "$_tg_flush2" | python3 -c "
-import sys,json
-try:
-    r=json.load(sys.stdin)['result']
-    if r: print(r[-1]['update_id']+1)
-    else: print(0)
-except: print(0)" 2>/dev/null || \
-    echo "$_tg_flush2" | grep -o '"update_id":[0-9]*' | tail -1 | grep -o '[0-9]*' | awk '{print $1+1}' 2>/dev/null || echo 0)"
+    _tg_next_offset2="$(_tg_extract_next_offset "$_tg_flush2")"
     read -rp "  $_S_TXT_TG_CHATID_TIP " tg_chat_id
     if [[ -z "$tg_chat_id" ]]; then
       local _tg_updates
@@ -1884,10 +1900,15 @@ step_claude_auth() {
         if command -v claude &>/dev/null; then
           ok "$_S_AUTH_INSTALLED: $(claude --version 2>/dev/null | head -1 || echo 'installed')"
         else
-          # npm PATH'e henüz yansımamış olabilir
-          local _npm_bin
-          _npm_bin="$(npm bin -g 2>/dev/null || npm prefix -g 2>/dev/null)/bin"
-          export PATH="$_npm_bin:$PATH"
+          # npm PATH'e henüz yansımamış olabilir — bin dizinini bul ve ekle
+          local _npm_bin=""
+          _npm_bin="$(npm bin -g 2>/dev/null || true)"
+          if [[ -z "$_npm_bin" ]]; then
+            local _npm_prefix
+            _npm_prefix="$(npm prefix -g 2>/dev/null || true)"
+            [[ -n "$_npm_prefix" ]] && _npm_bin="$_npm_prefix/bin"
+          fi
+          [[ -n "$_npm_bin" ]] && export PATH="$_npm_bin:$PATH"
           if ! command -v claude &>/dev/null; then
             warn "$_S_AUTH_INSTALL_FAIL"
             return
@@ -1939,8 +1960,8 @@ step_show_totp() {
     echo "  ── $heading ──────────────────────────────"
     echo "  $_S_TOTP_SECRET : $secret"
     echo "  $_S_TOTP_URI    : $uri"
-    # QR renderer: qrencode → venv python → python3/python + qrcode → pip install → hint
-    local _py="" _py_extra_path=""
+    # QR renderer: qrencode → venv python → python3/python + qrcode → pip install → online URL
+    local _py=""
     "$BACKEND_DIR/venv/bin/python" -c "import qrcode" 2>/dev/null && _py="$BACKEND_DIR/venv/bin/python"
     [[ -z "$_py" ]] && python3 -c "import qrcode" 2>/dev/null && _py="python3"
     [[ -z "$_py" ]] && python  -c "import qrcode" 2>/dev/null && _py="python"
@@ -1972,7 +1993,7 @@ PYEOF
       qrencode -t ANSIUTF8 -m 2 "$uri"
     elif [[ -n "$_py" ]]; then
       echo ""
-      PYTHONPATH="$_py_extra_path" "$_py" "$_qr_script" "$uri"
+      "$_py" "$_qr_script" "$uri"
     else
       # Son çare: online QR servisi URL'si — tarayıcıda açılır
       local _encoded_uri
