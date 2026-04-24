@@ -232,15 +232,16 @@ Press OK when ready."
   → Copy the number (e.g. 123456789) and enter it below."
 
     # ── Anthropic
-    _S_WIZ_AN_INFO_TITLE="Anthropic API Key"
-    _S_WIZ_AN_INFO_MSG="Get your API key from Anthropic Console:
+    _S_WIZ_AN_INFO_TITLE="Anthropic API Key  (optional)"
+    _S_WIZ_AN_INFO_MSG="OPTION A — API Key (pay-per-use):
   console.anthropic.com → Settings → API Keys → Create Key
+  Key starts with: sk-ant-api03-...
 
-  The key starts with: sk-ant-api03-...
-
-  Note: Claude Code bridge also accepts this key directly —
-  no separate claude auth login is needed if the key is set."
-    _S_WIZ_AN_KEY="(*) API Key (sk-ant-api03-...):"
+OPTION B — Claude subscription (claude.ai Pro/Max):
+  Leave the field empty — the wizard will run 'claude auth login'
+  next and authenticate via your subscription. No API key needed."
+    _S_WIZ_AN_KEY="API Key (sk-ant-api03-...) or leave empty for subscription login:"
+    _S_WIZ_AN_SKIP="No API key entered — will authenticate via 'claude auth login'"
 
     # ── Ollama
     _S_WIZ_OL_INFO_TITLE="Ollama"
@@ -593,15 +594,16 @@ Hazır olduğunuzda OK'a basın."
   → Gelen numarayı (örn. 123456789) aşağıya girin."
 
     # ── Anthropic
-    _S_WIZ_AN_INFO_TITLE="Anthropic API Key"
-    _S_WIZ_AN_INFO_MSG="Anthropic Console'dan API key alın:
+    _S_WIZ_AN_INFO_TITLE="Anthropic API Key  (opsiyonel)"
+    _S_WIZ_AN_INFO_MSG="SEÇENEK A — API Key (kullandıkça öde):
   console.anthropic.com → Settings → API Keys → Create Key
-
   Key şu şekilde başlar: sk-ant-api03-...
 
-  Not: Claude Code bridge bu key'i doğrudan kullanır —
-  ANTHROPIC_API_KEY ayarlanmışsa 'claude auth login' gerekmez."
-    _S_WIZ_AN_KEY="(*) API Key (sk-ant-api03-...):"
+SEÇENEK B — Claude aboneliği (claude.ai Pro/Max):
+  Alanı boş bırakın — sihirbaz ardından 'claude auth login'
+  çalıştırarak aboneliğinizle kimlik doğrular. API key gerekmez."
+    _S_WIZ_AN_KEY="API Key (sk-ant-api03-...) veya abonelik için boş bırakın:"
+    _S_WIZ_AN_SKIP="API key girilmedi — 'claude auth login' ile kimlik doğrulanacak"
 
     # ── Ollama
     _S_WIZ_OL_INFO_TITLE="Ollama Bilgileri"
@@ -1285,10 +1287,20 @@ _wizard_whiptail() {
       tg_token=$(_wt_password "$_S_WIZ_TG_INFO_TITLE" "$_S_WIZ_TG_TOKEN") || return 1
       [[ -n "$tg_token" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
     done
-    # Ask user to send a message to bot, then auto-detect chat_id via getUpdates (long-poll 20s)
+    # Flush old updates so only the next fresh message is returned
+    local _tg_flush _tg_next_offset=0
+    _tg_flush="$(curl -s --max-time 8 "https://api.telegram.org/bot${tg_token}/getUpdates?limit=100" 2>/dev/null || true)"
+    _tg_next_offset="$(echo "$_tg_flush" | python3 -c "
+import sys,json
+try:
+    r=json.load(sys.stdin)['result']
+    if r: print(r[-1]['update_id']+1)
+    else: print(0)
+except: print(0)" 2>/dev/null || echo 0)"
+    # Ask user to send a message, then long-poll for the NEW message only
     _wt_msg "$_S_WIZ_TG_SEND_MSG_TITLE" "$_S_WIZ_TG_SEND_MSG" || return 1
     local _tg_auto_id=""
-    _tg_auto_id="$(curl -s --max-time 25 "https://api.telegram.org/bot${tg_token}/getUpdates?timeout=20&limit=1" 2>/dev/null \
+    _tg_auto_id="$(curl -s --max-time 35 "https://api.telegram.org/bot${tg_token}/getUpdates?timeout=30&limit=1&offset=${_tg_next_offset}" 2>/dev/null \
       | python3 -c "import sys,json
 try:
     d=json.load(sys.stdin)
@@ -1311,10 +1323,10 @@ except: pass" 2>/dev/null || true)"
 
   if [[ "$llm" == "anthropic" ]]; then
     _wt_msg "$_S_WIZ_AN_INFO_TITLE" "$_S_WIZ_AN_INFO_MSG" || return 1
-    while true; do
-      anthropic_key=$(_wt_password "$_S_WIZ_AN_INFO_TITLE" "$_S_WIZ_AN_KEY") || return 1
-      [[ -n "$anthropic_key" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
-    done
+    anthropic_key=$(_wt_password "$_S_WIZ_AN_INFO_TITLE" "$_S_WIZ_AN_KEY") || return 1
+    if [[ -z "$anthropic_key" ]]; then
+      _wt_msg "$_S_WIZ_AN_INFO_TITLE" "$_S_WIZ_AN_SKIP" || return 1
+    fi
   elif [[ "$llm" == "ollama" ]]; then
     _wt_msg "$_S_WIZ_OL_INFO_TITLE" "$_S_WIZ_OL_INFO_MSG" || return 1
     ollama_url=$(_wt_input "$_S_WIZ_OL_INFO_TITLE"   "$_S_WIZ_OL_URL"   "http://localhost:11434") || return 1
@@ -1433,11 +1445,21 @@ _wizard_text() {
     echo "  ▶ $_S_WIZ_TG_SEND_MSG_TITLE"
     printf "  %b\n" "$_S_WIZ_TG_SEND_MSG"
     echo ""
+    # Flush old updates first
+    local _tg_flush2 _tg_next_offset2=0
+    _tg_flush2="$(curl -s --max-time 8 "https://api.telegram.org/bot${tg_token}/getUpdates?limit=100" 2>/dev/null || true)"
+    _tg_next_offset2="$(echo "$_tg_flush2" | python3 -c "
+import sys,json
+try:
+    r=json.load(sys.stdin)['result']
+    if r: print(r[-1]['update_id']+1)
+    else: print(0)
+except: print(0)" 2>/dev/null || echo 0)"
     read -rp "  $_S_TXT_TG_CHATID_TIP " tg_chat_id
     if [[ -z "$tg_chat_id" ]]; then
       local _tg_updates
       log "  $_S_WIZ_TG_SEND_MSG_TITLE..."
-      _tg_updates="$(curl -s --max-time 25 "https://api.telegram.org/bot${tg_token}/getUpdates?timeout=20&limit=1" 2>/dev/null || true)"
+      _tg_updates="$(curl -s --max-time 35 "https://api.telegram.org/bot${tg_token}/getUpdates?timeout=30&limit=1&offset=${_tg_next_offset2}" 2>/dev/null || true)"
       tg_chat_id="$(echo "$_tg_updates" | python3 -c "import sys,json
 try:
     d=json.load(sys.stdin)
@@ -1460,7 +1482,11 @@ except: pass" 2>/dev/null || true)"
   if [[ "$llm" == "anthropic" ]]; then
     echo ""; echo "$_S_TXT_AN"
     printf "  %b\n" "$_S_WIZ_AN_INFO_MSG"
-    while true; do read -rsp "  $_S_WIZ_AN_KEY " anthropic_key; echo; [[ -n "$anthropic_key" ]] && break; warn "$_S_REQUIRED"; done
+    echo ""
+    read -rsp "  $_S_WIZ_AN_KEY " anthropic_key; echo
+    if [[ -z "$anthropic_key" ]]; then
+      ok "  $_S_WIZ_AN_SKIP"
+    fi
   elif [[ "$llm" == "ollama" ]]; then
     echo ""; echo "$_S_TXT_OL"
     read -rp "  $_S_WIZ_OL_URL [http://localhost:11434]: " ollama_url
