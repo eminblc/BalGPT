@@ -391,6 +391,7 @@ Store the secrets in a password manager as backup."
     _S_WH_TG_SETUP="Telegram Webhook setup (after starting services):"
     _S_WH_TG_NO_URL="A Public URL is required. Set PUBLIC_URL in .env, then:"
     _S_WH_TG_SETWEBHOOK="curl -s \"https://api.telegram.org/bot<TOKEN>/setWebhook?url=<URL>/telegram/webhook\""
+    _S_WH_TG_PROXY_RUNTIME="Webhook will be auto-registered when services start (proxy URL assigned at runtime)"
     _S_WH_CLI="CLI mode — no webhook setup needed."
     _S_WH_CLI_HINT="Start FastAPI and test from terminal."
     _S_WH_HEALTH="Health checks (after starting services):"
@@ -758,6 +759,7 @@ Secret'ları yedek olarak bir parola yöneticisine kaydedin."
     _S_WH_TG_SETUP="Telegram Webhook kurulumu (servis başlatıldıktan sonra):"
     _S_WH_TG_NO_URL="Public URL gerekli. .env içinde PUBLIC_URL ayarla, ardından:"
     _S_WH_TG_SETWEBHOOK="curl -s \"https://api.telegram.org/bot<TOKEN>/setWebhook?url=<URL>/telegram/webhook\""
+    _S_WH_TG_PROXY_RUNTIME="Servisler başlayınca webhook otomatik kaydedilecek (proxy URL çalışma zamanında belirlenir)"
     _S_WH_CLI="CLI modu — webhook kurulumu gerekmez."
     _S_WH_CLI_HINT="FastAPI'yi başlat ve terminalden test et."
     _S_WH_HEALTH="Sağlık kontrolü (servis başlatıldıktan sonra):"
@@ -828,9 +830,12 @@ die()  { echo "[✗] $*" >&2; exit 1; }
 _env_set() {
   local key="$1" val="$2" file="$3"
   if grep -q "^${key}=" "$file" 2>/dev/null; then
-    sed -i "s@^${key}=.*@${key}=${val}@" "$file"
+    # Use awk instead of sed to avoid breakage when val contains sed delimiters (@ / \)
+    local tmp; tmp="$(mktemp "${file}.XXXXXX")"
+    awk -v k="$key" -v v="$val" 'BEGIN{OFS=""} $0 ~ "^"k"=" {print k"="v; next} {print}' "$file" > "$tmp"
+    mv "$tmp" "$file"
   else
-    echo "${key}=${val}" >> "$file"
+    printf '%s=%s\n' "$key" "$val" >> "$file"
   fi
 }
 
@@ -1309,6 +1314,8 @@ _wizard_whiptail() {
       tg_token=$(_wt_password "$_S_WIZ_TG_INFO_TITLE" "$_S_WIZ_TG_TOKEN") || return 1
       [[ -n "$tg_token" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
     done
+    # Delete any existing webhook so getUpdates works (previous failed install may leave one)
+    curl -s --max-time 5 -X POST "https://api.telegram.org/bot${tg_token}/deleteWebhook" >/dev/null 2>&1 || true
     # Flush old updates so only the next fresh message is returned
     local _tg_flush _tg_next_offset=0
     _tg_flush="$(curl -s --max-time 8 "https://api.telegram.org/bot${tg_token}/getUpdates?limit=100" 2>/dev/null || true)"
@@ -1318,7 +1325,8 @@ try:
     r=json.load(sys.stdin)['result']
     if r: print(r[-1]['update_id']+1)
     else: print(0)
-except: print(0)" 2>/dev/null || echo 0)"
+except: print(0)" 2>/dev/null || \
+    echo "$_tg_flush" | grep -o '"update_id":[0-9]*' | tail -1 | grep -o '[0-9]*' | awk '{print $1+1}' 2>/dev/null || echo 0)"
     # Ask user to send a message, then long-poll for the NEW message only
     _wt_msg "$_S_WIZ_TG_SEND_MSG_TITLE" "$_S_WIZ_TG_SEND_MSG" || return 1
     local _tg_auto_id=""
@@ -1462,19 +1470,21 @@ _wizard_text() {
 
   if [[ "$messenger" == "whatsapp" ]]; then
     echo ""; echo "$_S_TXT_WA"
-    while true; do read -rp "  $_S_WIZ_WA_TOKEN " wa_token; echo; [[ -n "$wa_token" ]] && break; warn "$_S_REQUIRED"; done
+    while true; do read -rp "  $_S_WIZ_WA_TOKEN " wa_token; [[ -n "$wa_token" ]] && break; warn "$_S_REQUIRED"; done
     while true; do read -rp  "  $_S_WIZ_WA_PHONE " wa_phone_id;       [[ -n "$wa_phone_id" ]] && break; warn "$_S_REQUIRED"; done
-    while true; do read -rp "  $_S_WIZ_WA_SECRET " wa_secret; echo;  [[ -n "$wa_secret"   ]] && break; warn "$_S_REQUIRED"; done
+    while true; do read -rp "  $_S_WIZ_WA_SECRET " wa_secret;  [[ -n "$wa_secret"   ]] && break; warn "$_S_REQUIRED"; done
     wa_verify="$(_gen_api_key | head -c 32)"
     ok "  $_S_TXT_VERIFY_AUTO: $wa_verify"
     while true; do read -rp  "  $_S_WIZ_WA_OWNER "  wa_owner;         [[ -n "$wa_owner"    ]] && break; warn "$_S_REQUIRED"; done
   elif [[ "$messenger" == "telegram" ]]; then
     echo ""; echo "$_S_TXT_TG"
-    while true; do read -rp "  $_S_WIZ_TG_TOKEN " tg_token; echo; [[ -n "$tg_token" ]] && break; warn "$_S_REQUIRED"; done
+    while true; do read -rp "  $_S_WIZ_TG_TOKEN " tg_token; [[ -n "$tg_token" ]] && break; warn "$_S_REQUIRED"; done
     echo ""
     echo "  ▶ $_S_WIZ_TG_SEND_MSG_TITLE"
     printf "  %b\n" "$_S_WIZ_TG_SEND_MSG"
     echo ""
+    # Delete any existing webhook so getUpdates works
+    curl -s --max-time 5 -X POST "https://api.telegram.org/bot${tg_token}/deleteWebhook" >/dev/null 2>&1 || true
     # Flush old updates first
     local _tg_flush2 _tg_next_offset2=0
     _tg_flush2="$(curl -s --max-time 8 "https://api.telegram.org/bot${tg_token}/getUpdates?limit=100" 2>/dev/null || true)"
@@ -1484,7 +1494,8 @@ try:
     r=json.load(sys.stdin)['result']
     if r: print(r[-1]['update_id']+1)
     else: print(0)
-except: print(0)" 2>/dev/null || echo 0)"
+except: print(0)" 2>/dev/null || \
+    echo "$_tg_flush2" | grep -o '"update_id":[0-9]*' | tail -1 | grep -o '[0-9]*' | awk '{print $1+1}' 2>/dev/null || echo 0)"
     read -rp "  $_S_TXT_TG_CHATID_TIP " tg_chat_id
     if [[ -z "$tg_chat_id" ]]; then
       local _tg_updates
@@ -1516,7 +1527,7 @@ except: pass" 2>/dev/null || true)"
     local _an_method_txt
     read -rp "  [1]: " _an_method_txt
     if [[ "${_an_method_txt:-1}" == "2" ]]; then
-      while true; do read -rp "  $_S_WIZ_AN_KEY " anthropic_key; echo; [[ -n "$anthropic_key" ]] && break; warn "$_S_REQUIRED"; done
+      while true; do read -rp "  $_S_WIZ_AN_KEY " anthropic_key; [[ -n "$anthropic_key" ]] && break; warn "$_S_REQUIRED"; done
     else
       ok "  $_S_WIZ_AN_SKIP"
     fi
@@ -1528,7 +1539,7 @@ except: pass" 2>/dev/null || true)"
     ollama_model="${ollama_model:-llama3}"
   elif [[ "$llm" == "gemini" ]]; then
     echo ""; echo "$_S_TXT_GE"
-    while true; do read -rp "  $_S_WIZ_GE_KEY " gemini_key; echo; [[ -n "$gemini_key" ]] && break; warn "$_S_REQUIRED"; done
+    while true; do read -rp "  $_S_WIZ_GE_KEY " gemini_key; [[ -n "$gemini_key" ]] && break; warn "$_S_REQUIRED"; done
     read -rp "  $_S_WIZ_GE_MODEL [gemini-2.0-flash]: " gemini_model
     gemini_model="${gemini_model:-gemini-2.0-flash}"
   fi
@@ -1541,9 +1552,9 @@ except: pass" 2>/dev/null || true)"
     echo ""; echo "▶ $_S_WIZ_NGROK_INFO_TITLE"
     printf "  %b\n" "$_S_WIZ_NGROK_INFO_MSG"
     echo ""
-    read -rp "  $_S_WIZ_NGROK_TOKEN " ngrok_token; echo
+    read -rp "  $_S_WIZ_NGROK_TOKEN " ngrok_token
     echo ""
-    read -rp "  $_S_WIZ_NGROK_DOMAIN " ngrok_domain; echo
+    read -rp "  $_S_WIZ_NGROK_DOMAIN " ngrok_domain
   elif [[ "$proxy" == "cloudflared" ]]; then
     echo ""; echo "▶ $_S_WIZ_CF_INFO_TITLE"
     printf "  %b\n" "$_S_WIZ_CF_INFO_MSG"
@@ -2002,6 +2013,7 @@ step_show_webhook_url() {
     tg_secret="$(grep '^TELEGRAM_WEBHOOK_SECRET=' "$env_dst" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true)"
     echo ""; echo "  $_S_WH_TG_SETUP"
     if [[ -n "$public_url" && -n "$tg_token" ]]; then
+      # Static public URL (external proxy) — register now
       local _wh_url="${public_url}/telegram/webhook"
       local _wh_result
       _wh_result="$(curl -s --max-time 8 -X POST \
@@ -2015,6 +2027,9 @@ step_show_webhook_url() {
         echo "  → $_wh_url"
         warn "  $_S_WH_TG_SETUP (manual): curl -s -X POST 'https://api.telegram.org/bot${tg_token}/setWebhook' -d 'url=${_wh_url}'"
       fi
+    elif [[ "$proxy" == "ngrok" || "$proxy" == "cloudflared" ]]; then
+      # Dynamic proxy — URL only known at runtime; Docker auto-registers on startup
+      ok "  $_S_WH_TG_PROXY_RUNTIME"
     else
       echo "  → $_S_WH_TG_NO_URL"
       echo "    $_S_WH_TG_SETWEBHOOK"
