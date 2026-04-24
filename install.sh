@@ -1882,16 +1882,13 @@ step_show_totp() {
     "$BACKEND_DIR/venv/bin/python" -c "import qrcode" 2>/dev/null && _py="$BACKEND_DIR/venv/bin/python"
     [[ -z "$_py" ]] && python3 -c "import qrcode" 2>/dev/null && _py="python3"
     [[ -z "$_py" ]] && python  -c "import qrcode" 2>/dev/null && _py="python"
-    # No qrcode yet — try a quick pip install into a temp dir
+    # No qrcode yet — pip install --user (persists, no PYTHONPATH needed)
     if [[ -z "$_py" ]]; then
-      local _tmpdir
-      _tmpdir="$(mktemp -d 2>/dev/null || echo /tmp/qrcode_tmp)"
       for _candidate in python3 python; do
         if command -v "$_candidate" &>/dev/null; then
-          if "$_candidate" -m pip install --quiet --target "$_tmpdir" qrcode 2>/dev/null \
-              && PYTHONPATH="$_tmpdir" "$_candidate" -c "import qrcode" 2>/dev/null; then
+          "$_candidate" -m pip install --user --quiet qrcode 2>/dev/null || true
+          if "$_candidate" -c "import qrcode" 2>/dev/null; then
             _py="$_candidate"
-            _py_extra_path="$_tmpdir"
           fi
           break
         fi
