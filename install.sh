@@ -232,16 +232,21 @@ Press OK when ready."
   → Copy the number (e.g. 123456789) and enter it below."
 
     # ── Anthropic
-    _S_WIZ_AN_INFO_TITLE="Anthropic API Key  (optional)"
-    _S_WIZ_AN_INFO_MSG="OPTION A — API Key (pay-per-use):
-  console.anthropic.com → Settings → API Keys → Create Key
-  Key starts with: sk-ant-api03-...
+    _S_WIZ_AN_INFO_TITLE="Anthropic — Authentication Method"
+    _S_WIZ_AN_CHOICE_MSG="How do you want to authenticate with Anthropic?
 
-OPTION B — Claude subscription (claude.ai Pro/Max):
-  Leave the field empty — the wizard will run 'claude auth login'
-  next and authenticate via your subscription. No API key needed."
-    _S_WIZ_AN_KEY="API Key (sk-ant-api03-...) or leave empty for subscription login:"
-    _S_WIZ_AN_SKIP="No API key entered — will authenticate via 'claude auth login'"
+  [1] Claude Login  ✦ RECOMMENDED
+      Sign in with your claude.ai account (Pro/Max subscription).
+      More secure — no key to manage or leak. The wizard runs
+      'claude auth login' automatically after this step.
+
+  [2] API Key
+      Pay-per-use key from Anthropic Console.
+      console.anthropic.com → Settings → API Keys → Create Key"
+    _S_WIZ_AN_CHOICE_1="Claude Login (subscription)"
+    _S_WIZ_AN_CHOICE_2="API Key (pay-per-use)"
+    _S_WIZ_AN_KEY="API Key (sk-ant-api03-...):"
+    _S_WIZ_AN_SKIP="Claude Login selected — 'claude auth login' will run after wizard"
 
     # ── Ollama
     _S_WIZ_OL_INFO_TITLE="Ollama"
@@ -594,16 +599,21 @@ Hazır olduğunuzda OK'a basın."
   → Gelen numarayı (örn. 123456789) aşağıya girin."
 
     # ── Anthropic
-    _S_WIZ_AN_INFO_TITLE="Anthropic API Key  (opsiyonel)"
-    _S_WIZ_AN_INFO_MSG="SEÇENEK A — API Key (kullandıkça öde):
-  console.anthropic.com → Settings → API Keys → Create Key
-  Key şu şekilde başlar: sk-ant-api03-...
+    _S_WIZ_AN_INFO_TITLE="Anthropic — Kimlik Doğrulama Yöntemi"
+    _S_WIZ_AN_CHOICE_MSG="Anthropic ile nasıl kimlik doğrulamak istersiniz?
 
-SEÇENEK B — Claude aboneliği (claude.ai Pro/Max):
-  Alanı boş bırakın — sihirbaz ardından 'claude auth login'
-  çalıştırarak aboneliğinizle kimlik doğrular. API key gerekmez."
-    _S_WIZ_AN_KEY="API Key (sk-ant-api03-...) veya abonelik için boş bırakın:"
-    _S_WIZ_AN_SKIP="API key girilmedi — 'claude auth login' ile kimlik doğrulanacak"
+  [1] Claude Girişi  ✦ ÖNERİLEN
+      claude.ai hesabınızla giriş yapın (Pro/Max aboneliği).
+      Daha güvenli — yönetilecek veya sızabilecek anahtar yok.
+      Sihirbaz bu adımdan sonra 'claude auth login' çalıştırır.
+
+  [2] API Key
+      Anthropic Console'dan kullandıkça öde anahtarı.
+      console.anthropic.com → Settings → API Keys → Create Key"
+    _S_WIZ_AN_CHOICE_1="Claude Girişi (abonelik)"
+    _S_WIZ_AN_CHOICE_2="API Key (kullandıkça öde)"
+    _S_WIZ_AN_KEY="API Key (sk-ant-api03-...):"
+    _S_WIZ_AN_SKIP="Claude Girişi seçildi — sihirbaz bittikten sonra 'claude auth login' çalışacak"
 
     # ── Ollama
     _S_WIZ_OL_INFO_TITLE="Ollama Bilgileri"
@@ -1322,9 +1332,17 @@ except: pass" 2>/dev/null || true)"
   local anthropic_key="" ollama_url="" ollama_model="" gemini_key="" gemini_model=""
 
   if [[ "$llm" == "anthropic" ]]; then
-    _wt_msg "$_S_WIZ_AN_INFO_TITLE" "$_S_WIZ_AN_INFO_MSG" || return 1
-    anthropic_key=$(_wt_password "$_S_WIZ_AN_INFO_TITLE" "$_S_WIZ_AN_KEY") || return 1
-    if [[ -z "$anthropic_key" ]]; then
+    local _an_method
+    _an_method=$(_wt_radio "$_S_WIZ_AN_INFO_TITLE" "$_S_WIZ_AN_CHOICE_MSG" \
+      "login"  "$_S_WIZ_AN_CHOICE_1" ON  \
+      "apikey" "$_S_WIZ_AN_CHOICE_2" OFF \
+    ) || { warn "$_S_CANCEL"; return 1; }
+    if [[ "$_an_method" == "apikey" ]]; then
+      while true; do
+        anthropic_key=$(_wt_password "$_S_WIZ_AN_INFO_TITLE" "$_S_WIZ_AN_KEY") || return 1
+        [[ -n "$anthropic_key" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+      done
+    else
       _wt_msg "$_S_WIZ_AN_INFO_TITLE" "$_S_WIZ_AN_SKIP" || return 1
     fi
   elif [[ "$llm" == "ollama" ]]; then
@@ -1481,10 +1499,13 @@ except: pass" 2>/dev/null || true)"
 
   if [[ "$llm" == "anthropic" ]]; then
     echo ""; echo "$_S_TXT_AN"
-    printf "  %b\n" "$_S_WIZ_AN_INFO_MSG"
+    printf "  %b\n" "$_S_WIZ_AN_CHOICE_MSG"
     echo ""
-    read -rsp "  $_S_WIZ_AN_KEY " anthropic_key; echo
-    if [[ -z "$anthropic_key" ]]; then
+    local _an_method_txt
+    read -rp "  [1]: " _an_method_txt
+    if [[ "${_an_method_txt:-1}" == "2" ]]; then
+      while true; do read -rsp "  $_S_WIZ_AN_KEY " anthropic_key; echo; [[ -n "$anthropic_key" ]] && break; warn "$_S_REQUIRED"; done
+    else
       ok "  $_S_WIZ_AN_SKIP"
     fi
   elif [[ "$llm" == "ollama" ]]; then
