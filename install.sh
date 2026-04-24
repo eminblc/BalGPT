@@ -471,6 +471,13 @@ Store the secrets in a password manager as backup."
     _S_MSG_WIZ_TG_DONE="Telegram wizard complete — resuming terminal setup"
     _S_MSG_WIZ_TG_FAIL="Telegram wizard timed out or failed — continuing in terminal mode"
     _S_MSG_WIZ_WA_NOTIFY="Sending setup notification to WhatsApp — continuing in terminal"
+    _S_MSG_WIZ_WA_SUMMARY="Setup complete! Configured values:"
+
+    # ── Logging
+    _S_LOG_FILE="Log file"
+    _S_LOG_TRACE="Trace file"
+    _S_LOG_CRASH="Setup FAILED — check logs"
+    _S_CAP_NONINTERACTIVE="Non-interactive mode — applying Basic capabilities preset automatically"
 
   else  # ── Turkish / Türkçe (default) ──────────────────────────────────────
 
@@ -861,6 +868,13 @@ Secret'ları yedek olarak bir parola yöneticisine kaydedin."
     _S_MSG_WIZ_TG_DONE="Telegram sihirbazı tamamlandı — terminal kurulumu devam ediyor"
     _S_MSG_WIZ_TG_FAIL="Telegram sihirbazı zaman aşımına uğradı veya başarısız — terminal moduna geçiliyor"
     _S_MSG_WIZ_WA_NOTIFY="WhatsApp'a kurulum bildirimi gönderiliyor — terminal modunda devam ediliyor"
+    _S_MSG_WIZ_WA_SUMMARY="Kurulum tamamlandı! Yapılandırılan değerler:"
+
+    # ── Loglama
+    _S_LOG_FILE="Log dosyası"
+    _S_LOG_TRACE="Trace dosyası"
+    _S_LOG_CRASH="Kurulum BAŞARISIZ — logları kontrol edin"
+    _S_CAP_NONINTERACTIVE="Etkileşimsiz mod — Temel yetenekler preset otomatik uygulandı"
 
   fi
 }
@@ -1593,7 +1607,20 @@ except: pass" 2>/dev/null || true)"
     "$tz_value"
 
   # Write capability flags if collected from messenger wizard
-  [[ -n "$_caps_selected" ]] && _write_capabilities "$_caps_selected"
+  if [[ -n "$_caps_selected" ]]; then
+    log "  ↳ Writing capabilities from messenger wizard..."
+    _write_capabilities "$_caps_selected"
+    ok "  ↳ Capabilities written"
+  fi
+
+  # For WhatsApp: send a setup-complete summary to the owner's number
+  if [[ "$messenger" == "whatsapp" && -n "$wa_token" && -n "$wa_phone_id" && -n "$wa_owner" ]]; then
+    local _summary
+    _summary="$(printf '%s\n  Messenger : %s\n  LLM       : %s\n  Proxy     : %s\n  Timezone  : %s' \
+      "$_S_MSG_WIZ_WA_SUMMARY" "$messenger" "$llm" "$proxy" "$tz_value")"
+    [[ -n "$public_url"   ]] && _summary+="$(printf '\n  URL       : %s' "$public_url")"
+    _wa_notify "$wa_token" "$wa_phone_id" "$wa_owner" "$_summary" || true
+  fi
 }
 
 # ── Text fallback wizard / Metin modu ────────────────────────────────────────
@@ -1788,7 +1815,20 @@ except: pass" 2>/dev/null || true)"
     "$tz_value"
 
   # Write capability flags if collected from messenger wizard
-  [[ -n "$_caps_selected" ]] && _write_capabilities "$_caps_selected"
+  if [[ -n "$_caps_selected" ]]; then
+    log "  ↳ Writing capabilities from messenger wizard..."
+    _write_capabilities "$_caps_selected"
+    ok "  ↳ Capabilities written"
+  fi
+
+  # For WhatsApp: send a setup-complete summary to the owner's number
+  if [[ "$messenger" == "whatsapp" && -n "$wa_token" && -n "$wa_phone_id" && -n "$wa_owner" ]]; then
+    local _summary
+    _summary="$(printf '%s\n  Messenger : %s\n  LLM       : %s\n  Proxy     : %s\n  Timezone  : %s' \
+      "$_S_MSG_WIZ_WA_SUMMARY" "$messenger" "$llm" "$proxy" "$tz_value")"
+    [[ -n "$public_url"   ]] && _summary+="$(printf '\n  URL       : %s' "$public_url")"
+    _wa_notify "$wa_token" "$wa_phone_id" "$wa_owner" "$_summary" || true
+  fi
 }
 
 # ── .env writer (shared) ──────────────────────────────────────────────────────
@@ -2008,23 +2048,55 @@ _capabilities_text() {
   _write_capabilities "$selected"
 }
 
+_caps_already_set() {
+  # CRLF-safe check via Python — works on Windows Git Bash .env files too
+  local _f="$1"
+  python3 -c "
+import sys
+try:
+    txt = open(sys.argv[1]).read()
+    prefixes = ('RESTRICT_', 'DESKTOP_ENABLED=', 'BROWSER_ENABLED=')
+    sys.exit(0 if any(l.startswith(prefixes) for l in txt.splitlines()) else 1)
+except Exception:
+    sys.exit(1)
+" "$_f" 2>/dev/null
+}
+
+_caps_basic_str() {
+  echo '"fs" "network" "shell" "service_mgmt" "media" "calendar" "project_wizard" "screenshot" "scheduler" "pdf_import" "conv_history" "plans" "intent_classifier" "wizard_llm_scaffold"'
+}
+
 step_capabilities() {
   local env_dst="$BACKEND_DIR/.env"
   log "🔧 $_S_CAP_TITLE..."
 
   # .env yoksa henüz wizard çalışmamış demektir — atla
-  [ ! -f "$env_dst" ] && return 0
+  [ ! -f "$env_dst" ] && { warn "  ↳ .env not found, skipping capabilities"; return 0; }
 
   # İdempotent: RESTRICT_* veya *_ENABLED zaten tanımlıysa atla (--reconfigure-capabilities olmadığı sürece)
-  if ! $RECONFIGURE_CAPS && grep -qE "^(RESTRICT_|DESKTOP_ENABLED|BROWSER_ENABLED)" "$env_dst" 2>/dev/null; then
+  if ! $RECONFIGURE_CAPS && _caps_already_set "$env_dst"; then
     ok "  ↳ $_S_CAP_SKIP"
     return 0
   fi
 
   # --reconfigure-capabilities: mevcut capability satırlarını sil ve yeniden sor
-  if $RECONFIGURE_CAPS && grep -qE "^(RESTRICT_|DESKTOP_ENABLED|BROWSER_ENABLED)" "$env_dst" 2>/dev/null; then
+  if $RECONFIGURE_CAPS && _caps_already_set "$env_dst"; then
     log "  ↳ $_S_CAP_RECONFIG"
-    sed -i '/^RESTRICT_/d;/^DESKTOP_ENABLED/d;/^BROWSER_ENABLED/d' "$env_dst"
+    # CRLF-safe removal via Python
+    python3 -c "
+import sys, re
+with open(sys.argv[1]) as f: txt = f.read()
+lines = [l for l in txt.splitlines(keepends=True)
+         if not re.match(r'^(RESTRICT_|DESKTOP_ENABLED|BROWSER_ENABLED)', l)]
+with open(sys.argv[1], 'w') as f: f.write(''.join(lines))
+" "$env_dst" 2>/dev/null || sed -i '/^RESTRICT_/d;/^DESKTOP_ENABLED/d;/^BROWSER_ENABLED/d' "$env_dst"
+  fi
+
+  # Non-interactive mode: apply Basic preset silently (no prompts)
+  if [ ! -t 0 ] || [ ! -t 1 ]; then
+    warn "  $_S_CAP_NONINTERACTIVE"
+    _write_capabilities "$(_caps_basic_str)"
+    return 0
   fi
 
   if _wt_available; then
@@ -2377,8 +2449,47 @@ step_show_webhook_url() {
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 main() {
+  # ── Debug logging ─────────────────────────────────────────────────────────
+  # All stdout+stderr goes to both terminal and log file.
+  # set -x trace goes to a separate trace file (no terminal clutter).
+  local _ts
+  _ts="$(date +%Y%m%d_%H%M%S 2>/dev/null || echo 'x')"
+  LOG_FILE="${ROOT_DIR}/install_${_ts}.log"
+  TRACE_FILE="${ROOT_DIR}/install_${_ts}_trace.log"
+  exec > >(tee -a "$LOG_FILE") 2>&1
+  if exec 9>"$TRACE_FILE" 2>/dev/null; then
+    export BASH_XTRACEFD=9
+    set -x
+  fi
+  trap '
+    _rc=$?; set +x 2>/dev/null
+    echo ""
+    echo "════════════════════════════════════════════"
+    if [[ $_rc -ne 0 ]]; then
+      echo " ❌ install.sh CRASH — exit $_rc — $(date)"
+      echo " 📋 Log  : '"$LOG_FILE"'"
+      echo " 🔍 Trace: '"$TRACE_FILE"'"
+    else
+      echo " ✅ install.sh OK — $(date)"
+      echo " 📋 Log  : '"$LOG_FILE"'"
+    fi
+    echo "════════════════════════════════════════════"
+  ' EXIT
+  {
+    echo "============================================"
+    echo " install.sh — $(date)"
+    echo " bash  : $BASH_VERSION"
+    echo " OS    : $(uname -s -r 2>/dev/null || echo unknown)"
+    echo " ROOT  : $ROOT_DIR"
+    echo " USER  : $CURRENT_USER"
+    echo "============================================"
+  }
+
   _select_language
   _load_strings
+  echo " 📋 $_S_LOG_FILE  : $LOG_FILE"
+  echo " 🔍 $_S_LOG_TRACE : $TRACE_FILE"
+  echo ""
 
   # Hızlı yol: --reconfigure-capabilities — yalnızca yetenek sihirbazını çalıştır
   if $RECONFIGURE_CAPS && ! $NO_WIZARD; then
