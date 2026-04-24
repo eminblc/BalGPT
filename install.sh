@@ -872,7 +872,7 @@ _wt_input() {
 
 _wt_password() {
   local title="$1" msg="$2"
-  whiptail --title "$title" --passwordbox "$msg" 10 70 3>&1 1>&2 2>&3
+  whiptail --title "$title" --inputbox "$msg" 10 70 3>&1 1>&2 2>&3
 }
 
 _wt_yesno() {
@@ -1450,15 +1450,15 @@ _wizard_text() {
 
   if [[ "$messenger" == "whatsapp" ]]; then
     echo ""; echo "$_S_TXT_WA"
-    while true; do read -rsp "  $_S_WIZ_WA_TOKEN " wa_token; echo; [[ -n "$wa_token" ]] && break; warn "$_S_REQUIRED"; done
+    while true; do read -rp "  $_S_WIZ_WA_TOKEN " wa_token; echo; [[ -n "$wa_token" ]] && break; warn "$_S_REQUIRED"; done
     while true; do read -rp  "  $_S_WIZ_WA_PHONE " wa_phone_id;       [[ -n "$wa_phone_id" ]] && break; warn "$_S_REQUIRED"; done
-    while true; do read -rsp "  $_S_WIZ_WA_SECRET " wa_secret; echo;  [[ -n "$wa_secret"   ]] && break; warn "$_S_REQUIRED"; done
+    while true; do read -rp "  $_S_WIZ_WA_SECRET " wa_secret; echo;  [[ -n "$wa_secret"   ]] && break; warn "$_S_REQUIRED"; done
     wa_verify="$(_gen_api_key | head -c 32)"
     ok "  $_S_TXT_VERIFY_AUTO: $wa_verify"
     while true; do read -rp  "  $_S_WIZ_WA_OWNER "  wa_owner;         [[ -n "$wa_owner"    ]] && break; warn "$_S_REQUIRED"; done
   elif [[ "$messenger" == "telegram" ]]; then
     echo ""; echo "$_S_TXT_TG"
-    while true; do read -rsp "  $_S_WIZ_TG_TOKEN " tg_token; echo; [[ -n "$tg_token" ]] && break; warn "$_S_REQUIRED"; done
+    while true; do read -rp "  $_S_WIZ_TG_TOKEN " tg_token; echo; [[ -n "$tg_token" ]] && break; warn "$_S_REQUIRED"; done
     echo ""
     echo "  ▶ $_S_WIZ_TG_SEND_MSG_TITLE"
     printf "  %b\n" "$_S_WIZ_TG_SEND_MSG"
@@ -1504,7 +1504,7 @@ except: pass" 2>/dev/null || true)"
     local _an_method_txt
     read -rp "  [1]: " _an_method_txt
     if [[ "${_an_method_txt:-1}" == "2" ]]; then
-      while true; do read -rsp "  $_S_WIZ_AN_KEY " anthropic_key; echo; [[ -n "$anthropic_key" ]] && break; warn "$_S_REQUIRED"; done
+      while true; do read -rp "  $_S_WIZ_AN_KEY " anthropic_key; echo; [[ -n "$anthropic_key" ]] && break; warn "$_S_REQUIRED"; done
     else
       ok "  $_S_WIZ_AN_SKIP"
     fi
@@ -1516,7 +1516,7 @@ except: pass" 2>/dev/null || true)"
     ollama_model="${ollama_model:-llama3}"
   elif [[ "$llm" == "gemini" ]]; then
     echo ""; echo "$_S_TXT_GE"
-    while true; do read -rsp "  $_S_WIZ_GE_KEY " gemini_key; echo; [[ -n "$gemini_key" ]] && break; warn "$_S_REQUIRED"; done
+    while true; do read -rp "  $_S_WIZ_GE_KEY " gemini_key; echo; [[ -n "$gemini_key" ]] && break; warn "$_S_REQUIRED"; done
     read -rp "  $_S_WIZ_GE_MODEL [gemini-2.0-flash]: " gemini_model
     gemini_model="${gemini_model:-gemini-2.0-flash}"
   fi
@@ -1529,7 +1529,7 @@ except: pass" 2>/dev/null || true)"
     echo ""; echo "▶ $_S_WIZ_NGROK_INFO_TITLE"
     printf "  %b\n" "$_S_WIZ_NGROK_INFO_MSG"
     echo ""
-    read -rsp "  $_S_WIZ_NGROK_TOKEN " ngrok_token; echo
+    read -rp "  $_S_WIZ_NGROK_TOKEN " ngrok_token; echo
     echo ""
     read -rp "  $_S_WIZ_NGROK_DOMAIN " ngrok_domain; echo
   elif [[ "$proxy" == "cloudflared" ]]; then
