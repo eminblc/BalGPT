@@ -387,6 +387,14 @@ Store the secrets in a password manager as backup."
     _S_TOTP_OWNER="owner TOTP"
     _S_TOTP_ADMIN="admin TOTP"
     _S_TOTP_WARN="Store these secrets somewhere safe — they won't be shown again."
+    _S_TOTP_NO_QR_HEADING="QR code could not be generated. Note the secrets below."
+    _S_TOTP_NO_QR_OWNER="Owner TOTP secret"
+    _S_TOTP_NO_QR_ADMIN="Admin TOTP secret"
+    _S_TOTP_NO_QR_SEND_HINT="Press 1 to send secrets via messenger, or Enter to skip:"
+    _S_TOTP_NO_QR_SENDING="Sending TOTP secrets via messenger..."
+    _S_TOTP_NO_QR_SENT="Secrets sent. You can close the terminal."
+    _S_TOTP_NO_QR_SEND_FAIL="Could not send — note the secrets above and keep them safe. You can close the terminal."
+    _S_TOTP_NO_QR_CLOSE="Secrets noted above. You can close the terminal."
 
     # ── Webhook URL
     _S_WH_TITLE="Next Step: Webhook Setup"
@@ -769,6 +777,14 @@ Secret'ları yedek olarak bir parola yöneticisine kaydedin."
     _S_TOTP_OWNER="owner TOTP"
     _S_TOTP_ADMIN="admin TOTP"
     _S_TOTP_WARN="Bu secret'ları güvenli bir yere kaydet — bir daha gösterilmez."
+    _S_TOTP_NO_QR_HEADING="QR kod oluşturulamadı. Aşağıdaki kodları not alın."
+    _S_TOTP_NO_QR_OWNER="Owner TOTP kodu"
+    _S_TOTP_NO_QR_ADMIN="Admin TOTP kodu"
+    _S_TOTP_NO_QR_SEND_HINT="Kodları messenger'a göndermek için 1'e basın, atlamak için Enter:"
+    _S_TOTP_NO_QR_SENDING="TOTP kodları messenger'a gönderiliyor..."
+    _S_TOTP_NO_QR_SENT="Gönderildi. Terminali kapatabilirsiniz."
+    _S_TOTP_NO_QR_SEND_FAIL="Gönderilemedi — yukarıdaki kodları not alın ve saklayın. Terminali kapatabilirsiniz."
+    _S_TOTP_NO_QR_CLOSE="Kodlar yukarıda. Terminali kapatabilirsiniz."
 
     # ── Webhook URL
     _S_WH_TITLE="Sonraki Adım: Webhook Ayarı"
@@ -2071,9 +2087,12 @@ step_show_totp() {
   [ ! -f "$env_dst" ] && return
 
   local totp_secret totp_admin
-  totp_secret="$(grep '^TOTP_SECRET=' "$env_dst" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true)"
-  totp_admin="$(grep  '^TOTP_SECRET_ADMIN=' "$env_dst" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true)"
+  totp_secret="$(grep '^TOTP_SECRET='       "$env_dst" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true)"
+  totp_admin="$( grep '^TOTP_SECRET_ADMIN=' "$env_dst" 2>/dev/null | cut -d= -f2- | tr -d '"' | head -1 || true)"
   if [[ -z "$totp_secret" || "$totp_secret" == *DOLDUR* || "$totp_secret" == *FILL* ]]; then return; fi
+
+  # _TOTP_QR_OK: set to true by _print_qr when a terminal QR is actually rendered
+  _TOTP_QR_OK=false
 
   _print_qr() {
     local label="$1" secret="$2"
@@ -2084,24 +2103,20 @@ step_show_totp() {
     echo "  ── $heading ──────────────────────────────"
     echo "  $_S_TOTP_SECRET : $secret"
     echo "  $_S_TOTP_URI    : $uri"
-    # QR renderer: qrencode → venv python → python3/python + qrcode → pip install → online URL
+    # QR renderer: qrencode → venv python → python3/python + qrcode → pip install
     local _py=""
     "$BACKEND_DIR/venv/bin/python" -c "import qrcode" 2>/dev/null && _py="$BACKEND_DIR/venv/bin/python"
     [[ -z "$_py" ]] && python3 -c "import qrcode" 2>/dev/null && _py="python3"
     [[ -z "$_py" ]] && python  -c "import qrcode" 2>/dev/null && _py="python"
-    # No qrcode yet — pip install --user (persists, no PYTHONPATH needed)
     if [[ -z "$_py" ]]; then
       for _candidate in python3 python; do
         if command -v "$_candidate" &>/dev/null; then
           "$_candidate" -m pip install --user --quiet qrcode 2>/dev/null || true
-          if "$_candidate" -c "import qrcode" 2>/dev/null; then
-            _py="$_candidate"
-          fi
+          if "$_candidate" -c "import qrcode" 2>/dev/null; then _py="$_candidate"; fi
           break
         fi
       done
     fi
-    # Write Python script to a temp file so we can pass it directly (no eval/heredoc race)
     local _qr_script
     _qr_script="$(mktemp /tmp/qr_XXXXXX.py 2>/dev/null || echo /tmp/qr_print.py)"
     cat > "$_qr_script" <<'PYEOF'
@@ -2115,11 +2130,13 @@ PYEOF
     if command -v qrencode &>/dev/null; then
       echo ""
       qrencode -t ANSIUTF8 -m 2 "$uri"
+      _TOTP_QR_OK=true
     elif [[ -n "$_py" ]]; then
       echo ""
       "$_py" "$_qr_script" "$uri"
+      _TOTP_QR_OK=true
     else
-      # Son çare: online QR servisi URL'si — tarayıcıda açılır
+      # Online QR URL fallback — no terminal rendering possible
       local _encoded_uri
       if command -v python3 &>/dev/null; then
         _encoded_uri="$(printf '%s' "$uri" | python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.stdin.read().strip(), safe=""))')"
@@ -2159,6 +2176,104 @@ PYEOF
   fi
   echo ""
   warn "$_S_TOTP_WARN"
+
+  # ── QR kod oluşturulamadıysa: gizli kodları net göster + messenger gönder seçeneği
+  if [[ "$_TOTP_QR_OK" != "true" ]] && [ -t 0 ]; then
+    echo ""
+    echo "  ════════════════════════════════════════════════════"
+    warn "  $_S_TOTP_NO_QR_HEADING"
+    echo "  ════════════════════════════════════════════════════"
+    echo ""
+    echo "  ★  $_S_TOTP_NO_QR_OWNER : $totp_secret"
+    if [[ -n "$totp_admin" && "$totp_admin" != "$totp_secret" ]]; then
+      echo "  ★  $_S_TOTP_NO_QR_ADMIN  : $totp_admin"
+    fi
+    echo ""
+    read -rp "  $_S_TOTP_NO_QR_SEND_HINT " _totp_send_choice
+    if [[ "${_totp_send_choice}" == "1" ]]; then
+      log "  $_S_TOTP_NO_QR_SENDING"
+      if _totp_send_via_messenger "$totp_secret" "$totp_admin" "$env_dst"; then
+        ok "  $_S_TOTP_NO_QR_SENT"
+      else
+        warn "  $_S_TOTP_NO_QR_SEND_FAIL"
+      fi
+    else
+      echo "  $_S_TOTP_NO_QR_CLOSE"
+    fi
+  fi
+}
+
+# _totp_send_via_messenger <owner_secret> <admin_secret> <env_file>
+# Sends TOTP secrets to Telegram or WhatsApp. Returns 0 on success.
+_totp_send_via_messenger() {
+  local _sec="$1" _adm="$2" _env="$3"
+  local _messenger _msg _msg_json
+
+  _messenger="$(_read_env_var "MESSENGER_TYPE" "$_env")"
+
+  # Build message text
+  local _adm_line=""
+  [[ -n "$_adm" && "$_adm" != "$_sec" ]] && _adm_line="Admin TOTP:  $_adm"
+
+  if [[ "$_messenger" == "telegram" ]]; then
+    local _tok _cid
+    _tok="$(_read_env_var "TELEGRAM_BOT_TOKEN" "$_env")"
+    _cid="$(_read_env_var "TELEGRAM_CHAT_ID"   "$_env")"
+    [[ -z "$_tok" || -z "$_cid" ]] && return 1
+    _msg="🔐 <b>TOTP Secrets (backup)</b>
+
+<b>Owner TOTP:</b> <code>$_sec</code>"
+    [[ -n "$_adm_line" ]] && _msg+="
+<b>Admin TOTP:</b> <code>$_adm</code>"
+    _msg+="
+
+To add to Google Authenticator:
+• Open app → + → Enter setup key
+• Account <code>99-root:owner</code>, Key <code>$_sec</code>"
+    [[ -n "$_adm_line" ]] && _msg+="
+• Account <code>99-root:admin</code>, Key <code>$_adm</code>"
+    _msg+="
+• Type: Time-based (TOTP)"
+
+    _msg_json="$(python3 -c "import sys,json; print(json.dumps(sys.argv[1]))" "$_msg" 2>/dev/null)" || return 1
+    curl -s --max-time 15 \
+      -H "Content-Type: application/json" \
+      -d "{\"chat_id\":$_cid,\"text\":$_msg_json,\"parse_mode\":\"HTML\"}" \
+      "https://api.telegram.org/bot${_tok}/sendMessage" \
+      | python3 -c "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('ok') else 1)" 2>/dev/null
+    return $?
+
+  elif [[ "$_messenger" == "whatsapp" ]]; then
+    local _wtok _wpid _wown
+    _wtok="$(_read_env_var "WHATSAPP_ACCESS_TOKEN"    "$_env")"
+    _wpid="$(_read_env_var "WHATSAPP_PHONE_NUMBER_ID" "$_env")"
+    _wown="$(_read_env_var "WHATSAPP_OWNER"           "$_env")"
+    _wown="${_wown#+}"
+    [[ -z "$_wtok" || -z "$_wpid" || -z "$_wown" ]] && return 1
+    _msg="🔐 TOTP Secrets (backup)
+
+Owner TOTP: $_sec"
+    [[ -n "$_adm_line" ]] && _msg+="
+Admin TOTP: $_adm"
+    _msg+="
+
+Google Authenticator:
+• Account: 99-root:owner  Key: $_sec"
+    [[ -n "$_adm_line" ]] && _msg+="
+• Account: 99-root:admin  Key: $_adm"
+    _msg+="
+• Type: Time-based (TOTP)"
+
+    _msg_json="$(python3 -c "import sys,json; print(json.dumps(sys.argv[1]))" "$_msg" 2>/dev/null)" || return 1
+    curl -s --max-time 15 \
+      -H "Authorization: Bearer $_wtok" \
+      -H "Content-Type: application/json" \
+      -d "{\"messaging_product\":\"whatsapp\",\"to\":\"$_wown\",\"type\":\"text\",\"text\":{\"body\":$_msg_json}}" \
+      "https://graph.facebook.com/v19.0/${_wpid}/messages" \
+      | python3 -c "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('messages') else 1)" 2>/dev/null
+    return $?
+  fi
+  return 1
 }
 
 # ── Webhook URL info ──────────────────────────────────────────────────────────
