@@ -114,6 +114,10 @@ _load_strings() {
     _S_AUTH_OK="Claude CLI authenticated successfully"
     _S_AUTH_WARN="Authentication may be incomplete — run 'claude auth login' manually if Bridge fails to start"
     _S_AUTH_SKIP="Claude CLI not found — skipping auth step"
+    _S_AUTH_INSTALLING="Claude CLI not found — installing via npm (npm install -g @anthropic-ai/claude-code)..."
+    _S_AUTH_INSTALLED="Claude CLI installed"
+    _S_AUTH_INSTALL_FAIL="Claude CLI install failed. Install manually: npm install -g @anthropic-ai/claude-code"
+    _S_AUTH_NPM_MISSING="Claude CLI missing AND npm missing. Install Node.js 18+ first: https://nodejs.org then re-run install.sh"
 
     # ── Steps
     _S_STEP_VENV="Creating Python venv →"
@@ -368,6 +372,8 @@ Store the secrets in a password manager as backup."
     _S_TOTP_GA_TITLE="Add to Google Authenticator"
     _S_TOTP_GA_STEPS="  1. Open Google Authenticator (or any TOTP app)\n  2. Tap '+' → 'Scan QR code'\n  3. Scan the QR code above\n  4. Done — use the 6-digit code when prompted"
     _S_TOTP_GA_NOQUR="  No QR code? Enter the secret manually in your TOTP app."
+    _S_TOTP_QR_ONLINE="Open in browser to view the QR code:"
+    _S_TOTP_QR_MANUAL="Manual entry"
     _S_TXT_NOWHIPTAIL="whiptail not found or terminal not compatible — using text mode."
     _S_TXT_RERUN="[?] .env already filled. Run wizard again? [y/N]: "
     _S_TXT_RERUN_Y="y"
@@ -482,6 +488,10 @@ Store the secrets in a password manager as backup."
     _S_AUTH_OK="Claude CLI başarıyla authenticate edildi"
     _S_AUTH_WARN="Kimlik doğrulama tamamlanmamış olabilir — Bridge başlamazsa 'claude auth login' çalıştırın"
     _S_AUTH_SKIP="Claude CLI bulunamadı — auth adımı atlanıyor"
+    _S_AUTH_INSTALLING="Claude CLI bulunamadı — npm ile kuruluyor (npm install -g @anthropic-ai/claude-code)..."
+    _S_AUTH_INSTALLED="Claude CLI kuruldu"
+    _S_AUTH_INSTALL_FAIL="Claude CLI kurulamadı. Manuel kur: npm install -g @anthropic-ai/claude-code"
+    _S_AUTH_NPM_MISSING="Claude CLI VE npm eksik. Önce Node.js 18+ kur: https://nodejs.org sonra install.sh'yi tekrar çalıştır"
 
     # ── Adımlar
     _S_STEP_VENV="Python venv oluşturuluyor →"
@@ -736,6 +746,8 @@ Secret'ları yedek olarak bir parola yöneticisine kaydedin."
     _S_TOTP_GA_TITLE="Google Authenticator'a Ekle"
     _S_TOTP_GA_STEPS="  1. Google Authenticator'ı aç (veya herhangi bir TOTP uygulaması)\n  2. '+' → 'QR kodu tara' seç\n  3. Yukarıdaki QR kodu tara\n  4. Hazır — istendiğinde 6 haneli kodu gir"
     _S_TOTP_GA_NOQUR="  QR kod yok mu? TOTP uygulamanıza secret'ı manuel girin."
+    _S_TOTP_QR_ONLINE="QR kodu tarayıcıda açmak için:"
+    _S_TOTP_QR_MANUAL="Manuel Giriş"
     _S_TXT_NOWHIPTAIL="whiptail bulunamadı veya terminal uygun değil — metin modu kullanılıyor."
     _S_TXT_RERUN="[?] .env zaten dolu. Sihirbazı tekrar çalıştır? [e/H]: "
     _S_TXT_RERUN_Y="e"
@@ -1847,9 +1859,12 @@ step_capabilities() {
 # ── Claude CLI auth ──────────────────────────────────────────────────────────
 
 step_claude_auth() {
-  # Claude CLI yoksa atla
-  if ! command -v claude &>/dev/null; then
-    warn "$_S_AUTH_SKIP"; return
+  # ANTHROPIC_API_KEY .env'de tanımlıysa OAuth gerekmez
+  local env_dst="$BACKEND_DIR/.env"
+  local api_key
+  api_key="$(_read_env_var "ANTHROPIC_API_KEY" "$env_dst" 2>/dev/null || true)"
+  if [[ -n "$api_key" && "$api_key" != *"FILL"* && "$api_key" != *"DOLDUR"* && "$api_key" != *"YOUR_"* ]]; then
+    ok "$_S_AUTH_APIKEY"; return
   fi
 
   # Zaten authenticate ise atla — empty {} (Docker pre-flight) sayılmaz
@@ -1861,12 +1876,31 @@ step_claude_auth() {
     fi
   fi
 
-  # ANTHROPIC_API_KEY .env'de tanımlıysa OAuth gerekmez
-  local env_dst="$BACKEND_DIR/.env"
-  local api_key
-  api_key="$(_read_env_var "ANTHROPIC_API_KEY" "$env_dst" 2>/dev/null || true)"
-  if [[ -n "$api_key" && "$api_key" != *"FILL"* && "$api_key" != *"DOLDUR"* && "$api_key" != *"YOUR_"* ]]; then
-    ok "$_S_AUTH_APIKEY"; return
+  # Claude CLI yoksa → npm ile kur (veya kullanıcıya yönlendir)
+  if ! command -v claude &>/dev/null; then
+    if command -v npm &>/dev/null; then
+      log "$_S_AUTH_INSTALLING"
+      if npm install -g @anthropic-ai/claude-code 2>&1 | tail -3; then
+        if command -v claude &>/dev/null; then
+          ok "$_S_AUTH_INSTALLED: $(claude --version 2>/dev/null | head -1 || echo 'installed')"
+        else
+          # npm PATH'e henüz yansımamış olabilir
+          local _npm_bin
+          _npm_bin="$(npm bin -g 2>/dev/null || npm prefix -g 2>/dev/null)/bin"
+          export PATH="$_npm_bin:$PATH"
+          if ! command -v claude &>/dev/null; then
+            warn "$_S_AUTH_INSTALL_FAIL"
+            return
+          fi
+        fi
+      else
+        warn "$_S_AUTH_INSTALL_FAIL"
+        return
+      fi
+    else
+      warn "$_S_AUTH_NPM_MISSING"
+      return
+    fi
   fi
 
   # claude auth login'i doğrudan çalıştır
@@ -1874,7 +1908,7 @@ step_claude_auth() {
   log "$_S_AUTH_NEEDED"
   echo "  $_S_AUTH_INSTR"
   echo ""
-  claude auth login
+  claude auth login || true
 
   local _cred_after
   _cred_after="$(tr -d ' \n\r\t' < "$HOME/.claude/.credentials.json" 2>/dev/null || echo "{}")"
@@ -1940,11 +1974,23 @@ PYEOF
       echo ""
       PYTHONPATH="$_py_extra_path" "$_py" "$_qr_script" "$uri"
     else
+      # Son çare: online QR servisi URL'si — tarayıcıda açılır
+      local _encoded_uri
+      if command -v python3 &>/dev/null; then
+        _encoded_uri="$(printf '%s' "$uri" | python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.stdin.read().strip(), safe=""))')"
+      elif command -v python &>/dev/null; then
+        _encoded_uri="$(printf '%s' "$uri" | python -c 'import sys; from urllib import quote; print(quote(sys.stdin.read().strip(), safe=""))' 2>/dev/null || printf '%s' "$uri" | sed 's/&/%26/g; s/=/%3D/g; s/?/%3F/g; s/:/%3A/g; s|/|%2F|g')"
+      else
+        _encoded_uri="$(printf '%s' "$uri" | sed 's/&/%26/g; s/=/%3D/g; s/?/%3F/g; s/:/%3A/g; s|/|%2F|g')"
+      fi
       echo ""
-      echo "  ┌─ Manuel Giriş (QR kod oluşturulamadı) ──────────────┐"
+      echo "  $_S_TOTP_QR_ONLINE"
+      echo "  → https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${_encoded_uri}"
+      echo ""
+      echo "  ┌─ $_S_TOTP_QR_MANUAL ─────────────────────────────────┐"
       echo "  │  1. Authenticator uygulamasını aç (Google/Authy)     │"
       echo "  │  2. '+' → 'Kurulum anahtarı gir' seç                 │"
-      echo "  │  3. Hesap: 99-root                                    │"
+      echo "  │  3. Hesap: 99-root:${label}                           │"
       echo "  │  4. Anahtar: $secret"
       echo "  │  5. Tür: Zamana dayalı (TOTP)                        │"
       echo "  └──────────────────────────────────────────────────────┘"
