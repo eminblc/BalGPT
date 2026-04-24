@@ -1546,7 +1546,10 @@ _write_env() {
   local tz_value="${24:-Europe/Istanbul}"
 
   local env_src="$BACKEND_DIR/.env.example"
-  [ ! -f "$env_dst" ] && cp "$env_src" "$env_dst"
+  if [ ! -f "$env_dst" ]; then
+    # Strip capability flags so step_capabilities can ask the user interactively
+    grep -vE "^(RESTRICT_|DESKTOP_ENABLED|BROWSER_ENABLED)" "$env_src" > "$env_dst"
+  fi
 
   _env_set "MESSENGER_TYPE" "$messenger" "$env_dst"
   [[ -n "$wa_token"    ]] && _env_set "WHATSAPP_ACCESS_TOKEN"    "$wa_token"    "$env_dst"
