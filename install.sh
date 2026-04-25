@@ -1992,7 +1992,7 @@ step_env() {
     if _wt_available; then
       _wt_yesno "$_S_WIZ_ENV_EXISTS_TITLE" "$_S_WIZ_ENV_EXISTS_MSG" && rerun="$_S_TXT_RERUN_Y" || rerun="n"
     else
-      read -rp "$_S_TXT_RERUN" rerun
+      _ask_inline "$_S_TXT_RERUN" rerun
     fi
     [[ "${rerun,,}" != "$_S_TXT_RERUN_Y" ]] && { ok "$_S_WIZ_ENV_EXIST_OK"; return; }
   fi
@@ -2174,8 +2174,10 @@ with open(sys.argv[1], 'w') as f: f.write(''.join(lines))
 " "$env_dst" 2>/dev/null || sed -i '/^RESTRICT_/d;/^DESKTOP_ENABLED/d;/^BROWSER_ENABLED/d' "$env_dst"
   fi
 
-  # Non-interactive mode: apply Basic preset silently (no prompts)
-  if [ ! -t 0 ] || [ ! -t 1 ]; then
+  # Non-interactive mode: apply Basic preset silently (no prompts).
+  # Only trigger when stdin is not a TTY (true CI/CD: piped input, no pty).
+  # Do NOT check stdout — it's always a pipe when tee logging is active.
+  if [ ! -t 0 ]; then
     warn "  $_S_CAP_NONINTERACTIVE"
     _write_capabilities "$(_caps_basic_str)"
     return 0
@@ -2627,7 +2629,12 @@ main() {
     if [[ -n "$_tg_tok" && -n "$_tg_cid" ]] && command -v python3 &>/dev/null; then
       # Fire a heads-up message so the user knows to switch to Telegram
       _tg_notify "$_tg_tok" "$_tg_cid" "$_S_MSG_WIZ_TG_NOTIFY"
-      _wiz_result="$(_run_messenger_wizard "$_tg_tok" "$_tg_cid")" || _wiz_result=""
+      # Write wizard output to a temp file to avoid $() subshell inheriting tee redirect.
+      local _wiz_tmp; _wiz_tmp="$(mktemp /tmp/wiz_result.XXXXXX)"
+      if _run_messenger_wizard "$_tg_tok" "$_tg_cid" > "$_wiz_tmp" 2>/tmp/wizard_err.log; then
+        _wiz_result="$(cat "$_wiz_tmp")"
+      fi
+      rm -f "$_wiz_tmp"
     fi
 
     # 4. Apply results (or defaults on timeout)
