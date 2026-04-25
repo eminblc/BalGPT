@@ -213,15 +213,16 @@ Press OK when ready."
 
     # ── Telegram credentials
     _S_WIZ_TG_INFO_TITLE="Telegram Credentials"
-    _S_WIZ_TG_INFO_MSG="Create a bot with @BotFather on Telegram:
+    _S_WIZ_TG_INFO_MSG="You will enter 2 values on the next screens:
+  1. Bot Token  — get it from @BotFather
+  2. Chat ID    — auto-detected (just send a message to your bot)
+
+How to get the Bot Token:
   1. Open Telegram → search @BotFather → /newbot
   2. Choose a name and username (must end with 'bot')
   3. BotFather gives you a token like: 123456789:ABCdef...
 
-After entering the token, the wizard will try to auto-detect your Chat ID.
-For this to work: open your new bot and send any message (e.g. 'hello').
-
-Press OK when ready."
+Press OK to enter the Bot Token."
     _S_WIZ_TG_TOKEN="(*) Bot Token (123456789:ABCdef...):"
     _S_WIZ_TG_SEND_MSG_TITLE="Auto-detect Chat ID"
     _S_WIZ_TG_SEND_MSG="Open your new Telegram bot and send any message (e.g. 'hello').
@@ -610,15 +611,16 @@ Hazır olduğunuzda OK'a basın."
 
     # ── Telegram bilgileri
     _S_WIZ_TG_INFO_TITLE="Telegram Bilgileri"
-    _S_WIZ_TG_INFO_MSG="Telegram'da @BotFather'a yazarak bot oluşturun:
+    _S_WIZ_TG_INFO_MSG="Sonraki ekranlarda 2 bilgi gireceksiniz:
+  1. Bot Token  — @BotFather'dan alınır
+  2. Chat ID    — otomatik algılanır (bota bir mesaj göndermeniz yeterli)
+
+Bot Token nasıl alınır:
   1. Telegram'ı aç → @BotFather'ı ara → /newbot
   2. Bot adı ve kullanıcı adı gir (kullanıcı adı 'bot' ile bitmeli)
   3. BotFather token verir: 123456789:ABCdef...
 
-Token girdikten sonra sihirbaz Chat ID'nizi otomatik algılamayı dener.
-Bunun çalışması için: yeni botunuzu açın ve herhangi bir mesaj gönderin (örn. 'merhaba').
-
-Hazır olduğunuzda OK'a basın."
+Bot Token'ı girmek için OK'a basın."
     _S_WIZ_TG_TOKEN="(*) Bot Token (123456789:ABCdef...):"
     _S_WIZ_TG_SEND_MSG_TITLE="Chat ID Otomatik Algılama"
     _S_WIZ_TG_SEND_MSG="Az önce oluşturduğunuz Telegram botunu açın ve herhangi bir mesaj gönderin (örn. 'merhaba').
