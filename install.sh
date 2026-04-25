@@ -1112,14 +1112,14 @@ step_venv() {
   # compiled.txt machine-specific, gitignored.
   local compiled="$BACKEND_DIR/requirements/compiled.txt"
   "$BACKEND_DIR/venv/bin/pip-compile" \
-    --quiet --no-header --no-annotate --no-strip-extras \
+    --no-header --no-annotate --no-strip-extras \
     --output-file="$compiled" \
     "${req_files[@]}"
 
   # pip-sync: compiled.txt'e göre venv'i atomik senkronize et.
   # Eksik paketleri kurar; listede olmayan (devre dışı capability) paketleri kaldırır.
   log "$_S_STEP_PKG_SYNC ${cap_names[*]}"
-  "$BACKEND_DIR/venv/bin/pip-sync" --quiet "$compiled"
+  "$BACKEND_DIR/venv/bin/pip-sync" "$compiled"
 
   ok "$_S_STEP_VENV_DONE"
 }
