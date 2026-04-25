@@ -1640,7 +1640,8 @@ _wizard_text() {
   # ── Phase 1 (terminal): Messenger type + credentials ──────────────────────
   echo ""; echo "$_S_TXT_MESSENGER"
   echo "  $_S_TXT_M1"; echo "  $_S_TXT_M2"; echo "  $_S_TXT_M3"
-  read -rp "  [1]: " _m
+  echo "  [1]:"
+  IFS= read -r _m
   local messenger
   case "${_m:-1}" in 2) messenger="telegram";; 3) messenger="cli";; *) messenger="whatsapp";; esac
 
@@ -1650,15 +1651,35 @@ _wizard_text() {
 
   if [[ "$messenger" == "whatsapp" ]]; then
     echo ""; echo "$_S_TXT_WA"
-    while true; do read -rp "  $_S_WIZ_WA_TOKEN " wa_token; [[ -n "$wa_token" ]] && break; warn "$_S_REQUIRED"; done
-    while true; do read -rp  "  $_S_WIZ_WA_PHONE " wa_phone_id;  [[ -n "$wa_phone_id" ]] && break; warn "$_S_REQUIRED"; done
-    while true; do read -rp "  $_S_WIZ_WA_SECRET " wa_secret;    [[ -n "$wa_secret"   ]] && break; warn "$_S_REQUIRED"; done
+    while true; do
+    echo "  $_S_WIZ_WA_TOKEN"
+    IFS= read -r wa_token
+    [[ -n "$wa_token" ]] && break; warn "$_S_REQUIRED"
+  done
+    while true; do
+    echo "  $_S_WIZ_WA_PHONE"
+    IFS= read -r wa_phone_id
+    [[ -n "$wa_phone_id" ]] && break; warn "$_S_REQUIRED"
+  done
+    while true; do
+    echo "  $_S_WIZ_WA_SECRET"
+    IFS= read -r wa_secret
+    [[ -n "$wa_secret"   ]] && break; warn "$_S_REQUIRED"
+  done
     wa_verify="$(_gen_api_key)"
     ok "  $_S_TXT_VERIFY_AUTO: $wa_verify"
-    while true; do read -rp  "  $_S_WIZ_WA_OWNER "  wa_owner;    [[ -n "$wa_owner"    ]] && break; warn "$_S_REQUIRED"; done
+    while true; do
+    echo "  $_S_WIZ_WA_OWNER"
+    IFS= read -r wa_owner
+    [[ -n "$wa_owner"    ]] && break; warn "$_S_REQUIRED"
+  done
   elif [[ "$messenger" == "telegram" ]]; then
     echo ""; echo "$_S_TXT_TG"
-    while true; do read -rp "  $_S_WIZ_TG_TOKEN " tg_token; [[ -n "$tg_token" ]] && break; warn "$_S_REQUIRED"; done
+    while true; do
+    echo "  $_S_WIZ_TG_TOKEN"
+    IFS= read -r tg_token
+    [[ -n "$tg_token" ]] && break; warn "$_S_REQUIRED"
+  done
     echo ""
     echo "  ▶ $_S_WIZ_TG_SEND_MSG_TITLE"
     printf "  %b\n" "$_S_WIZ_TG_SEND_MSG"
@@ -1669,7 +1690,8 @@ _wizard_text() {
     local _tg_flush2 _tg_next_offset2=0
     _tg_flush2="$(curl -s --max-time 8 "https://api.telegram.org/bot${tg_token}/getUpdates?limit=100" 2>/dev/null || true)"
     _tg_next_offset2="$(_tg_extract_next_offset "$_tg_flush2")"
-    read -rp "  $_S_TXT_TG_CHATID_TIP " tg_chat_id
+    echo "  $_S_TXT_TG_CHATID_TIP"
+    IFS= read -r tg_chat_id
     if [[ -z "$tg_chat_id" ]]; then
       local _tg_updates
       log "  $_S_WIZ_TG_SEND_MSG_TITLE..."
@@ -1683,7 +1705,11 @@ except: pass" 2>/dev/null || true)"
         ok "  $_S_TXT_TG_CHATID_OK: $tg_chat_id"
       else
         warn "  $_S_TXT_TG_CHATID_FAIL"
-        while true; do read -rp "  $_S_WIZ_TG_CHAT " tg_chat_id; [[ -n "$tg_chat_id" ]] && break; warn "$_S_REQUIRED"; done
+        while true; do
+    echo "  $_S_WIZ_TG_CHAT"
+    IFS= read -r tg_chat_id
+    [[ -n "$tg_chat_id" ]] && break; warn "$_S_REQUIRED"
+  done
       fi
     fi
     tg_webhook_secret="$(_gen_api_key)"
@@ -1733,13 +1759,15 @@ except: pass" 2>/dev/null || true)"
     echo ""; echo "  ════════════════════════════════════════════════════"; echo "  ════════════════════════════════════════════════════"
     echo ""; echo "$_S_TXT_LLM"
     echo "  $_S_TXT_L1"; echo "  $_S_TXT_L2"; echo "  $_S_TXT_L3"
-    read -rp "  [1]: " _l
+    echo "  [1]:"
+    IFS= read -r _l
     case "${_l:-1}" in 2) llm="ollama";; 3) llm="gemini";; *) llm="anthropic";; esac
 
     echo ""; echo "  ════════════════════════════════════════════════════"; echo "  ════════════════════════════════════════════════════"
     echo ""; echo "$_S_TXT_PROXY"
     echo "  $_S_TXT_P1"; echo "  $_S_TXT_P2"; echo "  $_S_TXT_P3"; echo "  $_S_TXT_P4"
-    read -rp "  [1]: " _p
+    echo "  [1]:"
+    IFS= read -r _p
     case "${_p:-1}" in 2) proxy="ngrok";; 3) proxy="cloudflared";; 4) proxy="external";; *) proxy="none";; esac
 
     echo ""; echo "  ════════════════════════════════════════════════════"; echo "  ════════════════════════════════════════════════════"
@@ -1748,35 +1776,53 @@ except: pass" 2>/dev/null || true)"
       printf "  %b\n" "$_S_WIZ_AN_CHOICE_MSG"
       echo ""
       local _an_method_txt
-      read -rp "  [1]: " _an_method_txt
+      echo "  [1]:"
+      IFS= read -r _an_method_txt
       if [[ "${_an_method_txt:-1}" == "2" ]]; then
-        while true; do read -rp "  $_S_WIZ_AN_KEY " anthropic_key; [[ -n "$anthropic_key" ]] && break; warn "$_S_REQUIRED"; done
+        while true; do
+    echo "  $_S_WIZ_AN_KEY"
+    IFS= read -r anthropic_key
+    [[ -n "$anthropic_key" ]] && break; warn "$_S_REQUIRED"
+  done
       else
         ok "  $_S_WIZ_AN_SKIP"
       fi
     elif [[ "$llm" == "ollama" ]]; then
       echo ""; echo "$_S_TXT_OL"
-      read -rp "  $_S_WIZ_OL_URL [http://localhost:11434]: " ollama_url
+      echo "  $_S_WIZ_OL_URL [http://localhost:11434]:"
+      IFS= read -r ollama_url
       ollama_url="${ollama_url:-http://localhost:11434}"
-      read -rp "  $_S_WIZ_OL_MODEL [llama3]: " ollama_model
+      echo "  $_S_WIZ_OL_MODEL [llama3]:"
+      IFS= read -r ollama_model
       ollama_model="${ollama_model:-llama3}"
     elif [[ "$llm" == "gemini" ]]; then
       echo ""; echo "$_S_TXT_GE"
-      while true; do read -rp "  $_S_WIZ_GE_KEY " gemini_key; [[ -n "$gemini_key" ]] && break; warn "$_S_REQUIRED"; done
-      read -rp "  $_S_WIZ_GE_MODEL [gemini-2.0-flash]: " gemini_model
+      while true; do
+    echo "  $_S_WIZ_GE_KEY"
+    IFS= read -r gemini_key
+    [[ -n "$gemini_key" ]] && break; warn "$_S_REQUIRED"
+  done
+      echo "  $_S_WIZ_GE_MODEL [gemini-2.0-flash]:"
+      IFS= read -r gemini_model
       gemini_model="${gemini_model:-gemini-2.0-flash}"
     fi
 
     echo ""; echo "  ════════════════════════════════════════════════════"; echo "  ════════════════════════════════════════════════════"
     if [[ "$proxy" == "external" ]]; then
-      while true; do read -rp "  $_S_WIZ_EXT_URL " public_url; [[ "$public_url" == https://* ]] && break; warn "$_S_URL_HTTPS"; done
+      while true; do
+        echo "  $_S_WIZ_EXT_URL"
+        IFS= read -r public_url
+        [[ "$public_url" == https://* ]] && break; warn "$_S_URL_HTTPS"
+      done
     elif [[ "$proxy" == "ngrok" ]]; then
       echo ""; echo "▶ $_S_WIZ_NGROK_INFO_TITLE"
       printf "  %b\n" "$_S_WIZ_NGROK_INFO_MSG"
       echo ""
-      read -rp "  $_S_WIZ_NGROK_TOKEN " ngrok_token
+      echo "  $_S_WIZ_NGROK_TOKEN"
+      IFS= read -r ngrok_token
       echo ""
-      read -rp "  $_S_WIZ_NGROK_DOMAIN " ngrok_domain
+      echo "  $_S_WIZ_NGROK_DOMAIN"
+      IFS= read -r ngrok_domain
     elif [[ "$proxy" == "cloudflared" ]]; then
       echo ""; echo "▶ $_S_WIZ_CF_INFO_TITLE"
       printf "  %b\n" "$_S_WIZ_CF_INFO_MSG"
@@ -1788,7 +1834,8 @@ except: pass" 2>/dev/null || true)"
     echo "  1) $_S_WIZ_TZ_TRT"; echo "  2) $_S_WIZ_TZ_LON"; echo "  3) $_S_WIZ_TZ_PAR"
     echo "  4) $_S_WIZ_TZ_NYC"; echo "  5) $_S_WIZ_TZ_LAX"; echo "  6) $_S_WIZ_TZ_TYO"
     echo "  7) $_S_WIZ_TZ_UTC"; echo "  8) $_S_WIZ_TZ_OTH"
-    read -rp "  [1]: " _tz
+    echo "  [1]:"
+    IFS= read -r _tz
     case "${_tz:-1}" in
       2) tz_value="Europe/London" ;;
       3) tz_value="Europe/Paris" ;;
@@ -1796,7 +1843,7 @@ except: pass" 2>/dev/null || true)"
       5) tz_value="America/Los_Angeles" ;;
       6) tz_value="Asia/Tokyo" ;;
       7) tz_value="UTC" ;;
-      8) read -rp "  $_S_WIZ_TZ_CUSTOM " tz_value; tz_value="${tz_value:-Europe/Istanbul}" ;;
+      8) echo "  $_S_WIZ_TZ_CUSTOM"; IFS= read -r tz_value; tz_value="${tz_value:-Europe/Istanbul}" ;;
       *) tz_value="Europe/Istanbul" ;;
     esac
   fi
