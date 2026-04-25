@@ -473,6 +473,8 @@ Store the secrets in a password manager as backup."
     _S_MSG_WIZ_TG_WAIT=">>> Continue setup in Telegram — tap the buttons in your chat <<<"
     _S_MSG_WIZ_TG_DONE="Telegram wizard complete — resuming terminal setup"
     _S_MSG_WIZ_TG_FAIL="Telegram wizard timed out or failed — continuing in terminal mode"
+    _S_MSG_WIZ_TG_INSTALL_NOTICE="Minimal install complete. Open your Telegram bot and complete the remaining setup steps there."
+    _S_MSG_WIZ_TG_TIMEOUT_DEFAULTS="Telegram wizard timed out — continuing with defaults (anthropic login, no proxy, Istanbul timezone, basic capabilities)"
     _S_MSG_WIZ_WA_NOTIFY="Sending setup notification to WhatsApp — continuing in terminal"
     _S_MSG_WIZ_WA_SUMMARY="Setup complete! Configured values:"
 
@@ -871,6 +873,8 @@ Secret'ları yedek olarak bir parola yöneticisine kaydedin."
     _S_MSG_WIZ_TG_WAIT=">>> Kuruluma Telegram'dan devam edin — chat'teki butonlara dokunun <<<"
     _S_MSG_WIZ_TG_DONE="Telegram sihirbazı tamamlandı — terminal kurulumu devam ediyor"
     _S_MSG_WIZ_TG_FAIL="Telegram sihirbazı zaman aşımına uğradı veya başarısız — terminal moduna geçiliyor"
+    _S_MSG_WIZ_TG_INSTALL_NOTICE="Minimal kurulum tamamlandı. Telegram botunuzu açın ve kalan kurulum adımlarını orada tamamlayın."
+    _S_MSG_WIZ_TG_TIMEOUT_DEFAULTS="Telegram sihirbazı zaman aşımına uğradı — varsayılanlarla devam ediliyor (anthropic login, proxy yok, İstanbul saati, temel yetenekler)"
     _S_MSG_WIZ_WA_NOTIFY="WhatsApp'a kurulum bildirimi gönderiliyor — terminal modunda devam ediliyor"
     _S_MSG_WIZ_WA_SUMMARY="Kurulum tamamlandı! Yapılandırılan değerler:"
 
@@ -1478,41 +1482,15 @@ except: pass" 2>/dev/null || true)"
     tg_webhook_secret="$(_gen_api_key)"
   fi
 
-  # ── Phase 2: LLM / Proxy / Timezone / Capabilities ────────────────────────
+  # ── Phase 2: LLM / Proxy / Timezone (WhatsApp/CLI only — Telegram uses messenger wizard later) ──
   local llm="anthropic" proxy="none" tz_value="Europe/Istanbul"
   local anthropic_key="" ollama_url="" ollama_model="" gemini_key="" gemini_model=""
   local public_url="" ngrok_token="" ngrok_domain=""
-  local _caps_selected=""
 
-  # For Telegram: hand off to messenger wizard
-  if [[ "$messenger" == "telegram" && -n "$tg_token" && -n "$tg_chat_id" ]] && command -v python3 &>/dev/null; then
-    _wt_msg "$_S_WIZ_MSG_TITLE" "$_S_MSG_WIZ_TG_STARTING" || true
-    local _wiz_json
-    _wiz_json="$(_run_messenger_wizard "$tg_token" "$tg_chat_id" 2>/tmp/wizard_err.log)" || _wiz_json=""
-    if [[ -n "$_wiz_json" ]]; then
-      ok "  $_S_MSG_WIZ_TG_DONE"
-      llm="$(_parse_wiz "$_wiz_json" "llm" "anthropic")"
-      proxy="$(_parse_wiz "$_wiz_json" "proxy" "none")"
-      tz_value="$(_parse_wiz "$_wiz_json" "timezone" "Europe/Istanbul")"
-      anthropic_key="$(_parse_wiz "$_wiz_json" "anthropic_key" "")"
-      ollama_url="$(_parse_wiz "$_wiz_json" "ollama_url" "http://localhost:11434")"
-      ollama_model="$(_parse_wiz "$_wiz_json" "ollama_model" "llama3")"
-      gemini_key="$(_parse_wiz "$_wiz_json" "gemini_key" "")"
-      gemini_model="$(_parse_wiz "$_wiz_json" "gemini_model" "gemini-2.0-flash")"
-      public_url="$(_parse_wiz "$_wiz_json" "public_url" "")"
-      ngrok_token="$(_parse_wiz "$_wiz_json" "ngrok_token" "")"
-      ngrok_domain="$(_parse_wiz "$_wiz_json" "ngrok_domain" "")"
-      _caps_selected="$(_parse_wiz "$_wiz_json" "caps_selected" "")"
-    else
-      warn "  $_S_MSG_WIZ_TG_FAIL"
-    fi
-  elif [[ "$messenger" == "whatsapp" && -n "$wa_token" && -n "$wa_phone_id" ]]; then
-    # Send setup-in-progress notification; wizard continues in terminal
+  if [[ "$messenger" == "whatsapp" ]]; then
+    # WhatsApp: collect LLM/proxy/timezone in terminal (no interactive bot available)
     _wa_notify "$wa_token" "$wa_phone_id" "$wa_owner" "$_S_MSG_WIZ_WA_NOTIFY" || true
-  fi
 
-  # Terminal fallback: ask LLM/proxy/tz via whiptail if messenger wizard didn't supply them
-  if [[ -z "$_caps_selected" ]]; then
     local _tmp_llm _tmp_proxy
     _tmp_llm=$(_wt_radio "$_S_WIZ_LLM_TITLE" "$_S_WIZ_LLM_MSG" \
       "anthropic" "$_S_WIZ_LLM_AN" ON  \
@@ -1588,6 +1566,7 @@ except: pass" 2>/dev/null || true)"
       tz_value="$tz_choice"
     fi
   fi
+  # For Telegram: LLM/proxy/timezone will be collected via messenger wizard in main()
 
   # ── Security keys + summary ────────────────────────────────────────────────
   local api_key totp_secret totp_admin
@@ -1595,12 +1574,13 @@ except: pass" 2>/dev/null || true)"
   totp_secret="$(_gen_totp)"
   totp_admin="$(_gen_totp)"
 
-  local summary="Messenger  : $messenger\nLLM Backend: $llm\nProxy      : $proxy\nTimezone   : $tz_value"
-  [[ -n "$public_url" ]] && summary+="\nPublic URL : $public_url"
-  [[ -n "$wa_owner"   ]] && summary+="\nWA Owner   : $wa_owner"
-  [[ -n "$tg_chat_id" ]] && summary+="\nTG Chat ID : $tg_chat_id"
-  summary+="\n\n$_S_WIZ_SUM_MSG_AUTO\n$_S_WIZ_SUM_MSG_CONF"
-  _wt_msg "$_S_WIZ_SUM_TITLE" "$summary" || return 1
+  if [[ "$messenger" != "telegram" ]]; then
+    local summary="Messenger  : $messenger\nLLM Backend: $llm\nProxy      : $proxy\nTimezone   : $tz_value"
+    [[ -n "$public_url" ]] && summary+="\nPublic URL : $public_url"
+    [[ -n "$wa_owner"   ]] && summary+="\nWA Owner   : $wa_owner"
+    summary+="\n\n$_S_WIZ_SUM_MSG_AUTO\n$_S_WIZ_SUM_MSG_CONF"
+    _wt_msg "$_S_WIZ_SUM_TITLE" "$summary" || return 1
+  fi
 
   _write_env "$env_dst" "$messenger" "$llm" "$proxy" \
     "$wa_token" "$wa_phone_id" "$wa_secret" "$wa_verify" "$wa_owner" \
@@ -1609,13 +1589,6 @@ except: pass" 2>/dev/null || true)"
     "$public_url" "$ngrok_token" "$ngrok_domain" \
     "$api_key" "$totp_secret" "$totp_admin" \
     "$tz_value"
-
-  # Write capability flags if collected from messenger wizard
-  if [[ -n "$_caps_selected" ]]; then
-    log "  ↳ Writing capabilities from messenger wizard..."
-    _write_capabilities "$_caps_selected"
-    ok "  ↳ Capabilities written"
-  fi
 
   # For WhatsApp: send a setup-complete summary to the owner's number
   if [[ "$messenger" == "whatsapp" && -n "$wa_token" && -n "$wa_phone_id" && -n "$wa_owner" ]]; then
@@ -1716,46 +1689,15 @@ except: pass" 2>/dev/null || true)"
     ok "  $_S_TXT_WSECRET_AUTO"
   fi
 
-  # ── Phase 2: LLM / Proxy / Timezone / Capabilities ────────────────────────
+  # ── Phase 2: LLM / Proxy / Timezone (WhatsApp/CLI only — Telegram uses messenger wizard later) ──
   local llm="anthropic" proxy="none" tz_value="Europe/Istanbul"
   local anthropic_key="" ollama_url="" ollama_model="" gemini_key="" gemini_model=""
   local public_url="" ngrok_token="" ngrok_domain=""
-  local _caps_selected=""
 
-  if [[ "$messenger" == "telegram" && -n "$tg_token" && -n "$tg_chat_id" ]] && command -v python3 &>/dev/null; then
-    echo ""; echo "  ════════════════════════════════════════════════════"; echo "  ════════════════════════════════════════════════════"
-    log "  $_S_MSG_WIZ_TG_STARTING"
-    echo ""
-    echo "  ════════════════════════════════════════════════════"
-    echo "  $_S_MSG_WIZ_TG_WAIT"
-    echo "  ════════════════════════════════════════════════════"
-    echo ""
-    local _wiz_json
-    _wiz_json="$(_run_messenger_wizard "$tg_token" "$tg_chat_id")" || _wiz_json=""
-    if [[ -n "$_wiz_json" ]]; then
-      ok "  $_S_MSG_WIZ_TG_DONE"
-      llm="$(_parse_wiz "$_wiz_json" "llm" "anthropic")"
-      proxy="$(_parse_wiz "$_wiz_json" "proxy" "none")"
-      tz_value="$(_parse_wiz "$_wiz_json" "timezone" "Europe/Istanbul")"
-      anthropic_key="$(_parse_wiz "$_wiz_json" "anthropic_key" "")"
-      ollama_url="$(_parse_wiz "$_wiz_json" "ollama_url" "http://localhost:11434")"
-      ollama_model="$(_parse_wiz "$_wiz_json" "ollama_model" "llama3")"
-      gemini_key="$(_parse_wiz "$_wiz_json" "gemini_key" "")"
-      gemini_model="$(_parse_wiz "$_wiz_json" "gemini_model" "gemini-2.0-flash")"
-      public_url="$(_parse_wiz "$_wiz_json" "public_url" "")"
-      ngrok_token="$(_parse_wiz "$_wiz_json" "ngrok_token" "")"
-      ngrok_domain="$(_parse_wiz "$_wiz_json" "ngrok_domain" "")"
-      _caps_selected="$(_parse_wiz "$_wiz_json" "caps_selected" "")"
-    else
-      warn "  $_S_MSG_WIZ_TG_FAIL"
-    fi
-  elif [[ "$messenger" == "whatsapp" && -n "$wa_token" && -n "$wa_phone_id" ]]; then
-    # Send setup-in-progress notification; wizard continues in terminal
+  if [[ "$messenger" == "whatsapp" ]]; then
+    # WhatsApp: collect LLM/proxy/timezone in terminal (no interactive bot available)
     _wa_notify "$wa_token" "$wa_phone_id" "$wa_owner" "$_S_MSG_WIZ_WA_NOTIFY" || true
-  fi
 
-  # Terminal fallback: ask LLM / proxy / timezone if messenger wizard did not supply them
-  if [[ -z "$_caps_selected" ]]; then
     echo ""; echo "  ════════════════════════════════════════════════════"; echo "  ════════════════════════════════════════════════════"
     echo ""; echo "$_S_TXT_LLM"
     echo "  $_S_TXT_L1"; echo "  $_S_TXT_L2"; echo "  $_S_TXT_L3"
@@ -1780,10 +1722,10 @@ except: pass" 2>/dev/null || true)"
       IFS= read -r _an_method_txt
       if [[ "${_an_method_txt:-1}" == "2" ]]; then
         while true; do
-    echo "  $_S_WIZ_AN_KEY"
-    IFS= read -r anthropic_key
-    [[ -n "$anthropic_key" ]] && break; warn "$_S_REQUIRED"
-  done
+          echo "  $_S_WIZ_AN_KEY"
+          IFS= read -r anthropic_key
+          [[ -n "$anthropic_key" ]] && break; warn "$_S_REQUIRED"
+        done
       else
         ok "  $_S_WIZ_AN_SKIP"
       fi
@@ -1798,10 +1740,10 @@ except: pass" 2>/dev/null || true)"
     elif [[ "$llm" == "gemini" ]]; then
       echo ""; echo "$_S_TXT_GE"
       while true; do
-    echo "  $_S_WIZ_GE_KEY"
-    IFS= read -r gemini_key
-    [[ -n "$gemini_key" ]] && break; warn "$_S_REQUIRED"
-  done
+        echo "  $_S_WIZ_GE_KEY"
+        IFS= read -r gemini_key
+        [[ -n "$gemini_key" ]] && break; warn "$_S_REQUIRED"
+      done
       echo "  $_S_WIZ_GE_MODEL [gemini-2.0-flash]:"
       IFS= read -r gemini_model
       gemini_model="${gemini_model:-gemini-2.0-flash}"
@@ -1847,6 +1789,7 @@ except: pass" 2>/dev/null || true)"
       *) tz_value="Europe/Istanbul" ;;
     esac
   fi
+  # For Telegram: LLM/proxy/timezone will be collected via messenger wizard in main()
 
   # ── Security keys ──────────────────────────────────────────────────────────
   echo ""; echo "  ════════════════════════════════════════════════════"; echo "  ════════════════════════════════════════════════════"
@@ -1865,13 +1808,6 @@ except: pass" 2>/dev/null || true)"
     "$api_key" "$totp_secret" "$totp_admin" \
     "$tz_value"
 
-  # Write capability flags if collected from messenger wizard
-  if [[ -n "$_caps_selected" ]]; then
-    log "  ↳ Writing capabilities from messenger wizard..."
-    _write_capabilities "$_caps_selected"
-    ok "  ↳ Capabilities written"
-  fi
-
   # For WhatsApp: send a setup-complete summary to the owner's number
   if [[ "$messenger" == "whatsapp" && -n "$wa_token" && -n "$wa_phone_id" && -n "$wa_owner" ]]; then
     local _summary
@@ -1879,6 +1815,68 @@ except: pass" 2>/dev/null || true)"
       "$_S_MSG_WIZ_WA_SUMMARY" "$messenger" "$llm" "$proxy" "$tz_value")"
     [[ -n "$public_url"   ]] && _summary+="$(printf '\n  URL       : %s' "$public_url")"
     _wa_notify "$wa_token" "$wa_phone_id" "$wa_owner" "$_summary" || true
+  fi
+}
+
+# ── .env reader helper ───────────────────────────────────────────────────────
+
+_env_get() {
+  local _key="$1" _file="$2"
+  python3 -c "
+import sys
+key = sys.argv[1]
+try:
+    for line in open(sys.argv[2]).read().splitlines():
+        if line.startswith(key + '='):
+            val = line[len(key)+1:].strip('\"').strip(\"'\")
+            print(val)
+            break
+except Exception:
+    pass
+" "$_key" "$_file" 2>/dev/null || true
+}
+
+# ── Messenger wizard result applicator ───────────────────────────────────────
+# _apply_wiz_to_env <json> <env_file>
+# Writes LLM/proxy/timezone/capability fields from wizard JSON into an
+# existing .env file.  Called from main() after minimal install.
+_apply_wiz_to_env() {
+  local _json="$1" _env="$2"
+  local _llm _proxy _tz _ak _ou _om _gk _gm _pu _nt _nd _caps
+
+  _llm="$(_parse_wiz "$_json" "llm"          "anthropic")"
+  _proxy="$(_parse_wiz "$_json" "proxy"       "none")"
+  _tz="$(_parse_wiz "$_json"   "timezone"     "Europe/Istanbul")"
+  _ak="$(_parse_wiz "$_json"   "anthropic_key" "")"
+  _ou="$(_parse_wiz "$_json"   "ollama_url"   "http://localhost:11434")"
+  _om="$(_parse_wiz "$_json"   "ollama_model" "llama3")"
+  _gk="$(_parse_wiz "$_json"   "gemini_key"   "")"
+  _gm="$(_parse_wiz "$_json"   "gemini_model" "gemini-2.0-flash")"
+  _pu="$(_parse_wiz "$_json"   "public_url"   "")"
+  _nt="$(_parse_wiz "$_json"   "ngrok_token"  "")"
+  _nd="$(_parse_wiz "$_json"   "ngrok_domain" "")"
+  _caps="$(_parse_wiz "$_json" "caps_selected" "")"
+
+  _env_set "LLM_BACKEND"   "$_llm"   "$_env"
+  _env_set "WEBHOOK_PROXY" "$_proxy" "$_env"
+  _env_set "TIMEZONE"      "$_tz"    "$_env"
+
+  if [[ -n "$_ak" ]]; then
+    _env_set "ANTHROPIC_API_KEY" "$_ak" "$_env"
+  else
+    sed -i '/^ANTHROPIC_API_KEY=/d' "$_env"
+  fi
+  [[ -n "$_ou" ]] && _env_set "OLLAMA_BASE_URL" "$_ou" "$_env"
+  [[ -n "$_om" ]] && _env_set "OLLAMA_MODEL"    "$_om" "$_env"
+  [[ -n "$_gk" ]] && _env_set "GEMINI_API_KEY"  "$_gk" "$_env"
+  [[ -n "$_gm" ]] && _env_set "GEMINI_MODEL"    "$_gm" "$_env"
+  [[ -n "$_pu" ]] && _env_set "PUBLIC_URL"       "$_pu" "$_env"
+  [[ -n "$_nt" ]] && _env_set "NGROK_AUTHTOKEN"  "$_nt" "$_env"
+  [[ -n "$_nd" ]] && _env_set "NGROK_DOMAIN"     "$_nd" "$_env"
+
+  if [[ -n "$_caps" ]]; then
+    _write_capabilities "$_caps"
+    ok "  ↳ Capabilities written from Telegram wizard"
   fi
 }
 
@@ -2568,8 +2566,51 @@ main() {
   echo "=================================================="
 
   check_prereqs
-  step_env           # .env oluştur / güncelle
-  step_capabilities  # RESTRICT_* / *_ENABLED flag'lerini yaz
+  step_env  # .env oluştur / güncelle (Telegram için sadece creds; LLM/proxy/tz/caps sonra)
+
+  # ── Telegram: minimal install → messenger wizard → .env güncelle ──────────
+  local _env_file="$BACKEND_DIR/.env"
+  if [[ "$(_env_get "MESSENGER_TYPE" "$_env_file")" == "telegram" ]] && ! $NO_WIZARD; then
+    # 1. Minimal install (Node deps — hızlı, capabilities bağımsız)
+    step_npm
+
+    # 2. Terminal notice
+    echo ""
+    echo "  ════════════════════════════════════════════════════"
+    echo "  $_S_MSG_WIZ_TG_INSTALL_NOTICE"
+    echo "  ════════════════════════════════════════════════════"
+    log "  $_S_MSG_WIZ_TG_STARTING"
+    echo ""
+    echo "  ════════════════════════════════════════════════════"
+    echo "  $_S_MSG_WIZ_TG_WAIT"
+    echo "  ════════════════════════════════════════════════════"
+    echo ""
+
+    # 3. Run messenger wizard
+    local _tg_tok _tg_cid _wiz_result
+    _tg_tok="$(_env_get "TELEGRAM_BOT_TOKEN" "$_env_file")"
+    _tg_cid="$(_env_get "TELEGRAM_CHAT_ID"   "$_env_file")"
+    _wiz_result=""
+    if [[ -n "$_tg_tok" && -n "$_tg_cid" ]] && command -v python3 &>/dev/null; then
+      _wiz_result="$(_run_messenger_wizard "$_tg_tok" "$_tg_cid")" || _wiz_result=""
+    fi
+
+    # 4. Apply results (or defaults on timeout)
+    if [[ -n "$_wiz_result" ]]; then
+      ok "  $_S_MSG_WIZ_TG_DONE"
+      _apply_wiz_to_env "$_wiz_result" "$_env_file"
+    else
+      warn "  $_S_MSG_WIZ_TG_TIMEOUT_DEFAULTS"
+      # Write defaults so capabilities step can proceed
+      _env_set "LLM_BACKEND"   "anthropic"        "$_env_file"
+      _env_set "WEBHOOK_PROXY" "none"              "$_env_file"
+      _env_set "TIMEZONE"      "Europe/Istanbul"   "$_env_file"
+      # Remove any stale ANTHROPIC_API_KEY placeholder so claude auth is triggered
+      sed -i '/^ANTHROPIC_API_KEY=YOUR_ANTHROPIC_API_KEY/d' "$_env_file" 2>/dev/null || true
+    fi
+  fi
+
+  step_capabilities  # RESTRICT_* / *_ENABLED flag'lerini yaz (caps wizard'dan veya varsayılan)
 
   if $USE_DOCKER; then
     # Docker modu: auth → data dirs → build & start
