@@ -2623,6 +2623,8 @@ main() {
       _env_set "TIMEZONE"      "Europe/Istanbul"   "$_env_file"
       # Remove any stale ANTHROPIC_API_KEY placeholder so claude auth is triggered
       sed -i '/^ANTHROPIC_API_KEY=YOUR_ANTHROPIC_API_KEY/d' "$_env_file" 2>/dev/null || true
+      # Pre-write Basic caps so step_capabilities returns early (no non-interactive prompt)
+      _write_capabilities "$(_caps_basic_str)"
     fi
   fi
 
