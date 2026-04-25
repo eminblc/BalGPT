@@ -469,6 +469,7 @@ Store the secrets in a password manager as backup."
     _S_CAP_BROWSER="Browser automation              (Playwright, ~500 MB extra)"
 
     # ── Messenger wizard
+    _S_MSG_WIZ_TG_NOTIFY="⚙️ 99-root setup wizard is starting. Please answer the questions below to complete the installation."
     _S_MSG_WIZ_TG_STARTING="Sending setup wizard to Telegram — please complete the steps there."
     _S_MSG_WIZ_TG_WAIT=">>> Continue setup in Telegram — tap the buttons in your chat <<<"
     _S_MSG_WIZ_TG_DONE="Telegram wizard complete — resuming terminal setup"
@@ -869,6 +870,7 @@ Secret'ları yedek olarak bir parola yöneticisine kaydedin."
     _S_CAP_BROWSER="Tarayıcı otomasyonu           (Playwright, ~500 MB ekstra)"
 
     # ── Messenger sihirbazı
+    _S_MSG_WIZ_TG_NOTIFY="⚙️ 99-root kurulum sihirbazı başlıyor. Kurulumu tamamlamak için aşağıdaki soruları yanıtlayın."
     _S_MSG_WIZ_TG_STARTING="Kurulum sihirbazı Telegram'a gönderiliyor — adımları orada tamamlayın."
     _S_MSG_WIZ_TG_WAIT=">>> Kuruluma Telegram'dan devam edin — chat'teki butonlara dokunun <<<"
     _S_MSG_WIZ_TG_DONE="Telegram sihirbazı tamamlandı — terminal kurulumu devam ediyor"
@@ -1407,6 +1409,21 @@ print(json.dumps({'messaging_product':'whatsapp','to':owner,'type':'text','text'
     -H "Content-Type: application/json" \
     -d "$_body" \
     "https://graph.facebook.com/${_WA_API_VER}/$_pid/messages" \
+    >/dev/null 2>&1 || true
+}
+
+# _tg_notify <token> <chat_id> <message>
+# Sends a plain-text Telegram message (fire-and-forget).
+_tg_notify() {
+  local _tok="$1" _cid="$2" _msg="$3"
+  [ -z "$_tok" ] || [ -z "$_cid" ] && return 0
+  local _body
+  _body="$(python3 -c "import sys,json; print(json.dumps({'chat_id':int(sys.argv[1]),'text':sys.argv[2]}))" \
+    "$_cid" "$_msg" 2>/dev/null)" || return 0
+  curl -s --max-time 10 \
+    -H "Content-Type: application/json" \
+    -d "$_body" \
+    "https://api.telegram.org/bot${_tok}/sendMessage" \
     >/dev/null 2>&1 || true
 }
 
@@ -2608,6 +2625,8 @@ main() {
     _tg_cid="$(_env_get "TELEGRAM_CHAT_ID"   "$_env_file")"
     _wiz_result=""
     if [[ -n "$_tg_tok" && -n "$_tg_cid" ]] && command -v python3 &>/dev/null; then
+      # Fire a heads-up message so the user knows to switch to Telegram
+      _tg_notify "$_tg_tok" "$_tg_cid" "$_S_MSG_WIZ_TG_NOTIFY"
       _wiz_result="$(_run_messenger_wizard "$_tg_tok" "$_tg_cid")" || _wiz_result=""
     fi
 
