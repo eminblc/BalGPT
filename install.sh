@@ -73,7 +73,7 @@ _select_language() {
     echo "  Language / Dil:"
     echo "  1) Türkçe (varsayılan / default)"
     echo "  2) English"
-    read -rp "  [1]: " _lang_choice
+    _ask_inline "  [1]:" _lang_choice
     case "${_lang_choice:-1}" in
       2|en|EN) INSTALL_LANG="en" ;;
       *)        INSTALL_LANG="tr" ;;
@@ -2119,10 +2119,10 @@ _capabilities_text() {
   for (( i=0; i<${#keys[@]}; i++ )); do
     local def="${defaults[$i]}"
     if [[ "$def" == "Y" ]]; then
-      read -rp "  ${labels[$i]} [Y/n]: " ans
+      _ask_inline "  ${labels[$i]} [Y/n]:" ans
       ans="${ans:-Y}"
     else
-      read -rp "  ${labels[$i]} [y/N]: " ans
+      _ask_inline "  ${labels[$i]} [y/N]:" ans
       ans="${ans:-N}"
     fi
     [[ "${ans,,}" =~ ^y ]] && selected+=" \"${keys[$i]}\""
@@ -2367,7 +2367,7 @@ PYEOF
       echo "  ★  $_S_TOTP_NO_QR_ADMIN  : $totp_admin"
     fi
     echo ""
-    read -rp "  $_S_TOTP_NO_QR_SEND_HINT " _totp_send_choice
+    _ask_inline "  $_S_TOTP_NO_QR_SEND_HINT" _totp_send_choice
     if [[ "${_totp_send_choice}" == "1" ]]; then
       log "  $_S_TOTP_NO_QR_SENDING"
       if _totp_send_via_messenger "$totp_secret" "$totp_admin" "$env_dst"; then
