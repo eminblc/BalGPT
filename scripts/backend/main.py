@@ -44,7 +44,7 @@ async def _notify(text: str) -> None:
 async def lifespan(app: FastAPI):
     """Startup ve shutdown hook'ları."""
     configure_logging(level=settings.log_level)
-    logger.info("99-root kişisel ajan başlatılıyor (port %d)", settings.port)
+    logger.info("BalGPT başlatılıyor (port %d)", settings.port)
 
     # Güvenlik doğrulaması — SRP: tüm mantık Settings.validate_for_environment()'ta
     settings.validate_for_environment()
@@ -120,7 +120,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Personal Agent API",
+    title="BalGPT API",
     docs_url=None,       # Swagger kapalı (güvenlik)
     redoc_url=None,
     lifespan=lifespan,

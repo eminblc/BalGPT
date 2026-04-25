@@ -146,7 +146,7 @@
 | PR-4 | PDF gönder → proje wizard başlıyor | [ ] | |
 | PR-5 | `!project <id>` ile projeye geçiş | [ ] | |
 | PR-6 | Beta modunda mesaj projeye gidiyor | [ ] | |
-| PR-7 | `!beta-exit` → root bağlama dönüldü | [ ] | |
+| PR-7 | `!beta` → root bağlama dönüldü | [ ] | |
 
 ---
 

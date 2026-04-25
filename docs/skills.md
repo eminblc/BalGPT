@@ -330,7 +330,7 @@ MIME type is auto-detected from extension: `image/*` → photo, `video/*` → vi
 | `!shutdown` | `shutdown_cmd.py` | OWNER | Stops FastAPI service (math challenge + admin TOTP) |
 | `!schedule` | `schedule_cmd.py` | OWNER | Scheduled task management (list/delete/detail) |
 | `!root-check` | `root_check_cmd.py` | OWNER | Shows last 5 lines of `root_actions.log` |
-| `!beta-exit` | `beta_exit.py` | OWNER | Exits project beta mode |
+| `!beta` | `beta_exit.py` | OWNER | Exits project beta mode |
 | `!project-delete` | `project_delete_cmd.py` | OWNER | Removes project from DB (math challenge + admin TOTP; filesystem untouched) |
 | `!root-project` | `root_project_cmd.py` | OWNER | Assigns active project context to root agent |
 | `!root-exit` | `root_exit_cmd.py` | OWNER | Exits root project context |

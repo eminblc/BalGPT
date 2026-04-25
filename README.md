@@ -1,6 +1,8 @@
-# Personal AI Agent
+# BalGPT
 
-A self-hosted personal AI agent controlled via WhatsApp or Telegram. Send a message, get things done — create projects, manage tasks, set calendar reminders, run shell commands, import PDFs, and chat with Claude Code directly from your phone. Everything runs locally on your machine; no data leaves unless you configure cloud services.
+> _Self-hosted personal AI agent — chat with it on WhatsApp or Telegram._
+
+**BalGPT** is a self-hosted assistant that lives on your machine and listens on WhatsApp or Telegram. Send it a message, get things done — create projects, manage tasks, set calendar reminders, run shell commands, import PDFs, and talk to Claude Code directly from your phone. Everything runs locally; no data leaves unless you configure cloud services.
 
 ---
 
@@ -20,11 +22,361 @@ WhatsApp / Telegram → POST /whatsapp/webhook  or  POST /telegram/webhook
 
 ---
 
-## Quick Start
+## 🚀 Getting Started — Beginner Guide
+
+> **Don't worry if you're new to terminals or servers.** This guide assumes nothing. Pick your operating system and follow the steps in order. Total time: ~10–20 minutes (most of it Docker downloading images).
+
+| Your OS | Jump to |
+|---------|---------|
+| 🪟 **Windows 10 / 11** | [Windows Setup](#-windows-setup) |
+| 🍎 **macOS** (Intel or Apple Silicon) | [macOS Setup](#-macos-setup) |
+| 🐧 **Linux** (Ubuntu / Debian / Fedora) | [Linux Setup](#-linux-setup) |
+
+> 💡 **What you'll get at the end:** A bot on your phone (Telegram or WhatsApp) that you can chat with. It will create files, run commands, set reminders, and remember what you talked about — all running on your computer.
+
+---
+
+## 🪟 Windows Setup
+
+### What you need (free, install once)
+
+| # | Tool | Download | What it does |
+|---|------|----------|--------------|
+| 1 | **Docker Desktop** | [docker.com/desktop](https://docs.docker.com/desktop/install/windows-install/) | Runs the bot in a container |
+| 2 | **Git for Windows** | [git-scm.com/download/win](https://git-scm.com/download/win) | Provides "Git Bash" — the terminal you'll use |
+| 3 | **Python 3.11+** | [python.org/downloads/windows](https://www.python.org/downloads/windows/) | Required by the installer wizard |
+
+**Important during installation:**
+- Docker Desktop: leave all defaults checked. After install, **launch it** (whale icon in tray, ~1 min to boot).
+- Git for Windows: leave all defaults (especially the "Git Bash Here" option).
+- Python: ☑ **Check "Add python.exe to PATH"** on the first install screen — without this, the installer can't find Python.
+
+### Verify everything is ready
+
+Open **Git Bash** (Start Menu → "Git Bash"), then paste these one at a time:
+
+```bash
+docker --version
+python3 --version
+bash --version | head -1
+```
+
+You should see Docker 24+, Python 3.11+, Bash 4+. If any prints `command not found`, reinstall that tool.
+
+### Step 1 — Make sure Docker is running
+
+Look at the system tray (bottom right). Whale icon should say **"Docker Desktop is running"**. If not, click the icon and start it.
+
+### Step 2 — Download the project
+
+In Git Bash:
+
+```bash
+git clone https://github.com/your-username/99-root.git
+cd 99-root
+```
+
+### Step 3 — Run the installer
+
+```bash
+bash install.sh --docker
+```
+
+The installer asks ~6 questions, then builds the bot. Each question has a **recommended answer** — when in doubt, pick that. See [What the wizard asks](#-what-the-wizard-asks) below.
+
+### Step 4 — Verify it works
+
+After the installer finishes (10–15 min the first time), run:
+
+```bash
+docker compose ps
+curl -s http://localhost:8010/health
+curl -s http://localhost:8013/health
+```
+
+Both `curl` commands should print JSON containing `"status":"ok"`. Then **send a message to your bot** (Telegram or WhatsApp). You should get a reply within a few seconds.
+
+### Common Windows problems
+
+| Symptom | Fix |
+|---------|-----|
+| `bash: install.sh: No such file or directory` | You're not in the project folder. Run `cd 99-root` first. |
+| `Docker daemon is not running` | Open Docker Desktop and wait for the whale icon to stop animating. |
+| Wizard appears in PowerShell and looks broken | You ran the script from PowerShell. Close it; open **Git Bash** instead. |
+| `python3: command not found` | Reinstall Python from python.org with ☑ **Add to PATH** checked. |
+| Browser doesn't open during `claude auth login` | Copy the URL printed in the terminal and paste it into your browser manually. |
+| Installer hangs at "Public URL bekleniyor" | ngrok account issue. Sign up at [ngrok.com](https://ngrok.com), copy authtoken, re-run with `--reconfigure-capabilities`. |
+
+---
+
+## 🍎 macOS Setup
+
+### What you need (free, install once)
+
+| # | Tool | How to install | What it does |
+|---|------|----------------|--------------|
+| 1 | **Homebrew** | Run this in Terminal: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` | Package manager — needed for the others |
+| 2 | **Docker Desktop** | `brew install --cask docker` (or [download from docker.com](https://docs.docker.com/desktop/install/mac-install/)) | Runs the bot in a container |
+| 3 | **Python 3.11+** | `brew install python@3.11` (most macs have it already) | Required by the installer |
+| 4 | **Git** | `brew install git` (most macs have it already) | Downloads the project |
+
+After Homebrew + Docker install, **launch Docker Desktop** (Applications → Docker). It takes ~1 minute to boot; you'll see the whale icon in the menu bar say "Docker Desktop is running".
+
+### Verify everything is ready
+
+Open **Terminal** (Cmd+Space → "Terminal"), then:
+
+```bash
+docker --version          # 24+
+python3 --version          # 3.11+
+git --version
+bash --version | head -1   # 3+ on macOS is fine; install.sh handles it
+```
+
+### Step 1 — Download the project
+
+```bash
+git clone https://github.com/your-username/99-root.git
+cd 99-root
+```
+
+### Step 2 — Run the installer
+
+```bash
+bash install.sh --docker
+```
+
+(Same wizard as other OSes — see [What the wizard asks](#-what-the-wizard-asks) below.)
+
+### Step 3 — Verify
+
+```bash
+docker compose ps
+curl -s http://localhost:8010/health
+curl -s http://localhost:8013/health
+```
+
+Both health endpoints should return JSON with `"status":"ok"`. Send a message to your bot to confirm it talks back.
+
+### Common macOS problems
+
+| Symptom | Fix |
+|---------|-----|
+| `Cannot connect to the Docker daemon` | Open Docker Desktop from Applications and wait for it to start. |
+| `python3: command not found` | `brew install python@3.11` then restart Terminal. |
+| Apple Silicon (M1/M2/M3) image build is slow | Normal — first build takes 10–15 min. Subsequent runs take seconds. |
+| `xcrun: error: invalid active developer path` | Run `xcode-select --install`, accept the prompt. |
+| Permission denied creating `/etc/...` | Don't use `sudo` — Docker mode doesn't need it on macOS. |
+
+---
+
+## 🐧 Linux Setup
+
+### What you need (Ubuntu/Debian commands shown — adjust for Fedora/Arch)
+
+```bash
+# 1. Update package index
+sudo apt update
+
+# 2. Install Docker + Docker Compose
+sudo apt install -y docker.io docker-compose-v2
+
+# 3. Add yourself to the docker group (so you don't need sudo for docker commands)
+sudo usermod -aG docker $USER
+# ⚠ Log out and back in for this to take effect
+
+# 4. Install Python 3.11+, git, curl, and the venv module
+sudo apt install -y python3 python3-venv python3-pip git curl
+
+# 5. (Optional but recommended) for terminal QR code rendering:
+sudo apt install -y qrencode whiptail
+```
+
+For Fedora: `sudo dnf install docker docker-compose python3 python3-pip git curl qrencode newt`
+For Arch: `sudo pacman -S docker docker-compose python python-pip git curl qrencode libnewt`
+
+### Verify
+
+```bash
+docker --version
+docker compose version
+python3 --version          # 3.11+
+git --version
+```
+
+If `docker info` complains about permissions, you forgot step 3 (log out/in after `usermod`).
+
+### Step 1 — Make sure Docker is running
+
+```bash
+sudo systemctl start docker        # Ubuntu/Debian/Fedora
+sudo systemctl enable docker       # so it starts on boot
+docker info >/dev/null && echo "Docker OK"
+```
+
+### Step 2 — Download the project
+
+```bash
+git clone https://github.com/your-username/99-root.git
+cd 99-root
+```
+
+### Step 3 — Run the installer
+
+```bash
+bash install.sh --docker
+```
+
+(See [What the wizard asks](#-what-the-wizard-asks) below for the questions.)
+
+### Step 4 — Verify
+
+```bash
+docker compose ps
+curl -s http://localhost:8010/health
+curl -s http://localhost:8013/health
+```
+
+Then send a message to your bot.
+
+### Native install (no Docker) — for advanced users with a dedicated server
+
+If you have a Linux server and want native systemd services for best performance:
+
+```bash
+sudo bash install.sh
+```
+
+This installs into a Python virtualenv, sets up systemd units, and enables them on boot. See [Option B — systemd](#option-b--systemd-linux-only) below for details.
+
+### Common Linux problems
+
+| Symptom | Fix |
+|---------|-----|
+| `permission denied while trying to connect to the Docker daemon` | You forgot to log out/in after `usermod -aG docker`. Or use `sudo` for now. |
+| `error: externally-managed-environment` (PEP 668) | The installer creates an ephemeral venv automatically. Make sure `python3-venv` is installed. |
+| `qrencode not found` and Python `qrcode` missing | The installer auto-installs qrcode in an ephemeral venv. If it fails, you'll see an online QR URL — open it in a browser. |
+| systemd-style errors in Docker mode | You ran `bash install.sh` (without `--docker`). Native mode tries systemd. Use `--docker` flag. |
+
+---
+
+## ❓ What the Wizard Asks
+
+The installer is interactive: it asks ~6 questions, then builds. Here's what each one means and what to pick if you're unsure:
+
+### Q1 — Language
+
+```
+Language / Dil:
+  1) Türkçe (varsayılan / default)
+  2) English
+```
+
+Pick whichever you read more comfortably. All later messages will be in that language.
+
+### Q2 — Messenger Platform
+
+```
+Which platform will receive messages?
+  whatsapp    WhatsApp (Meta Cloud API)
+  telegram    Telegram (BotFather token)
+  cli         CLI — Terminal output only (testing)
+```
+
+🎯 **Recommended: `telegram`** — easiest setup. You just need a free Telegram account (no business verification, no Meta developer account).
+
+- WhatsApp requires a Meta Developer account, a phone number, and an approved business — much harder for first-time users.
+- CLI mode is for testing the bot logic without messengers.
+
+### Q3 — Telegram Setup (if you picked telegram)
+
+The installer asks for:
+
+1. **Bot Token** — from [@BotFather](https://t.me/BotFather):
+   - Open Telegram, message @BotFather
+   - Send `/newbot`
+   - Pick any name
+   - Pick a username ending in `bot` (e.g., `my_personal_agent_bot`)
+   - BotFather replies with a token like `123456789:ABCdef...` — copy and paste it
+2. **Chat ID** — auto-detected:
+   - The installer says "send any message to your bot now"
+   - Open your new bot in Telegram, send "hi"
+   - The installer auto-grabs your chat ID. Done.
+
+### Q4 — LLM Backend
+
+```
+Which AI model do you want to use?
+  anthropic    Anthropic Claude (claude.ai API key)
+  ollama       Ollama — Local, open-source model
+  gemini       Google Gemini (AI Studio API key)
+```
+
+🎯 **Recommended: `anthropic`** with **Claude Login** (subscription) — best results, no API key to manage. Costs whatever your Claude.ai Pro/Max subscription costs (no per-message charge).
+
+- Choose API Key if you don't have a subscription. Get one at [console.anthropic.com](https://console.anthropic.com).
+- Choose Ollama if you want everything local and free (slower, less reliable for tool use).
+- Choose Gemini if you want a free cloud option ([aistudio.google.com](https://aistudio.google.com) gives a free key).
+
+### Q5 — Webhook Proxy
+
+```
+How will Meta/Telegram reach your server?
+  none         No proxy
+  ngrok        ngrok tunnel
+  cloudflared  Cloudflare Tunnel
+  external     Your own domain
+```
+
+🎯 **Recommended: `ngrok`** — gives you a free permanent public HTTPS URL. The bot needs an internet-reachable URL so Telegram/WhatsApp can deliver messages.
+
+- Pick `none` only if your server already has a public IP and domain.
+- Pick `cloudflared` if you have a Cloudflare account.
+- Pick `external` if you have your own domain pointing at this server.
+
+ngrok setup (if you pick it):
+- Sign up free at [ngrok.com](https://ngrok.com)
+- Dashboard → Your Authtoken → copy
+- Dashboard → Domains → "+ New domain" → claim a free static domain (looks like `abc-def.ngrok-free.app`)
+- Paste both into the wizard
+
+### Q6 — Timezone
+
+Pick the city closest to you. Default `Europe/Istanbul` works if you're in Turkey. This controls when reminders fire.
+
+### Q7 — Capabilities
+
+```
+Select which capabilities to ENABLE.
+[*] File access  [*] Network  [*] Shell  [*] Calendar  [*] Plans  ...
+[ ] Desktop      [ ] Browser
+```
+
+🎯 **Recommended: keep defaults.** All but Desktop and Browser are on; that's what most people want. Desktop/Browser require GUI automation packages (~500 MB extra), turn them on only if you need them.
+
+### Q8 — Anthropic Login (if you picked Claude Login)
+
+A browser opens; sign in with your claude.ai account. The installer waits until you're done.
+
+### Q9 — TOTP QR Codes
+
+At the end, you'll see two QR codes (owner + admin). **Scan them with Google Authenticator (or any TOTP app).** These give you 6-digit codes for sensitive bot commands like `!restart` or `!shutdown`.
+
+If your terminal can't render QR codes, you'll see an online URL instead — open it in a browser.
+
+### Q10 — Webhook Setup
+
+The installer prints a webhook URL. For Telegram with ngrok, it's auto-registered. For WhatsApp, you copy the URL into Meta Developer Console → WhatsApp → Configuration → Webhook URL.
+
+---
+
+## 🔧 Reference: Installation Modes
+
+Below sections are detailed reference for the install modes — most users don't need this.
 
 ### Option A — Docker ✅ Recommended
 
-> Best choice for most users. Works on any OS, no Python/Node required on the host.
+> Best choice for most users. Works on Linux, macOS, and Windows (Git Bash + Docker Desktop). The host still needs `bash`, `python3` 3.11+, and `curl` to run the install wizard — see [Prerequisites](#prerequisites). Node.js is **not** needed on the host (the Bridge container ships it).
 
 ```bash
 git clone https://github.com/your-username/99-root.git
@@ -178,7 +530,7 @@ See [`scripts/backend/.env.example`](scripts/backend/.env.example) for all optio
 | `!cancel` | Cancel active TOTP flow, pending action, or in-progress query | Owner |
 | `!lock` | Lock the application (TOTP required to unlock) | Owner + TOTP |
 | `!unlock` | Unlock the application | Owner + TOTP |
-| `!beta-exit` | Exit project beta mode | Owner |
+| `!beta` | Exit project beta mode | Owner |
 | `!project-delete` | Delete a project from the database | Math + Admin TOTP |
 | `!restart` | Restart both services | Math + Admin TOTP |
 | `!shutdown` | Stop the FastAPI service | Math + Admin TOTP |
@@ -255,22 +607,64 @@ See [docs/deployment/byok.md](docs/deployment/byok.md) for a full setup guide an
 
 ## Prerequisites
 
-**Docker (Option A):**
-- Docker Engine + Docker Compose v2 (`docker compose version`)
-- `claude` CLI installed and authenticated on the host (`npm install -g @anthropic-ai/claude-code`)
+### Always required (every install mode)
 
-**systemd / PM2 (Options B & C):**
-- Python 3.11+
-- Node.js 18+
-- `claude` CLI installed and authenticated (`npm install -g @anthropic-ai/claude-code`)
-- `sudo` access for systemd service installation (Option B only)
+| Tool | Why install.sh needs it |
+|------|------------------------|
+| `bash` 4+ | Script interpreter; `set -euo pipefail`, associative arrays |
+| **`python3` 3.11+** | i18n locale loader, JSON parsing, .env helpers, messenger notifications, systemd template rendering, TOTP QR generation. install.sh exits with a fatal error if missing. |
+| `curl` | Telegram/WhatsApp/ngrok API calls |
+| Standard POSIX tools | `awk`, `sed`, `grep`, `mktemp`, `tr`, `cut` (preinstalled on every Linux/macOS, included with Git Bash) |
 
-**All options:**
-- A Telegram bot token **or** a Meta WhatsApp Cloud API app
-- A public HTTPS URL for the webhook — see [Webhook Proxy](#webhook-proxy) above
+> ⚠️ Despite Docker mode handling everything inside containers, **install.sh itself runs on the host and requires Python 3.11+ on the host**. Earlier wording suggesting "no Python on host" was inaccurate.
+
+### Mode-specific
+
+| Mode | Extra requirements |
+|------|--------------------|
+| **Docker** (Option A) | Docker Engine + Docker Compose v2 (`docker compose version`); `claude` CLI on host (auto-installed via `npm` if missing) |
+| **systemd** (Option B) | Node.js 18+; `sudo` access; `claude` CLI |
+| **PM2** (Option C) | Node.js 18+; `claude` CLI; `npm install -g pm2` (script handles this) |
+
+### Optional but recommended
+
+| Tool | Effect if missing |
+|------|-------------------|
+| `whiptail` | Wizard falls back to plain-text prompts (still works, less friendly) |
+| `qrencode` **or** `python3-venv` | TOTP QR rendered in terminal. Without **both**, you get an online QR URL + manual key entry instructions instead. On Debian/Ubuntu `python3-venv` is a separate package: `sudo apt install python3-venv` |
+| `openssl` | Cryptographic random for `API_KEY` and TOTP secrets. Without it, falls back to `date +%s%N \| sha256sum` (lower entropy) |
+| `node` + `npm` (Docker mode) | Auto-install of `claude` CLI; without these you must install Claude CLI manually before starting Bridge |
+
+### Platform notes
+
+- **Linux (Ubuntu 23.04+, Debian 12+, Fedora 38+, etc.)** — PEP 668 blocks `pip install --user`. install.sh creates an ephemeral venv automatically for QR rendering, so no action needed; just have `python3-venv` installed.
+- **macOS** — `python3` from Homebrew or python.org both work. Same PEP 668 caveat.
+- **Windows** — Native install is **not supported**; install.sh exits with a clear error. Use `bash install.sh --docker` from Git Bash with Docker Desktop running. Python 3.11+ must still be on PATH.
+- **WSL** — Treat as Linux. systemd may need explicit enablement (`/etc/wsl.conf` → `[boot] systemd=true`) for Option B.
+
+### External services / accounts
+
+- A **Telegram bot token** (from [@BotFather](https://t.me/BotFather)) **or** a **Meta WhatsApp Cloud API** app
+- An [Anthropic API key](https://console.anthropic.com) **or** a Claude Pro/Max subscription (for `claude auth login`); alternatively use Ollama (local) or Google Gemini
+- A **public HTTPS URL** for the webhook — see [Webhook Proxy](#webhook-proxy) above (ngrok works without buying a domain)
+
+### Quick check
+
+```bash
+bash --version | head -1
+python3 --version    # must print 3.11+
+curl --version | head -1
+docker --version     # Docker mode only
+node --version       # native modes only
+
+# QR code support (optional)
+command -v qrencode || python3 -c 'import venv'
+```
 
 ---
 
 ## License
 
 MIT — see [LICENSE](LICENSE)
+
+Copyright © 2026 Emin Balcı. All rights reserved.

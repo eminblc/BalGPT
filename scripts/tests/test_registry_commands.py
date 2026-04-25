@@ -111,7 +111,7 @@ def test_known_commands_registered():
         "!help", "!history", "!lang", "!lock", "!unlock",
         "!model", "!cancel", "!root-reset", "!project", "!schedule",
         "!restart", "!shutdown", "!root-project", "!root-exit",
-        "!beta-exit", "!root-check", "!root-log", "!project-delete",
+        "!beta", "!root-check", "!root-log", "!project-delete",
         "!terminal", "!timezone", "!tokens",
     }
     registered = set(registry.all_ids())

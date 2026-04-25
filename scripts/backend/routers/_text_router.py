@@ -125,13 +125,13 @@ async def _route_text(sender: str, text: str, session: dict) -> None:
     lang       = session.get("lang", "tr")
     messenger  = get_messenger()
 
-    # ── Beta modu: sadece !beta-exit yerel, geri kalan HER ŞEY projeye gider ──
+    # ── Beta modu: sadece !beta yerel, geri kalan HER ŞEY projeye gider ──
     if context_id != "main":
         cmd = text.split()[0].lower() if text.startswith("!") else ""
-        if cmd == "!beta-exit":
-            command = cmd_registry.get("!beta-exit")
+        if cmd == "!beta":
+            command = cmd_registry.get("!beta")
             if command:
-                await command.execute(sender, text[len("!beta-exit"):].strip(), session)
+                await command.execute(sender, text[len("!beta"):].strip(), session)
             return
         await _forward_to_bridge(sender, text, session)
         return

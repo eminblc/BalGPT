@@ -19,6 +19,7 @@ def _fmt(n: int) -> str:
 class TokensCommand:
     cmd_id      = "!tokens"
     perm        = Perm.OWNER
+    button_id   = "cmd_tokens"
     label       = "Token İstatistikleri"
     description = "LLM token kullanım istatistiklerini gösterir. Zaman aralığı: 24h (varsayılan), 7d, 30d."
     usage       = "!tokens [24h|7d|30d]"

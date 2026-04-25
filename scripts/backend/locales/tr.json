@@ -11,8 +11,7 @@
       "ok": "✅ Admin doğrulandı.",
       "invalid": "❌ Geçersiz admin TOTP. ({remaining} hak kaldı)",
       "locked": "🔒 Çok fazla hatalı admin TOTP. {minutes} dk bekle.",
-      "lockout": "🔒 Çok fazla hatalı deneme. 15 dakika beklemelisin.",
-      "prompt": "🔐 Admin TOTP kodunu gir:\n(!cancel ile iptal)"
+      "lockout": "🔒 Çok fazla hatalı deneme. 15 dakika beklemelisin."
     },
     "desktop_totp": {
       "ok": "✅ Desktop kilidi açıldı. {minutes} dk boyunca geçerli.\nŞimdi desktop işleminizi tekrar isteyin.",
@@ -75,12 +74,11 @@
   },
   "help": {
     "unknown_cmd": "❓ `{cmd}` tanımlı bir komut değil.\n!help yazarak tüm komutları görebilirsin.",
-    "menu_title": "🤖 Kişisel Ajan\n\nNe yapmak istersin?",
+    "menu_title": "🤖 BalGPT\n\nNe yapmak istersin?",
     "list_header": "Komutlar — detay için: !help !komut",
-    "list_button": "Komutları Gör",
     "section_planning": "Planlama & Projeler",
     "section_system": "Sistem & Araçlar",
-    "fallback": "Komutlar:\n!help [!komut]   — Bu menü veya komut açıklaması\n!history [N|özet] — Son mesajlar\n!project [id]    — Aktif projeyi seç (TOTP)\n!lang <tr|en>    — Dil değiştir\n!model           — {model_hint}\n!beta-exit        — Beta'dan çık\n\nProje oluşturma:\n  Menü → Yeni Proje → ad yaz → tür seç:\n  • Yazılım Projesi  (CLAUDE.md, BACKLOG.md ...)\n  • Görev Kaydet     (README + outputs/)\n  • Sadece Klasör    (boş klasör)\n  ya da PDF gönder → aynı tür seçimi\n\nSistem komutları:\n!root-reset  — Session sıfırla\n!restart     — Servisleri yeniden başlat\n!terminal <komut> — Shell komutu çalıştır (tehlikeli → admin TOTP)\n⚠️ Yıkıcı (matematik + admin TOTP):\n!shutdown    — Servisi kapat\n\nZamanlama (TOTP):\n!schedule                        → listele\n!schedule ekle 0 9 * * * <açık>  → her sabah 9 — Bridge'e prompt\n!schedule mesaj 0 9 * * * <metin> → her sabah 9 — sabit mesaj\n!schedule sil|durdur|başlat <id>\nDoğal dil: 'Her sabah 9'da brief yaz' → Claude otomatik oluşturur\n\nKomut olmayan mesajlar Claude'a gider. 💬",
+    "fallback": "Komutlar:\n!help [!komut]   — Bu menü veya komut açıklaması\n!history [N|özet] — Son mesajlar\n!project [id]    — Aktif projeyi seç (TOTP)\n!lang <tr|en>    — Dil değiştir\n!model           — {model_hint}\n!beta        — Beta'dan çık\n\nProje oluşturma:\n  Menü → Yeni Proje → ad yaz → tür seç:\n  • Yazılım Projesi  (CLAUDE.md, BACKLOG.md ...)\n  • Görev Kaydet     (README + outputs/)\n  • Sadece Klasör    (boş klasör)\n  ya da PDF gönder → aynı tür seçimi\n\nSistem komutları:\n!root-reset  — Session sıfırla\n!restart     — Servisleri yeniden başlat\n!terminal <komut> — Shell komutu çalıştır (tehlikeli → admin TOTP)\n⚠️ Yıkıcı (matematik + admin TOTP):\n!shutdown    — Servisi kapat\n\nZamanlama (TOTP):\n!schedule                        → listele\n!schedule ekle 0 9 * * * <açık>  → her sabah 9 — Bridge'e prompt\n!schedule mesaj 0 9 * * * <metin> → her sabah 9 — sabit mesaj\n!schedule sil|durdur|başlat <id>\nDoğal dil: 'Her sabah 9'da brief yaz' → Claude otomatik oluşturur\n\nKomut olmayan mesajlar Claude'a gider. 💬",
     "btn_chat": "💬 Sohbet",
     "btn_plans": "📋 Planlarım",
     "btn_projects": "📁 Projeler",
@@ -139,7 +137,7 @@
     "none_active": "📌 Aktif proje yok. Seçmek için:",
     "not_found": "❌ Proje bulunamadı: {id}",
     "set_ok": "✅ Aktif proje: *{name}*\nBundan sonra 'backlog', 'rapor' gibi ifadeler bu projeye ait.\nÇıkmak için: !project none",
-    "beta_started": "🔀 Beta modu başladı: *{name}*\nMesajların projeye iletiliyor.\nÇıkmak için: !beta-exit"
+    "beta_started": "🔀 Beta modu başladı: *{name}*\nMesajların projeye iletiliyor.\nÇıkmak için: !beta"
   },
   "root_project": {
     "status": "🏠 Root proje: *{name}* (`{id}`)\nYol: `{path}`\nÇıkmak için: `!root-exit`",
@@ -156,7 +154,8 @@
   },
   "beta_exit": {
     "already_main": "ℹ️ Zaten ana ajan modundasın.",
-    "ok": "↩️ Beta modundan çıkıldı ({id}). Ana ajana dönüldü."
+    "ok": "↩️ Beta modundan çıkıldı ({id}). Ana ajana dönüldü.",
+    "not_found": "❌ Proje bulunamadı: {arg}"
   },
   "project_delete": {
     "empty": "📋 Henüz kayıtlı proje yok.",
@@ -164,17 +163,11 @@
     "list_footer": "\nSilmek için: !project-delete <id>",
     "not_found": "❌ Proje bulunamadı: {id}",
     "delete_failed": "❌ Proje silinemedi: {id}",
-    "ok": "🗑 Proje silindi: *{name}* (`{id}`)\n📁 Dizin silinmedi: `{path}`\nDosyaları manuel olarak kaldırabilirsin.",
-    "totp_prompt": "⚠️ Yıkıcı işlem: *{name}* silinecek (yalnızca DB kaydı).\nAdmin TOTP kodunu gir:\n(!cancel ile iptal)"
+    "ok": "🗑 Proje silindi: *{name}* (`{id}`)\n📁 Dizin silinmedi: `{path}`\nDosyaları manuel olarak kaldırabilirsin."
   },
   "root_check": {
     "not_found": "⚠️ root_actions.log bulunamadı.",
-    "header": "📋 root_actions.log (son 5 satır):\n\n",
-    "error": "❌ Veri okunamadı: {error}",
-    "no_data": "⚠️ Henüz kayıtlı veri yok.",
-    "summary": "Son yapılan request saati {in_time}, root'un yaptığı son işlem {root_time}. {status}",
-    "ongoing": "Süreç devam ediyor.",
-    "idle": "Süreç beklemede."
+    "error": "❌ Veri okunamadı: {error}"
   },
   "menu": {
     "chat_mode": "💬 Sohbet modunda. Mesajını yaz.",
@@ -186,7 +179,6 @@
     "tasks_header": "📌 Aktif Görevler:",
     "bridge_ok": "🔧 Sistem Durumu\nBridge: ✅\nAktif oturum: {sessions}",
     "bridge_error": "🔧 Bridge: ❌ yanıt vermiyor",
-    "task_prompt": "⏰ Hangi görevi eklemek istiyorsun? Yaz:",
     "invalid_project_id": "❌ Geçersiz proje kimliği.",
     "project_not_found": "❌ Proje bulunamadı: {id}",
     "projects_title": "Projeler",
@@ -207,7 +199,9 @@
   },
   "lang": {
     "changed": "🌐 Dil değiştirildi: {code}",
-    "invalid": "Desteklenen diller: tr, en"
+    "invalid": "Desteklenen diller: tr, en",
+    "label_tr": "Türkçe",
+    "label_en": "İngilizce"
   },
   "timezone": {
     "current": "🕐 Mevcut saat dilimi: *{tz}*",
@@ -220,7 +214,6 @@
   "wizard": {
     "ask_description": "*{name}* projesinin genel amacını açıkla:\n_(Dosya başlıklarına ve CLAUDE.md'ye eklenecek — atlamak için '-')_",
     "options_title": "*{name}* — Seçenekler\nİstediğin maddeyi değiştir, hazır olunca Onayla:",
-    "select_btn": "Seç",
     "path_confirm": "📁 Proje yolu:\n`{path}`\n\nDeğiştirmek ister misiniz?",
     "path_keep_btn": "✅ Hayır, devam et",
     "path_change_btn": "✏️ Evet, değiştir",
@@ -311,8 +304,6 @@
     "doc_send_error": "⚠️ Dosya iletilemedi. Birazdan tekrar dene."
   },
   "media": {
-    "send_error": "⚠️ Medya gönderilemedi. Daha sonra tekrar dene.",
-    "upload_error": "⚠️ Dosya yüklenemedi. Daha sonra tekrar dene.",
     "pdf_received": "📄 PDF alındı: *{filename}*\nNasıl bir proje oluşturalım?",
     "pdf_btn_full": "📁 Yazılım Projesi",
     "pdf_btn_minimal": "📝 Görev Kaydet",
@@ -327,7 +318,6 @@
     "created": "✅ Proje oluşturuldu: *{name}*\n{desc}\n[Beta Modda Başlat → !beta {id}]"
   },
   "project_menu": {
-    "select_btn": "Seç",
     "sec_run": "Çalıştır / Durdur",
     "start_title": "▶️ Başlat",
     "start_desc": "Servisleri başlat",
@@ -365,13 +355,6 @@
     "task_reminder": "⏰ {message}",
     "task_error": "⚠️ Zamanlanmış görev hatası: {error}"
   },
-  "remind": {
-    "missed": "⚠️ Kaçırılan hatırlatıcı: _{msg}_ ({time})",
-    "exec_error": "❌ Hatırlatıcı çalıştırılamadı: {error}"
-  },
-  "nl_schedule": {
-    "exec_error": "❌ Zamanlı görev başarısız: {error}"
-  },
   "history": {
     "empty": "📭 Geçmiş mesaj bulunamadı.",
     "header": "📜 Son {count} Mesaj:",
@@ -400,8 +383,7 @@
     "allow_btn": "✅ Onayla",
     "deny_btn": "❌ Reddet",
     "allowed": "✅ Araç onaylandı.",
-    "denied": "❌ Araç reddedildi.",
-    "timeout": "⏱ Onay süresi doldu — araç otomatik reddedildi."
+    "denied": "❌ Araç reddedildi."
   },
   "terminal": {
     "usage": "Kullanım: !terminal <komut>\nÖrnek: !terminal ls -la\n\n⚠️ Tehlikeli komutlar Admin TOTP gerektirir.\n📁 Varsayılan çalışma dizini: 99-root/\n💡 İpucu: scripts/backend/venv/bin/pip gibi görece yollar 99-root/ baz alır.",
@@ -416,9 +398,9 @@
     "project_connect_error": "❌ Proje servisine bağlanılamadı."
   },
   "main": {
-    "started": "✅ Kişisel ajan başlatıldı.",
-    "started_with_url": "✅ Kişisel ajan başlatıldı.\n🌐 Webhook URL:\n{url}",
-    "stopping": "🛑 Kişisel ajan kapatılıyor."
+    "started": "✅ BalGPT başlatıldı.",
+    "started_with_url": "✅ BalGPT başlatıldı.\n🌐 Webhook URL:\n{url}",
+    "stopping": "🛑 BalGPT kapatılıyor."
   },
   "tokens": {
     "invalid_span": "❌ Geçersiz zaman aralığı: {span}\nKullanım: !tokens [24h|7d|30d]",

@@ -1,0 +1,492 @@
+#!/usr/bin/env bash
+# lib/wizard.sh — Phase-1 .env wizards (whiptail + text) + writer.
+#
+# Sourced by install.sh; do not execute directly.
+# shellcheck shell=bash
+
+_wizard_whiptail() {
+  local env_dst="$1"
+
+  _wt_msg "$_S_WIZ_WELCOME_TITLE" "$_S_WIZ_WELCOME_MSG" || { warn "$_S_CANCEL"; return 1; }
+
+  # ── Phase 1: Messenger type + credentials ─────────────────────────────────
+  local messenger
+  messenger=$(_wt_radio "$_S_WIZ_MSG_TITLE" "$_S_WIZ_MSG_MSG" \
+    "whatsapp" "$_S_WIZ_MSG_WA"  ON  \
+    "telegram" "$_S_WIZ_MSG_TG"  OFF \
+    "cli"      "$_S_WIZ_MSG_CLI" OFF \
+  ) || { warn "$_S_CANCEL"; return 1; }
+
+  local wa_token="" wa_phone_id="" wa_secret="" wa_verify="" wa_owner=""
+  local tg_token="" tg_chat_id="" tg_webhook_secret=""
+
+  if [[ "$messenger" == "whatsapp" ]]; then
+    _wt_msg "$_S_WIZ_WA_INFO_TITLE" "$_S_WIZ_WA_INFO_MSG" || return 1
+    while true; do
+      wa_token=$(_wt_password "$_S_WIZ_WA_INFO_TITLE" "$_S_WIZ_WA_TOKEN") || return 1
+      [[ -n "$wa_token" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+    done
+    while true; do
+      wa_phone_id=$(_wt_input "$_S_WIZ_WA_INFO_TITLE" "$_S_WIZ_WA_PHONE") || return 1
+      [[ -n "$wa_phone_id" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+    done
+    while true; do
+      wa_secret=$(_wt_password "$_S_WIZ_WA_INFO_TITLE" "$_S_WIZ_WA_SECRET") || return 1
+      [[ -n "$wa_secret" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+    done
+    wa_verify="$(_gen_api_key)"
+    while true; do
+      wa_owner=$(_wt_input "$_S_WIZ_WA_INFO_TITLE" "$_S_WIZ_WA_OWNER") || return 1
+      [[ -n "$wa_owner" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+    done
+
+  elif [[ "$messenger" == "telegram" ]]; then
+    _wt_msg "$_S_WIZ_TG_INFO_TITLE" "$_S_WIZ_TG_INFO_MSG" || return 1
+    while true; do
+      tg_token=$(_wt_password "$_S_WIZ_TG_INFO_TITLE" "$_S_WIZ_TG_TOKEN") || return 1
+      [[ -n "$tg_token" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+    done
+    # Delete any existing webhook so getUpdates works (previous failed install may leave one)
+    curl -s --max-time 5 -X POST "https://api.telegram.org/bot${tg_token}/deleteWebhook" >/dev/null 2>&1 || true
+    # Flush old updates so only the next fresh message is returned
+    local _tg_flush _tg_next_offset=0
+    _tg_flush="$(curl -s --max-time 8 "https://api.telegram.org/bot${tg_token}/getUpdates?limit=100" 2>/dev/null || true)"
+    _tg_next_offset="$(_tg_extract_next_offset "$_tg_flush")"
+    # Ask user to send a message, then long-poll for the NEW message only
+    _wt_msg "$_S_WIZ_TG_SEND_MSG_TITLE" "$_S_WIZ_TG_SEND_MSG" || return 1
+    local _tg_auto_id=""
+    _tg_auto_id="$(curl -s --max-time 35 "https://api.telegram.org/bot${tg_token}/getUpdates?timeout=30&limit=1&offset=${_tg_next_offset}" 2>/dev/null \
+      | python3 -c "import sys,json
+try:
+    d=json.load(sys.stdin)
+    print(d['result'][0]['message']['chat']['id'])
+except: pass" 2>/dev/null || true)"
+    if [[ -n "$_tg_auto_id" ]]; then
+      _wt_msg "$_S_WIZ_TG_INFO_TITLE" "$_S_TXT_TG_CHATID_OK: $_tg_auto_id" || return 1
+      tg_chat_id="$_tg_auto_id"
+    else
+      _wt_msg "$_S_WIZ_TG_INFO_TITLE" "$_S_TXT_TG_CHATID_FAIL" || return 1
+      while true; do
+        tg_chat_id=$(_wt_input "$_S_WIZ_TG_INFO_TITLE" "$_S_WIZ_TG_CHAT") || return 1
+        [[ -n "$tg_chat_id" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+      done
+    fi
+    tg_webhook_secret="$(_gen_api_key)"
+  fi
+
+  # ── Phase 2: LLM / Proxy / Timezone (WhatsApp/CLI only — Telegram uses messenger wizard later) ──
+  local llm="anthropic" proxy="none" tz_value="Europe/Istanbul"
+  local anthropic_key="" ollama_url="" ollama_model="" gemini_key="" gemini_model=""
+  local public_url="" ngrok_token="" ngrok_domain=""
+
+  if [[ "$messenger" == "whatsapp" ]]; then
+    # WhatsApp: collect LLM/proxy/timezone in terminal (no interactive bot available)
+    _wa_notify "$wa_token" "$wa_phone_id" "$wa_owner" "$_S_MSG_WIZ_WA_NOTIFY" || true
+
+    local _tmp_llm _tmp_proxy
+    _tmp_llm=$(_wt_radio "$_S_WIZ_LLM_TITLE" "$_S_WIZ_LLM_MSG" \
+      "anthropic" "$_S_WIZ_LLM_AN" ON  \
+      "ollama"    "$_S_WIZ_LLM_OL" OFF \
+      "gemini"    "$_S_WIZ_LLM_GE" OFF \
+    ) || { warn "$_S_CANCEL"; return 1; }
+    llm="$_tmp_llm"
+
+    _tmp_proxy=$(_wt_radio "$_S_WIZ_PRX_TITLE" "$_S_WIZ_PRX_MSG" \
+      "none"        "$_S_WIZ_PRX_NONE"  ON  \
+      "ngrok"       "$_S_WIZ_PRX_NGROK" OFF \
+      "cloudflared" "$_S_WIZ_PRX_CF"    OFF \
+      "external"    "$_S_WIZ_PRX_EXT"   OFF \
+    ) || { warn "$_S_CANCEL"; return 1; }
+    proxy="$_tmp_proxy"
+
+    if [[ "$llm" == "anthropic" ]]; then
+      local _an_method
+      _an_method=$(_wt_radio "$_S_WIZ_AN_INFO_TITLE" "$_S_WIZ_AN_CHOICE_MSG" \
+        "login"  "$_S_WIZ_AN_CHOICE_1" ON  \
+        "apikey" "$_S_WIZ_AN_CHOICE_2" OFF \
+      ) || { warn "$_S_CANCEL"; return 1; }
+      if [[ "$_an_method" == "apikey" ]]; then
+        while true; do
+          anthropic_key=$(_wt_password "$_S_WIZ_AN_INFO_TITLE" "$_S_WIZ_AN_KEY") || return 1
+          [[ -n "$anthropic_key" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+        done
+      else
+        _wt_msg "$_S_WIZ_AN_INFO_TITLE" "$_S_WIZ_AN_SKIP" || return 1
+      fi
+    elif [[ "$llm" == "ollama" ]]; then
+      _wt_msg "$_S_WIZ_OL_INFO_TITLE" "$_S_WIZ_OL_INFO_MSG" || return 1
+      ollama_url=$(_wt_input "$_S_WIZ_OL_INFO_TITLE"   "$_S_WIZ_OL_URL"   "http://localhost:11434") || return 1
+      ollama_model=$(_wt_input "$_S_WIZ_OL_INFO_TITLE" "$_S_WIZ_OL_MODEL" "llama3") || return 1
+    elif [[ "$llm" == "gemini" ]]; then
+      _wt_msg "$_S_WIZ_GE_INFO_TITLE" "$_S_WIZ_GE_INFO_MSG" || return 1
+      while true; do
+        gemini_key=$(_wt_password "$_S_WIZ_GE_INFO_TITLE" "$_S_WIZ_GE_KEY") || return 1
+        [[ -n "$gemini_key" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+      done
+      gemini_model=$(_wt_input "$_S_WIZ_GE_INFO_TITLE" "$_S_WIZ_GE_MODEL" "gemini-2.0-flash") || return 1
+    fi
+
+    if [[ "$proxy" == "external" ]]; then
+      while true; do
+        public_url=$(_wt_input "$_S_WIZ_PRX_TITLE" "$_S_WIZ_EXT_URL") || return 1
+        [[ "$public_url" == https://* ]] && break; _wt_msg "$_S_ERROR" "$_S_URL_HTTPS"
+      done
+    elif [[ "$proxy" == "ngrok" ]]; then
+      _wt_msg "$_S_WIZ_NGROK_INFO_TITLE" "$_S_WIZ_NGROK_INFO_MSG" || return 1
+      ngrok_token=$(_wt_password "$_S_WIZ_NGROK_INFO_TITLE" "$_S_WIZ_NGROK_TOKEN") || return 1
+      ngrok_domain=$(_wt_input "$_S_WIZ_NGROK_INFO_TITLE" "$_S_WIZ_NGROK_DOMAIN") || return 1
+    elif [[ "$proxy" == "cloudflared" ]]; then
+      _wt_msg "$_S_WIZ_CF_INFO_TITLE" "$_S_WIZ_CF_INFO_MSG" || return 1
+      if ! command -v cloudflared &>/dev/null; then warn "$_S_WIZ_CF_MISSING"; fi
+    fi
+
+    local tz_choice
+    tz_choice=$(_wt_radio "$_S_WIZ_TZ_TITLE" "$_S_WIZ_TZ_MSG" \
+      "Europe/Istanbul"    "$_S_WIZ_TZ_TRT" ON  \
+      "Europe/London"      "$_S_WIZ_TZ_LON" OFF \
+      "Europe/Paris"       "$_S_WIZ_TZ_PAR" OFF \
+      "America/New_York"   "$_S_WIZ_TZ_NYC" OFF \
+      "America/Los_Angeles" "$_S_WIZ_TZ_LAX" OFF \
+      "Asia/Tokyo"         "$_S_WIZ_TZ_TYO" OFF \
+      "UTC"                "$_S_WIZ_TZ_UTC" OFF \
+      "other"              "$_S_WIZ_TZ_OTH" OFF \
+    ) || { warn "$_S_CANCEL"; return 1; }
+    if [[ "$tz_choice" == "other" ]]; then
+      tz_value=$(_wt_input "$_S_WIZ_TZ_TITLE" "$_S_WIZ_TZ_CUSTOM" "Europe/Istanbul") || return 1
+      tz_value="${tz_value:-Europe/Istanbul}"
+    else
+      tz_value="$tz_choice"
+    fi
+  fi
+  # For Telegram: LLM/proxy/timezone will be collected via messenger wizard in main()
+
+  # ── Security keys + summary ────────────────────────────────────────────────
+  local api_key totp_secret totp_admin
+  api_key="$(_gen_api_key)"
+  totp_secret="$(_gen_totp)"
+  totp_admin="$(_gen_totp)"
+
+  if [[ "$messenger" != "telegram" ]]; then
+    local summary="Messenger  : $messenger\nLLM Backend: $llm\nProxy      : $proxy\nTimezone   : $tz_value"
+    [[ -n "$public_url" ]] && summary+="\nPublic URL : $public_url"
+    [[ -n "$wa_owner"   ]] && summary+="\nWA Owner   : $wa_owner"
+    summary+="\n\n$_S_WIZ_SUM_MSG_AUTO\n$_S_WIZ_SUM_MSG_CONF"
+    _wt_msg "$_S_WIZ_SUM_TITLE" "$summary" || return 1
+  fi
+
+  _write_env "$env_dst" "$messenger" "$llm" "$proxy" \
+    "$wa_token" "$wa_phone_id" "$wa_secret" "$wa_verify" "$wa_owner" \
+    "$tg_token" "$tg_chat_id" "$tg_webhook_secret" \
+    "$anthropic_key" "$ollama_url" "$ollama_model" "$gemini_key" "$gemini_model" \
+    "$public_url" "$ngrok_token" "$ngrok_domain" \
+    "$api_key" "$totp_secret" "$totp_admin" \
+    "$tz_value"
+
+  # For WhatsApp: send a setup-complete summary to the owner's number
+  if [[ "$messenger" == "whatsapp" && -n "$wa_token" && -n "$wa_phone_id" && -n "$wa_owner" ]]; then
+    local _summary
+    _summary="$(printf '%s\n  Messenger : %s\n  LLM       : %s\n  Proxy     : %s\n  Timezone  : %s' \
+      "$_S_MSG_WIZ_WA_SUMMARY" "$messenger" "$llm" "$proxy" "$tz_value")"
+    [[ -n "$public_url"   ]] && _summary+="$(printf '\n  URL       : %s' "$public_url")"
+    _wa_notify "$wa_token" "$wa_phone_id" "$wa_owner" "$_summary" || true
+  fi
+}
+
+
+_wizard_text() {
+  local env_dst="$1"
+  echo ""
+  echo "════════════════════════════════════════════"
+  echo " $_S_TXT_TITLE"
+  echo " $_S_TXT_HINT"
+  echo "════════════════════════════════════════════"
+
+  # ── Messenger seçimi ──────────────────────────────────────────────────────
+  echo ""
+  echo "$_S_TXT_MESSENGER"
+  echo "  $_S_TXT_M1"
+  echo "  $_S_TXT_M2"
+  echo "  $_S_TXT_M3"
+  echo ""
+  _ask_inline "[1/2/3]:" _m
+  local messenger
+  case "${_m:-1}" in 2) messenger="telegram";; 3) messenger="cli";; *) messenger="whatsapp";; esac
+
+  _sep
+  local wa_token="" wa_phone_id="" wa_secret="" wa_verify="" wa_owner=""
+  local tg_token="" tg_chat_id="" tg_webhook_secret=""
+
+  # ── WhatsApp kimlik bilgileri ─────────────────────────────────────────────
+  if [[ "$messenger" == "whatsapp" ]]; then
+    echo ""
+    echo "$_S_TXT_WA"
+    printf "  %b\n" "$_S_WIZ_WA_INFO_MSG"
+    echo ""
+    _ask_req "$_S_WIZ_WA_TOKEN" wa_token
+    _ask_req "$_S_WIZ_WA_PHONE" wa_phone_id
+    _ask_req "$_S_WIZ_WA_SECRET" wa_secret
+    wa_verify="$(_gen_api_key)"
+    ok "  $_S_TXT_VERIFY_AUTO: $wa_verify"
+    _ask_req "$_S_WIZ_WA_OWNER" wa_owner
+
+  # ── Telegram kimlik bilgileri ─────────────────────────────────────────────
+  elif [[ "$messenger" == "telegram" ]]; then
+    echo ""
+    echo "$_S_TXT_TG"
+    echo ""
+    printf "  %b\n" "$_S_WIZ_TG_INFO_MSG"
+    echo ""
+    _ask_req "$_S_WIZ_TG_TOKEN" tg_token
+
+    # Chat ID — auto-detect
+    _sep
+    echo ""
+    echo "  ▶ $_S_WIZ_TG_SEND_MSG_TITLE"
+    echo ""
+    printf "  %b\n" "$_S_WIZ_TG_SEND_MSG"
+    echo ""
+    # Delete any existing webhook so getUpdates works
+    curl -s --max-time 5 -X POST "https://api.telegram.org/bot${tg_token}/deleteWebhook" >/dev/null 2>&1 || true
+    local _tg_flush2 _tg_next_offset2=0
+    _tg_flush2="$(curl -s --max-time 8 "https://api.telegram.org/bot${tg_token}/getUpdates?limit=100" 2>/dev/null || true)"
+    _tg_next_offset2="$(_tg_extract_next_offset "$_tg_flush2")"
+    _ask_inline "$_S_TXT_TG_CHATID_TIP" tg_chat_id
+    if [[ -z "$tg_chat_id" ]]; then
+      log "  $_S_WIZ_TG_SEND_MSG_TITLE..."
+      local _tg_updates
+      _tg_updates="$(curl -s --max-time 35 "https://api.telegram.org/bot${tg_token}/getUpdates?timeout=30&limit=1&offset=${_tg_next_offset2}" 2>/dev/null || true)"
+      tg_chat_id="$(echo "$_tg_updates" | python3 -c "import sys,json
+try:
+    d=json.load(sys.stdin)
+    print(d['result'][0]['message']['chat']['id'])
+except: pass" 2>/dev/null || true)"
+      if [[ -n "$tg_chat_id" ]]; then
+        ok "  $_S_TXT_TG_CHATID_OK: $tg_chat_id"
+      else
+        warn "  $_S_TXT_TG_CHATID_FAIL"
+        _ask_req "$_S_WIZ_TG_CHAT" tg_chat_id
+      fi
+    fi
+    tg_webhook_secret="$(_gen_api_key)"
+    ok "  $_S_TXT_WSECRET_AUTO"
+  fi
+
+  # ── Phase 2: LLM / Proxy / Timezone (WhatsApp/CLI only) ───────────────────
+  local llm="anthropic" proxy="none" tz_value="Europe/Istanbul"
+  local anthropic_key="" ollama_url="" ollama_model="" gemini_key="" gemini_model=""
+  local public_url="" ngrok_token="" ngrok_domain=""
+
+  if [[ "$messenger" == "whatsapp" ]]; then
+    _wa_notify "$wa_token" "$wa_phone_id" "$wa_owner" "$_S_MSG_WIZ_WA_NOTIFY" || true
+
+    _sep
+    echo ""
+    echo "$_S_TXT_LLM"
+    echo "  $_S_TXT_L1"
+    echo "  $_S_TXT_L2"
+    echo "  $_S_TXT_L3"
+    echo ""
+    _ask_inline "[1/2/3]:" _l
+    case "${_l:-1}" in 2) llm="ollama";; 3) llm="gemini";; *) llm="anthropic";; esac
+
+    _sep
+    echo ""
+    echo "$_S_TXT_PROXY"
+    echo "  $_S_TXT_P1"
+    echo "  $_S_TXT_P2"
+    echo "  $_S_TXT_P3"
+    echo "  $_S_TXT_P4"
+    echo ""
+    _ask_inline "[1/2/3/4]:" _p
+    case "${_p:-1}" in 2) proxy="ngrok";; 3) proxy="cloudflared";; 4) proxy="external";; *) proxy="none";; esac
+
+    _sep
+    if [[ "$llm" == "anthropic" ]]; then
+      echo ""
+      echo "$_S_TXT_AN"
+      echo ""
+      printf "  %b\n" "$_S_WIZ_AN_CHOICE_MSG"
+      echo ""
+      _ask_inline "[1/2]:" _an_method_txt
+      if [[ "${_an_method_txt:-1}" == "2" ]]; then
+        _ask_req "$_S_WIZ_AN_KEY" anthropic_key
+      else
+        ok "  $_S_WIZ_AN_SKIP"
+      fi
+    elif [[ "$llm" == "ollama" ]]; then
+      echo ""
+      echo "$_S_TXT_OL"
+      echo ""
+      _ask_inline "$_S_WIZ_OL_URL [http://localhost:11434]:" ollama_url
+      ollama_url="${ollama_url:-http://localhost:11434}"
+      _ask_inline "$_S_WIZ_OL_MODEL [llama3]:" ollama_model
+      ollama_model="${ollama_model:-llama3}"
+    elif [[ "$llm" == "gemini" ]]; then
+      echo ""
+      echo "$_S_TXT_GE"
+      echo ""
+      _ask_req "$_S_WIZ_GE_KEY" gemini_key
+      _ask_inline "$_S_WIZ_GE_MODEL [gemini-2.0-flash]:" gemini_model
+      gemini_model="${gemini_model:-gemini-2.0-flash}"
+    fi
+
+    _sep
+    if [[ "$proxy" == "external" ]]; then
+      while true; do
+        _ask_inline "$_S_WIZ_EXT_URL" public_url
+        [[ "$public_url" == https://* ]] && break
+        warn "    $_S_URL_HTTPS"
+      done
+    elif [[ "$proxy" == "ngrok" ]]; then
+      echo ""
+      echo "▶ $_S_WIZ_NGROK_INFO_TITLE"
+      echo ""
+      printf "  %b\n" "$_S_WIZ_NGROK_INFO_MSG"
+      echo ""
+      _ask_inline "$_S_WIZ_NGROK_TOKEN" ngrok_token
+      _ask_inline "$_S_WIZ_NGROK_DOMAIN" ngrok_domain
+    elif [[ "$proxy" == "cloudflared" ]]; then
+      echo ""
+      echo "▶ $_S_WIZ_CF_INFO_TITLE"
+      echo ""
+      printf "  %b\n" "$_S_WIZ_CF_INFO_MSG"
+      if ! command -v cloudflared &>/dev/null; then warn "$_S_WIZ_CF_MISSING"; fi
+    fi
+
+    _sep
+    echo ""
+    echo "▶ $_S_WIZ_TZ_TITLE"
+    echo "  1) $_S_WIZ_TZ_TRT   2) $_S_WIZ_TZ_LON   3) $_S_WIZ_TZ_PAR   4) $_S_WIZ_TZ_NYC"
+    echo "  5) $_S_WIZ_TZ_LAX   6) $_S_WIZ_TZ_TYO   7) $_S_WIZ_TZ_UTC   8) $_S_WIZ_TZ_OTH"
+    echo ""
+    _ask_inline "[1-8]:" _tz
+    case "${_tz:-1}" in
+      2) tz_value="Europe/London" ;;
+      3) tz_value="Europe/Paris" ;;
+      4) tz_value="America/New_York" ;;
+      5) tz_value="America/Los_Angeles" ;;
+      6) tz_value="Asia/Tokyo" ;;
+      7) tz_value="UTC" ;;
+      8) _ask_inline "$_S_WIZ_TZ_CUSTOM" tz_value; tz_value="${tz_value:-Europe/Istanbul}" ;;
+      *) tz_value="Europe/Istanbul" ;;
+    esac
+  fi
+
+  # ── Güvenlik anahtarları ──────────────────────────────────────────────────
+  _sep
+  echo ""
+  echo "$_S_TXT_SEC"
+  local api_key totp_secret totp_admin
+  api_key="$(_gen_api_key)"
+  totp_secret="$(_gen_totp)"
+  totp_admin="$(_gen_totp)"
+  ok "  $_S_TXT_SEC_DONE"
+
+  _write_env "$env_dst" "$messenger" "$llm" "$proxy" \
+    "$wa_token" "$wa_phone_id" "$wa_secret" "$wa_verify" "$wa_owner" \
+    "$tg_token" "$tg_chat_id" "$tg_webhook_secret" \
+    "$anthropic_key" "$ollama_url" "$ollama_model" "$gemini_key" "$gemini_model" \
+    "$public_url" "$ngrok_token" "$ngrok_domain" \
+    "$api_key" "$totp_secret" "$totp_admin" \
+    "$tz_value"
+
+  # WhatsApp: setup-complete summary
+  if [[ "$messenger" == "whatsapp" && -n "$wa_token" && -n "$wa_phone_id" && -n "$wa_owner" ]]; then
+    local _summary
+    _summary="$(printf '%s\n  Messenger : %s\n  LLM       : %s\n  Proxy     : %s\n  Timezone  : %s' \
+      "$_S_MSG_WIZ_WA_SUMMARY" "$messenger" "$llm" "$proxy" "$tz_value")"
+    [[ -n "$public_url" ]] && _summary+="$(printf '\n  URL       : %s' "$public_url")"
+    _wa_notify "$wa_token" "$wa_phone_id" "$wa_owner" "$_summary" || true
+  fi
+}
+
+
+_write_env() {
+  local env_dst="$1"
+  local messenger="$2" llm="$3" proxy="$4"
+  local wa_token="$5" wa_phone_id="$6" wa_secret="$7" wa_verify="$8" wa_owner="$9"
+  local tg_token="${10}" tg_chat_id="${11}" tg_webhook_secret="${12}"
+  local anthropic_key="${13}" ollama_url="${14}" ollama_model="${15}"
+  local gemini_key="${16}" gemini_model="${17}"
+  local public_url="${18}" ngrok_token="${19}" ngrok_domain="${20}"
+  local api_key="${21}" totp_secret="${22}" totp_admin="${23}"
+  local tz_value="${24:-Europe/Istanbul}"
+
+  local env_src="$BACKEND_DIR/.env.example"
+  if [ ! -f "$env_dst" ]; then
+    # Strip capability flags so step_capabilities can ask the user interactively
+    grep -vE "^(RESTRICT_|DESKTOP_ENABLED|BROWSER_ENABLED)" "$env_src" > "$env_dst"
+  fi
+
+  _env_set "MESSENGER_TYPE" "$messenger" "$env_dst"
+  [[ -n "$wa_token"    ]] && _env_set "WHATSAPP_ACCESS_TOKEN"    "$wa_token"    "$env_dst"
+  [[ -n "$wa_phone_id" ]] && _env_set "WHATSAPP_PHONE_NUMBER_ID" "$wa_phone_id" "$env_dst"
+  [[ -n "$wa_secret"   ]] && _env_set "WHATSAPP_APP_SECRET"      "$wa_secret"   "$env_dst"
+  [[ -n "$wa_verify"   ]] && _env_set "WHATSAPP_VERIFY_TOKEN"    "$wa_verify"   "$env_dst"
+  [[ -n "$wa_owner"    ]] && _env_set "WHATSAPP_OWNER"           "$wa_owner"    "$env_dst"
+  [[ -n "$tg_token"    ]] && _env_set "TELEGRAM_BOT_TOKEN"       "$tg_token"    "$env_dst"
+  [[ -n "$tg_chat_id"  ]] && _env_set "TELEGRAM_CHAT_ID"         "$tg_chat_id"  "$env_dst"
+  if [[ -n "$tg_webhook_secret" ]]; then _env_set "TELEGRAM_WEBHOOK_SECRET" "$tg_webhook_secret" "$env_dst"; fi
+
+  _env_set "LLM_BACKEND" "$llm" "$env_dst"
+  if [[ -n "$anthropic_key" ]]; then
+    _env_set "ANTHROPIC_API_KEY" "$anthropic_key" "$env_dst"
+  else
+    # Claude Login seçildi — placeholder satırını sil ki step_claude_auth atlama
+    sed -i '/^ANTHROPIC_API_KEY=/d' "$env_dst"
+  fi
+  [[ -n "$ollama_url"    ]] && _env_set "OLLAMA_BASE_URL"   "$ollama_url"    "$env_dst"
+  [[ -n "$ollama_model"  ]] && _env_set "OLLAMA_MODEL"      "$ollama_model"  "$env_dst"
+  [[ -n "$gemini_key"    ]] && _env_set "GEMINI_API_KEY"    "$gemini_key"    "$env_dst"
+  [[ -n "$gemini_model"  ]] && _env_set "GEMINI_MODEL"      "$gemini_model"  "$env_dst"
+
+  _env_set "WEBHOOK_PROXY" "$proxy" "$env_dst"
+  [[ -n "$public_url"   ]] && _env_set "PUBLIC_URL"      "$public_url"   "$env_dst"
+  [[ -n "$ngrok_token"  ]] && _env_set "NGROK_AUTHTOKEN" "$ngrok_token"  "$env_dst"
+  [[ -n "$ngrok_domain" ]] && _env_set "NGROK_DOMAIN"    "$ngrok_domain" "$env_dst"
+
+  _env_set "API_KEY"           "$api_key"     "$env_dst"
+  _env_set "TOTP_SECRET"       "$totp_secret" "$env_dst"
+  _env_set "TOTP_SECRET_ADMIN" "$totp_admin"  "$env_dst"
+
+  _env_set "TIMEZONE" "$tz_value" "$env_dst"
+
+  ok "$_S_WIZ_ENV_DONE $env_dst"
+}
+
+
+step_env() {
+  local env_dst="$BACKEND_DIR/.env"
+
+  if $NO_WIZARD; then
+    local env_src="$BACKEND_DIR/.env.example"
+    if [ ! -f "$env_dst" ]; then cp "$env_src" "$env_dst"; warn "$_S_WIZ_ENV_SKIP_FLAG: $env_dst"
+    else ok "$_S_WIZ_ENV_EXIST_OK"; fi
+    return
+  fi
+
+  if [ ! -t 0 ]; then
+    local env_src="$BACKEND_DIR/.env.example"
+    [ ! -f "$env_dst" ] && cp "$env_src" "$env_dst"
+    warn "$_S_WIZ_ENV_SKIP_CI $env_dst"
+    return
+  fi
+
+  if [ -f "$env_dst" ] && grep -q "^ANTHROPIC_API_KEY=sk-\|^TELEGRAM_BOT_TOKEN=\|^WHATSAPP_ACCESS_TOKEN=[^Y]" "$env_dst" 2>/dev/null; then
+    local rerun
+    if _wt_available; then
+      _wt_yesno "$_S_WIZ_ENV_EXISTS_TITLE" "$_S_WIZ_ENV_EXISTS_MSG" && rerun="$_S_TXT_RERUN_Y" || rerun="n"
+    else
+      _ask_inline "$_S_TXT_RERUN" rerun
+    fi
+    [[ "${rerun,,}" != "$_S_TXT_RERUN_Y" ]] && { ok "$_S_WIZ_ENV_EXIST_OK"; return; }
+  fi
+
+  if _wt_available; then
+    _wizard_whiptail "$env_dst"
+  else
+    warn "$_S_TXT_NOWHIPTAIL"
+    _wizard_text "$env_dst"
+  fi
+}
+

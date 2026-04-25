@@ -139,11 +139,6 @@ async def _h_menu_history(sender: str, session: dict) -> None:
     await _get_messenger().send_text(sender, format_history(msgs, lang=session.get("lang", "tr")))
 
 
-async def _h_menu_task_add(sender: str, session: dict) -> None:
-    await _get_messenger().send_text(sender, t("menu.task_prompt", session.get("lang", "tr")))
-    session.start_task()
-
-
 async def _h_menu_tasks(sender: str, session: dict) -> None:
     from .scheduler import list_active_tasks
     lang  = session.get("lang", "tr")
@@ -164,8 +159,8 @@ async def _h_cmd_lang(sender: str, session: dict) -> None:
         sender,
         t("menu.lang_choose", lang),
         [
-            {"id": "lang_tr", "title": "Turkce"},
-            {"id": "lang_en", "title": "English"},
+            {"id": "lang_tr", "title": t("lang.label_tr", lang)},
+            {"id": "lang_en", "title": t("lang.label_en", lang)},
         ],
     )
 
@@ -225,7 +220,6 @@ _EXACT: dict[str, Callable] = {
     "wiz_cancel":            _h_wiz_cancel,
     "menu_calendar":         _h_menu_calendar,
     "menu_history":          _h_menu_history,
-    "menu_task_add":         _h_menu_task_add,
     "menu_tasks":            _h_menu_tasks,
     "menu_status":           _h_menu_status,
     "cmd_lang":              _h_cmd_lang,

@@ -11,8 +11,7 @@
       "ok": "✅ Admin verified.",
       "invalid": "❌ Invalid admin TOTP. ({remaining} attempts left)",
       "locked": "🔒 Too many failed admin TOTP attempts. Wait {minutes} min.",
-      "lockout": "🔒 Too many failed attempts. Please wait 15 minutes.",
-      "prompt": "🔐 Enter Admin TOTP:\n(!cancel to abort)"
+      "lockout": "🔒 Too many failed attempts. Please wait 15 minutes."
     },
     "desktop_totp": {
       "ok": "✅ Desktop unlocked for {minutes} min.\nNow repeat your desktop request.",
@@ -75,12 +74,11 @@
   },
   "help": {
     "unknown_cmd": "❓ `{cmd}` is not a known command.\nType !help to see all commands.",
-    "menu_title": "🤖 Personal Agent\n\nWhat would you like to do?",
+    "menu_title": "🤖 BalGPT\n\nWhat would you like to do?",
     "list_header": "Commands — for details: !help !command",
-    "list_button": "View Commands",
     "section_planning": "Planning & Projects",
     "section_system": "System & Tools",
-    "fallback": "Commands:\n!help [!cmd]     — This menu or command details\n!history [N|summary] — Recent messages\n!project [id]    — Set active project (TOTP)\n!lang <tr|en>    — Change language\n!model           — {model_hint}\n!beta-exit       — Exit beta mode\n\nCreate project:\n  Menu → New Project → enter name → select type:\n  • Software Project  (CLAUDE.md, BACKLOG.md ...)\n  • Save Task         (README + outputs/)\n  • Folder Only       (empty folder)\n  or send PDF → same type selection\n\nSystem commands:\n!root-reset  — Reset session\n!restart     — Restart services\n!terminal <cmd> — Run shell command (dangerous → admin TOTP)\n⚠️ Destructive (math + admin TOTP):\n!shutdown    — Stop service\n\nScheduling (TOTP):\n!schedule                        → list\n!schedule ekle 0 9 * * * <desc>  → 9am daily — Bridge prompt\n!schedule mesaj 0 9 * * * <text> → 9am daily — fixed message\n!schedule sil|durdur|başlat <id>\nNatural language: 'Write a brief every morning at 9' → Claude creates it\n\nNon-command messages go to Claude. 💬",
+    "fallback": "Commands:\n!help [!cmd]     — This menu or command details\n!history [N|summary] — Recent messages\n!project [id]    — Set active project (TOTP)\n!lang <tr|en>    — Change language\n!model           — {model_hint}\n!beta       — Exit beta mode\n\nCreate project:\n  Menu → New Project → enter name → select type:\n  • Software Project  (CLAUDE.md, BACKLOG.md ...)\n  • Save Task         (README + outputs/)\n  • Folder Only       (empty folder)\n  or send PDF → same type selection\n\nSystem commands:\n!root-reset  — Reset session\n!restart     — Restart services\n!terminal <cmd> — Run shell command (dangerous → admin TOTP)\n⚠️ Destructive (math + admin TOTP):\n!shutdown    — Stop service\n\nScheduling (TOTP):\n!schedule                        → list\n!schedule ekle 0 9 * * * <desc>  → 9am daily — Bridge prompt\n!schedule mesaj 0 9 * * * <text> → 9am daily — fixed message\n!schedule sil|durdur|başlat <id>\nNatural language: 'Write a brief every morning at 9' → Claude creates it\n\nNon-command messages go to Claude. 💬",
     "btn_chat": "💬 Chat",
     "btn_plans": "📋 My Plans",
     "btn_projects": "📁 Projects",
@@ -139,7 +137,7 @@
     "none_active": "📌 No active project. To select:",
     "not_found": "❌ Project not found: {id}",
     "set_ok": "✅ Active project: *{name}*\nMessages like 'backlog', 'report' will now relate to this project.\nTo exit: !project none",
-    "beta_started": "🔀 Beta mode started: *{name}*\nMessages are being forwarded to the project.\nTo exit: !beta-exit"
+    "beta_started": "🔀 Beta mode started: *{name}*\nMessages are being forwarded to the project.\nTo exit: !beta"
   },
   "root_project": {
     "status": "🏠 Root project: *{name}* (`{id}`)\nPath: `{path}`\nTo exit: `!root-exit`",
@@ -156,7 +154,8 @@
   },
   "beta_exit": {
     "already_main": "ℹ️ You are already in main agent mode.",
-    "ok": "↩️ Exited beta mode ({id}). Returned to main agent."
+    "ok": "↩️ Exited beta mode ({id}). Returned to main agent.",
+    "not_found": "❌ Project not found: {arg}"
   },
   "project_delete": {
     "empty": "📋 No projects registered yet.",
@@ -164,17 +163,11 @@
     "list_footer": "\nTo delete: !project-delete <id>",
     "not_found": "❌ Project not found: {id}",
     "delete_failed": "❌ Could not delete project: {id}",
-    "ok": "🗑 Project deleted: *{name}* (`{id}`)\n📁 Directory not deleted: `{path}`\nYou can remove the files manually.",
-    "totp_prompt": "⚠️ Destructive operation: *{name}* will be deleted (DB record only).\nEnter Admin TOTP:\n(!cancel to abort)"
+    "ok": "🗑 Project deleted: *{name}* (`{id}`)\n📁 Directory not deleted: `{path}`\nYou can remove the files manually."
   },
   "root_check": {
     "not_found": "⚠️ root_actions.log not found.",
-    "header": "📋 root_actions.log (last 5 lines):\n\n",
-    "error": "❌ Could not read data: {error}",
-    "no_data": "⚠️ No data recorded yet.",
-    "summary": "Last request at {in_time}, root's last action at {root_time}. {status}",
-    "ongoing": "Process is ongoing.",
-    "idle": "Process is idle."
+    "error": "❌ Could not read data: {error}"
   },
   "menu": {
     "chat_mode": "💬 Chat mode. Send your message.",
@@ -186,7 +179,6 @@
     "tasks_header": "📌 Active Tasks:",
     "bridge_ok": "🔧 System Status\nBridge: ✅\nActive sessions: {sessions}",
     "bridge_error": "🔧 Bridge: ❌ not responding",
-    "task_prompt": "⏰ Which task would you like to add? Write:",
     "invalid_project_id": "❌ Invalid project ID.",
     "project_not_found": "❌ Project not found: {id}",
     "projects_title": "Projects",
@@ -207,7 +199,9 @@
   },
   "lang": {
     "changed": "🌐 Language changed: {code}",
-    "invalid": "Supported languages: tr, en"
+    "invalid": "Supported languages: tr, en",
+    "label_tr": "Turkish",
+    "label_en": "English"
   },
   "timezone": {
     "current": "🕐 Current timezone: *{tz}*",
@@ -220,7 +214,6 @@
   "wizard": {
     "ask_description": "Describe the purpose of *{name}*:\n_(Will be added to file headers and CLAUDE.md — type '-' to skip)_",
     "options_title": "*{name}* — Options\nChange any item, then confirm when ready:",
-    "select_btn": "Select",
     "path_confirm": "📁 Project path:\n`{path}`\n\nWould you like to change it?",
     "path_keep_btn": "✅ No, continue",
     "path_change_btn": "✏️ Yes, change",
@@ -311,8 +304,6 @@
     "doc_send_error": "⚠️ Could not send file. Try again shortly."
   },
   "media": {
-    "send_error": "⚠️ Could not send media. Please try again later.",
-    "upload_error": "⚠️ Could not upload file. Please try again later.",
     "pdf_received": "📄 PDF received: *{filename}*\nHow would you like to create the project?",
     "pdf_btn_full": "📁 Software Project",
     "pdf_btn_minimal": "📝 Save Task",
@@ -327,7 +318,6 @@
     "created": "✅ Project created: *{name}*\n{desc}\n[Start in Beta Mode → !beta {id}]"
   },
   "project_menu": {
-    "select_btn": "Select",
     "sec_run": "Run / Stop",
     "start_title": "▶️ Start",
     "start_desc": "Start services",
@@ -365,13 +355,6 @@
     "task_reminder": "⏰ {message}",
     "task_error": "⚠️ Scheduled task error: {error}"
   },
-  "remind": {
-    "missed": "⚠️ Missed reminder: _{msg}_ ({time})",
-    "exec_error": "❌ Could not run reminder: {error}"
-  },
-  "nl_schedule": {
-    "exec_error": "❌ Scheduled task failed: {error}"
-  },
   "history": {
     "empty": "📭 No message history found.",
     "header": "📜 Last {count} Messages:",
@@ -400,8 +383,7 @@
     "allow_btn": "✅ Approve",
     "deny_btn": "❌ Reject",
     "allowed": "✅ Tool approved.",
-    "denied": "❌ Tool denied.",
-    "timeout": "⏱ Approval timeout — tool was automatically denied."
+    "denied": "❌ Tool denied."
   },
   "terminal": {
     "usage": "Usage: !terminal <command>\nExample: !terminal ls -la\n\n⚠️ Dangerous commands require Admin TOTP.\n📁 Default working dir: 99-root/\n💡 Tip: Relative paths like scripts/backend/venv/bin/pip are relative to 99-root/.",
@@ -416,9 +398,9 @@
     "project_connect_error": "❌ Could not connect to project service."
   },
   "main": {
-    "started": "✅ Personal agent started.",
-    "started_with_url": "✅ Personal agent started.\n🌐 Webhook URL:\n{url}",
-    "stopping": "🛑 Personal agent shutting down."
+    "started": "✅ BalGPT started.",
+    "started_with_url": "✅ BalGPT started.\n🌐 Webhook URL:\n{url}",
+    "stopping": "🛑 BalGPT shutting down."
   },
   "tokens": {
     "invalid_span": "❌ Invalid time span: {span}\nUsage: !tokens [24h|7d|30d]",

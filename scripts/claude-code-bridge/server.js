@@ -1,5 +1,5 @@
 /**
- * Claude Code Bridge — 99-root Kişisel AI Ajan
+ * Claude Code Bridge — BalGPT
  * Port: 8013
  *
  * Sorumluluk: Claude Code CLI'yi sarmalama, session yönetimi, WhatsApp bildirimi.
