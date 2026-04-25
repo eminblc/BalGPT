@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh — 99-root Personal AI Agent / Kişisel AI Ajan — Setup Script
+# install.sh — ortak Personal AI Agent / Kişisel AI Ajan — Setup Script
 #
 # Usage / Kullanım:
 #   ./install.sh                         # Interactive wizard / İnteraktif sihirbaz
@@ -156,7 +156,7 @@ _load_strings() {
     _S_STEP_HEALTH_PM2="Service health check (PM2)..."
 
     # ── Wizard — whiptail
-    _S_WIZ_WELCOME_TITLE="99-root Setup Wizard"
+    _S_WIZ_WELCOME_TITLE="ortak Setup Wizard"
     _S_WIZ_WELCOME_MSG="Welcome! This wizard will configure your .env file step by step.
 
 Press Enter to confirm each step, ESC to cancel.
@@ -349,7 +349,7 @@ Store the secrets in a password manager as backup."
     _S_WIZ_ENV_DONE=".env written:"
 
     # ── Text mode labels
-    _S_TXT_TITLE="99-root Setup Wizard (text mode)"
+    _S_TXT_TITLE="ortak Setup Wizard (text mode)"
     _S_TXT_HINT="Leave blank to accept [default] values shown in brackets."
     _S_TXT_MESSENGER="▶ Messenger Platform  (which app you will use to control the agent)"
     _S_TXT_M1="1) whatsapp  — Meta Cloud API  [recommended if you already have a Meta app] (default)"
@@ -469,7 +469,7 @@ Store the secrets in a password manager as backup."
     _S_CAP_BROWSER="Browser automation              (Playwright, ~500 MB extra)"
 
     # ── Messenger wizard
-    _S_MSG_WIZ_TG_NOTIFY="⚙️ 99-root setup wizard is starting. Please answer the questions below to complete the installation."
+    _S_MSG_WIZ_TG_NOTIFY="⚙️ ortak setup wizard is starting. Please answer the questions below to complete the installation."
     _S_MSG_WIZ_TG_STARTING="Sending setup wizard to Telegram — please complete the steps there."
     _S_MSG_WIZ_TG_WAIT=">>> Continue setup in Telegram — tap the buttons in your chat <<<"
     _S_MSG_WIZ_TG_DONE="Telegram wizard complete — resuming terminal setup"
@@ -557,7 +557,7 @@ Store the secrets in a password manager as backup."
     _S_STEP_HEALTH_PM2="Servis sağlık kontrolü (PM2)..."
 
     # ── Sihirbaz — whiptail
-    _S_WIZ_WELCOME_TITLE="99-root Kurulum Sihirbazı"
+    _S_WIZ_WELCOME_TITLE="ortak Kurulum Sihirbazı"
     _S_WIZ_WELCOME_MSG="Hoş geldiniz! Bu sihirbaz .env dosyanızı adım adım oluşturacak.
 
 Her adımı onaylamak için Enter, iptal için ESC kullanabilirsiniz.
@@ -750,7 +750,7 @@ Secret'ları yedek olarak bir parola yöneticisine kaydedin."
     _S_WIZ_ENV_DONE=".env dolduruldu:"
 
     # ── Metin modu etiketleri
-    _S_TXT_TITLE="99-root Kurulum Sihirbazı (metin modu)"
+    _S_TXT_TITLE="ortak Kurulum Sihirbazı (metin modu)"
     _S_TXT_HINT="Köşeli parantez içindeki [varsayılan] değeri için boş bırakın."
     _S_TXT_MESSENGER="▶ Messenger Platformu  (ajanı hangi uygulamayla kontrol edeceksiniz)"
     _S_TXT_M1="1) whatsapp  — Meta Cloud API       [Meta uygulamanız varsa] (varsayılan)"
@@ -870,7 +870,7 @@ Secret'ları yedek olarak bir parola yöneticisine kaydedin."
     _S_CAP_BROWSER="Tarayıcı otomasyonu           (Playwright, ~500 MB ekstra)"
 
     # ── Messenger sihirbazı
-    _S_MSG_WIZ_TG_NOTIFY="⚙️ 99-root kurulum sihirbazı başlıyor. Kurulumu tamamlamak için aşağıdaki soruları yanıtlayın."
+    _S_MSG_WIZ_TG_NOTIFY="⚙️ ortak kurulum sihirbazı başlıyor. Kurulumu tamamlamak için aşağıdaki soruları yanıtlayın."
     _S_MSG_WIZ_TG_STARTING="Kurulum sihirbazı Telegram'a gönderiliyor — adımları orada tamamlayın."
     _S_MSG_WIZ_TG_WAIT=">>> Kuruluma Telegram'dan devam edin — chat'teki butonlara dokunun <<<"
     _S_MSG_WIZ_TG_DONE="Telegram sihirbazı tamamlandı — terminal kurulumu devam ediyor"
@@ -2274,7 +2274,7 @@ step_show_totp() {
     local label="$1" secret="$2"
     local heading
     [[ "$label" == "admin" ]] && heading="$_S_TOTP_ADMIN" || heading="$_S_TOTP_OWNER"
-    local uri="otpauth://totp/99-root%3A${label}?secret=${secret}&issuer=99-root"
+    local uri="otpauth://totp/ortak%3A${label}?secret=${secret}&issuer=ortak"
     echo ""
     echo "  ── $heading ──────────────────────────────"
     echo "  $_S_TOTP_SECRET : $secret"
@@ -2328,7 +2328,7 @@ PYEOF
       echo "  ┌─ $_S_TOTP_QR_MANUAL ─────────────────────────────────┐"
       echo "  │  1. Authenticator uygulamasını aç (Google/Authy)     │"
       echo "  │  2. '+' → 'Kurulum anahtarı gir' seç                 │"
-      echo "  │  3. Hesap: 99-root:${label}                           │"
+      echo "  │  3. Hesap: ortak:${label}                           │"
       echo "  │  4. Anahtar: $secret"
       echo "  │  5. Tür: Zamana dayalı (TOTP)                        │"
       echo "  └──────────────────────────────────────────────────────┘"
@@ -2405,9 +2405,9 @@ _totp_send_via_messenger() {
 
 To add to Google Authenticator:
 • Open app → + → Enter setup key
-• Account <code>99-root:owner</code>, Key <code>$_sec</code>"
+• Account <code>ortak:owner</code>, Key <code>$_sec</code>"
     [[ -n "$_adm_line" ]] && _msg+="
-• Account <code>99-root:admin</code>, Key <code>$_adm</code>"
+• Account <code>ortak:admin</code>, Key <code>$_adm</code>"
     _msg+="
 • Type: Time-based (TOTP)"
 
@@ -2434,9 +2434,9 @@ Admin TOTP: $_adm"
     _msg+="
 
 Google Authenticator:
-• Account: 99-root:owner  Key: $_sec"
+• Account: ortak:owner  Key: $_sec"
     [[ -n "$_adm_line" ]] && _msg+="
-• Account: 99-root:admin  Key: $_adm"
+• Account: ortak:admin  Key: $_adm"
     _msg+="
 • Type: Time-based (TOTP)"
 
@@ -2576,7 +2576,7 @@ main() {
   # Hızlı yol: --reconfigure-capabilities — yalnızca yetenek sihirbazını çalıştır
   if $RECONFIGURE_CAPS && ! $NO_WIZARD; then
     echo "=================================================="
-    echo " 99-root — $_S_CAP_TITLE"
+    echo " ortak — $_S_CAP_TITLE"
     echo "=================================================="
     step_capabilities
     if $USE_DOCKER; then
@@ -2591,7 +2591,7 @@ main() {
   fi
 
   echo "=================================================="
-  echo " 99-root — $_S_BANNER_TITLE"
+  echo " ortak — $_S_BANNER_TITLE"
   echo " ROOT_DIR  : $ROOT_DIR"
   echo " USER      : $CURRENT_USER"
   echo " NODE      : $NODE_PATH"
