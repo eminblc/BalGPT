@@ -82,30 +82,28 @@ source "$ROOT_DIR/lib/steps.sh"
 # Platform detection — Git Bash/MSYS/Cygwin venv layout differs (Scripts/ vs bin/)
 is_windows() { [[ "$(uname -s 2>/dev/null)" =~ ^(MINGW|MSYS|CYGWIN) ]]; }
 
-# ── Python3 normalization (Windows: py / python may shadow python3) ───────────
-# Ensures every downstream `python3` call works on Windows Git Bash.
-# Also handles the MS Store python3.exe stub (Win10/11) which is found by
-# `command -v python3` but exits with code 49 (0x31) without doing anything.
-# We probe with actual output (not just exit code) to detect MS Store stubs that
-# exit 0 silently — sys.exit(0) would pass the stub, version check won't.
-_py3_functional() {
-  local _v
-  _v="$(python3 -c 'import sys; print(sys.version_info.major)' 2>/dev/null)" || return 1
-  [[ "$_v" == "3" ]]
-}
-if ! _py3_functional; then
-  # py first: Windows 'py' launcher is the most reliable on Win10/11.
-  for _py_candidate in py python python3; do
-    _py_major="$("$_py_candidate" -c 'import sys; print(sys.version_info.major)' 2>/dev/null)" || continue
-    if [[ "$_py_major" == "3" ]]; then
-      python3() { "$_py_candidate" "$@"; }
-      export -f python3
-      break
-    fi
+# ── Python interpreter selection (cross-platform) ─────────────────────────────
+# Single source of truth: every script-side python call uses "$PY".
+# Detects MS Store python3.exe stub (Win10/11) which is found by `command -v`
+# but exits silently — version probe rejects it (no usable output).
+# Order: py (Windows launcher, most reliable) → python3 → python.
+# Pyotp-dependent code (security.sh, totp.sh) prefers the venv binary first
+# and falls back to "$PY" — this is the system-side picker only.
+_pick_python() {
+  local _c _v
+  for _c in py python3 python; do
+    command -v "$_c" >/dev/null 2>&1 || continue
+    "$_c" -c '' 2>/dev/null || continue
+    _v="$("$_c" -c 'import sys; print(sys.version_info.major)' 2>/dev/null)" || continue
+    [[ "$_v" == "3" ]] && { echo "$_c"; return 0; }
   done
-  unset _py_candidate _py_major
-fi
-unset -f _py3_functional
+  return 1
+}
+PY="$(_pick_python)" || {
+  echo "[install] FATAL: Python 3 bulunamadı / Python 3 not found (tried: py python3 python)" >&2
+  exit 1
+}
+export PY
 
 # ── Language selection / Dil seçimi ──────────────────────────────────────────
 
@@ -133,14 +131,14 @@ check_prereqs() {
     return
   fi
 
-  if ! command -v python3 &>/dev/null; then die "$_S_PRE_PY_MISSING"; fi
+  [[ -z "${PY:-}" ]] && die "$_S_PRE_PY_MISSING"
   local py_major py_minor
-  py_major="$(python3 -c 'import sys; print(sys.version_info.major)' 2>/dev/null || echo 0)"
-  py_minor="$(python3 -c 'import sys; print(sys.version_info.minor)' 2>/dev/null || echo 0)"
+  py_major="$("$PY" -c 'import sys; print(sys.version_info.major)' 2>/dev/null || echo 0)"
+  py_minor="$("$PY" -c 'import sys; print(sys.version_info.minor)' 2>/dev/null || echo 0)"
   if [[ "$py_major" -lt 3 ]] || [[ "$py_major" -eq 3 && "$py_minor" -lt 11 ]]; then
-    die "${_S_PRE_PY_OLD}$(python3 --version)${_S_PRE_PY_OLD2}"
+    die "${_S_PRE_PY_OLD}$("$PY" --version)${_S_PRE_PY_OLD2}"
   fi
-  ok "Python: $(python3 --version)"
+  ok "Python: $("$PY" --version)"
 
   if ! command -v node &>/dev/null; then die "$_S_PRE_NODE_MISSING"; fi
   local node_major
@@ -298,7 +296,7 @@ main() {
     _tg_tok="$(_env_get "TELEGRAM_BOT_TOKEN" "$_env_file")"
     _tg_cid="$(_env_get "TELEGRAM_CHAT_ID"   "$_env_file")"
     _wiz_result=""
-    if [[ -n "$_tg_tok" && -n "$_tg_cid" ]] && command -v python3 &>/dev/null; then
+    if [[ -n "$_tg_tok" && -n "$_tg_cid" && -n "${PY:-}" ]]; then
       local _wiz_tmp _req_dir _ans_dir _wiz_pid _wiz_exit
       _wiz_tmp="$(mktemp /tmp/wiz_result.XXXXXX)"
       _req_dir="$(mktemp -d /tmp/wiz_req.XXXXXX)"
@@ -314,7 +312,7 @@ main() {
       WIZARD_REQ_DIR="$_req_dir" \
       WIZARD_ANS_DIR="$_ans_dir" \
       INSTALL_LANG="$INSTALL_LANG" \
-      python3 "$SCRIPTS_DIR/setup_wizard_messenger.py" > "$_wiz_tmp" 2>/tmp/wizard_err.log &
+      "$PY" "$SCRIPTS_DIR/setup_wizard_messenger.py" > "$_wiz_tmp" 2>/tmp/wizard_err.log &
       _wiz_pid=$!
 
       # Terminal monitors for secret-request files left by Python wizard

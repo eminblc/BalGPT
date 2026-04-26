@@ -52,7 +52,7 @@ _wizard_whiptail() {
     _wt_msg "$_S_WIZ_TG_SEND_MSG_TITLE" "$_S_WIZ_TG_SEND_MSG" || return 1
     local _tg_auto_id=""
     _tg_auto_id="$(curl -s --max-time 70 "https://api.telegram.org/bot${tg_token}/getUpdates?timeout=60&limit=1" 2>/dev/null \
-      | python3 -c "import sys,json
+      | "$PY" -c "import sys,json
 try:
     d=json.load(sys.stdin)
     for u in d.get('result', []):
@@ -248,7 +248,7 @@ _wizard_text() {
     log "  Waiting (up to 60s)..."
     local _tg_updates
     _tg_updates="$(curl -s --max-time 70 "https://api.telegram.org/bot${tg_token}/getUpdates?timeout=60&limit=1" 2>/dev/null || true)"
-    tg_chat_id="$(echo "$_tg_updates" | python3 -c "import sys,json
+    tg_chat_id="$(echo "$_tg_updates" | "$PY" -c "import sys,json
 try:
     d=json.load(sys.stdin)
     for u in d.get('result', []):

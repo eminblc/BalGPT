@@ -16,14 +16,8 @@ _gen_totp() {
   if   [[ -x "$BACKEND_DIR/venv/Scripts/python.exe" ]]; then _py="$BACKEND_DIR/venv/Scripts/python.exe"
   elif [[ -x "$BACKEND_DIR/venv/bin/python"         ]]; then _py="$BACKEND_DIR/venv/bin/python"
   fi
-  # Fallback to system python — py first (Windows launcher avoids MS Store stub)
-  if [[ -z "$_py" ]]; then
-    local _c _v
-    for _c in py python3 python; do
-      _v="$("$_c" -c 'import sys; print(sys.version_info.major)' 2>/dev/null)" || continue
-      [[ "$_v" == "3" ]] && { _py="$_c"; break; }
-    done
-  fi
+  # Fallback to globally picked Python (set by install.sh _pick_python)
+  [[ -z "$_py" && -n "${PY:-}" ]] && _py="$PY"
   # Use pyotp if available; otherwise generate a valid base32 secret via openssl/date
   if [[ -n "$_py" ]] && "$_py" -c "import pyotp" 2>/dev/null; then
     "$_py" -c 'import pyotp; print(pyotp.random_base32())'

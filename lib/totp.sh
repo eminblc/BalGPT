@@ -39,30 +39,16 @@ step_show_totp() {
     if [[ -x "$_venv_py" ]] && "$_venv_py" -c "import qrcode" 2>/dev/null; then
       _py="$_venv_py"
     fi
-    if [[ -z "$_py" ]]; then
-      local _cand _cv
-      # py first on Windows to avoid MS Store stub
-      for _cand in py python3 python; do
-        _cv="$("$_cand" -c 'import sys; print(sys.version_info.major)' 2>/dev/null)" || continue
-        [[ "$_cv" == "3" ]] || continue
-        "$_cand" -c "import qrcode" 2>/dev/null && { _py="$_cand"; break; }
-      done
+    if [[ -z "$_py" ]] && [[ -n "${PY:-}" ]] && "$PY" -c "import qrcode" 2>/dev/null; then
+      _py="$PY"
     fi
-    local _pick_py_for_venv=""
-    if [[ -z "$_py" ]]; then
-      local _cand2 _cv2
-      for _cand2 in py python3 python; do
-        _cv2="$("$_cand2" -c 'import sys; print(sys.version_info.major)' 2>/dev/null)" || continue
-        [[ "$_cv2" == "3" ]] && { _pick_py_for_venv="$_cand2"; break; }
-      done
-    fi
-    if [[ -z "$_py" ]] && [[ -n "$_pick_py_for_venv" ]]; then
+    if [[ -z "$_py" ]] && [[ -n "${PY:-}" ]]; then
       : "${_TOTP_QR_VENV:=${TMPDIR:-/tmp}/balgpt_qr_venv_$$}"
       local _vbin="bin"; is_windows && _vbin="Scripts"
       local _vpy="$_TOTP_QR_VENV/$_vbin/python"
       is_windows && _vpy="${_vpy}.exe"
       if [[ ! -x "$_vpy" ]]; then
-        "$_pick_py_for_venv" -m venv "$_TOTP_QR_VENV" 2>/dev/null \
+        "$PY" -m venv "$_TOTP_QR_VENV" 2>/dev/null \
           && "$_TOTP_QR_VENV/$_vbin/pip" install --quiet qrcode 2>/dev/null \
           || true
       fi
@@ -89,10 +75,8 @@ PYEOF
     else
       # Online QR URL fallback — no terminal rendering possible
       local _encoded_uri
-      if command -v python3 &>/dev/null; then
-        _encoded_uri="$(printf '%s' "$uri" | python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.stdin.read().strip(), safe=""))')"
-      elif command -v python &>/dev/null; then
-        _encoded_uri="$(printf '%s' "$uri" | python -c 'import sys; from urllib import quote; print(quote(sys.stdin.read().strip(), safe=""))' 2>/dev/null || printf '%s' "$uri" | sed 's/&/%26/g; s/=/%3D/g; s/?/%3F/g; s/:/%3A/g; s|/|%2F|g')"
+      if [[ -n "${PY:-}" ]]; then
+        _encoded_uri="$(printf '%s' "$uri" | "$PY" -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.stdin.read().strip(), safe=""))')"
       else
         _encoded_uri="$(printf '%s' "$uri" | sed 's/&/%26/g; s/=/%3D/g; s/?/%3F/g; s/:/%3A/g; s|/|%2F|g')"
       fi
@@ -192,12 +176,12 @@ To add to Google Authenticator:
     _msg+="
 • Type: Time-based (TOTP)"
 
-    _msg_json="$(python3 -c "import sys,json; print(json.dumps(sys.argv[1]))" "$_msg" 2>/dev/null)" || return 1
+    _msg_json="$("$PY" -c "import sys,json; print(json.dumps(sys.argv[1]))" "$_msg" 2>/dev/null)" || return 1
     curl -s --max-time 15 \
       -H "Content-Type: application/json" \
       -d "{\"chat_id\":$_cid,\"text\":$_msg_json,\"parse_mode\":\"HTML\"}" \
       "https://api.telegram.org/bot${_tok}/sendMessage" \
-      | python3 -c "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('ok') else 1)" 2>/dev/null
+      | "$PY" -c "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('ok') else 1)" 2>/dev/null
     return $?
 
   elif [[ "$_messenger" == "whatsapp" ]]; then
@@ -221,13 +205,13 @@ Google Authenticator:
     _msg+="
 • Type: Time-based (TOTP)"
 
-    _msg_json="$(python3 -c "import sys,json; print(json.dumps(sys.argv[1]))" "$_msg" 2>/dev/null)" || return 1
+    _msg_json="$("$PY" -c "import sys,json; print(json.dumps(sys.argv[1]))" "$_msg" 2>/dev/null)" || return 1
     curl -s --max-time 15 \
       -H "Authorization: Bearer $_wtok" \
       -H "Content-Type: application/json" \
       -d "{\"messaging_product\":\"whatsapp\",\"to\":\"$_wown\",\"type\":\"text\",\"text\":{\"body\":$_msg_json}}" \
       "https://graph.facebook.com/${_WA_API_VER}/${_wpid}/messages" \
-      | python3 -c "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('messages') else 1)" 2>/dev/null
+      | "$PY" -c "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('messages') else 1)" 2>/dev/null
     return $?
   fi
   return 1

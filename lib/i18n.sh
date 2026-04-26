@@ -40,16 +40,8 @@ _load_strings() {
     echo "[install] FATAL: locale file missing under $ROOT_DIR/locales/" >&2
     exit 1
   fi
-  # Find a working Python 3: try py first (most reliable on Windows), then fallbacks.
-  # Uses direct execution without command -v to bypass MS Store stubs that are found
-  # by command -v but output nothing (exit 0 silently, breaking || echo 0 fallback).
-  local _py="" _candidate _ver
-  for _candidate in py python3 python; do
-    _ver="$("$_candidate" -c 'import sys; print(sys.version_info.major)' 2>/dev/null)" || continue
-    if [[ "$_ver" == "3" ]]; then _py="$_candidate"; break; fi
-  done
-  if [[ -z "$_py" ]]; then
-    echo "[install] FATAL: Python 3 bulunamadı / Python 3 not found (tried: python3 python py)" >&2
+  if [[ -z "${PY:-}" ]]; then
+    echo "[install] FATAL: Python 3 bulunamadı / Python 3 not found (\$PY unset)" >&2
     exit 1
   fi
   local _generated _rc
@@ -58,7 +50,7 @@ _load_strings() {
   # < "$_file" — bash/MSYS2 opens the file; Python reads sys.stdin, never
   #   sees the /c/Users/... POSIX path, eliminating all path-conversion issues.
   # shellcheck disable=SC2016
-  _generated="$(PYTHONIOENCODING=utf-8 "$_py" -c 'import json,shlex,sys; data=json.load(sys.stdin); [print("_S_"+k+"="+shlex.quote(v)) for k,v in data.items()]' < "$_file")"
+  _generated="$(PYTHONIOENCODING=utf-8 "$PY" -c 'import json,shlex,sys; data=json.load(sys.stdin); [print("_S_"+k+"="+shlex.quote(v)) for k,v in data.items()]' < "$_file")"
   _rc=$?
   if [ $_rc -ne 0 ] || [ -z "$_generated" ]; then
     echo "[install] FATAL: locale load failed" >&2; exit 1

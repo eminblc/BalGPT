@@ -6,7 +6,7 @@
 
 step_venv() {
   log "$_S_STEP_VENV $BACKEND_DIR/venv"
-  if [ ! -d "$BACKEND_DIR/venv" ]; then python3 -m venv "$BACKEND_DIR/venv"; fi
+  if [ ! -d "$BACKEND_DIR/venv" ]; then "$PY" -m venv "$BACKEND_DIR/venv"; fi
 
   # Bootstrap: pip-compile ve pip-sync için pip-tools'u regular pip ile kur
   log "$_S_STEP_PKG_BOOTSTRAP"
@@ -227,7 +227,7 @@ EOF
 
 render_template() {
   local template="$1" output="$2"
-  python3 - "$template" "$output" \
+  "$PY" - "$template" "$output" \
     "$CURRENT_USER" "$ROOT_DIR" "$NODE_PATH" "$API_PORT" "$BRIDGE_PORT" <<'PYEOF'
 import sys
 tpl, out, user, root, node, api_port, bridge_port = sys.argv[1:]

@@ -19,8 +19,8 @@ _env_set() {
 
 _tg_extract_next_offset() {
   local _json="$1"
-  if command -v python3 &>/dev/null; then
-    printf '%s' "$_json" | python3 -c "
+  if [[ -n "${PY:-}" ]]; then
+    printf '%s' "$_json" | "$PY" -c "
 import sys,json
 try:
     r=json.load(sys.stdin)['result']
@@ -37,8 +37,8 @@ except: print(0)" 2>/dev/null || echo 0
 
 _extract_json_field() {
   local _json="$1" _field="$2"
-  if command -v python3 &>/dev/null; then
-    printf '%s' "$_json" | python3 -c "
+  if [[ -n "${PY:-}" ]]; then
+    printf '%s' "$_json" | "$PY" -c "
 import sys,json
 try: print(json.load(sys.stdin).get('$_field',''))
 except: pass" 2>/dev/null || true
@@ -81,7 +81,7 @@ _read_env_var() {
 
 _parse_wiz() {
   local _json="$1" _key="$2" _def="${3:-}"
-  echo "$_json" | python3 -c \
+  echo "$_json" | "$PY" -c \
     "import sys,json; d=json.load(sys.stdin); print(d.get(sys.argv[1],sys.argv[2]))" \
     "$_key" "$_def" \
     2>/dev/null || echo "$_def"
@@ -90,7 +90,7 @@ _parse_wiz() {
 
 _env_get() {
   local _key="$1" _file="$2"
-  python3 -c "
+  "$PY" -c "
 import sys
 key = sys.argv[1]
 try:

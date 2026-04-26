@@ -128,7 +128,7 @@ _capabilities_text() {
 _caps_already_set() {
   # CRLF-safe check via Python — works on Windows Git Bash .env files too
   local _f="$1"
-  python3 -c "
+  "$PY" -c "
 import sys
 try:
     txt = open(sys.argv[1]).read()
@@ -162,7 +162,7 @@ step_capabilities() {
   if $RECONFIGURE_CAPS && _caps_already_set "$env_dst"; then
     log "  ↳ $_S_CAP_RECONFIG"
     # CRLF-safe removal via Python
-    python3 -c "
+    "$PY" -c "
 import sys, re
 with open(sys.argv[1]) as f: txt = f.read()
 lines = [l for l in txt.splitlines(keepends=True)
