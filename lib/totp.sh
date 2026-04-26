@@ -70,8 +70,16 @@ PYEOF
       _TOTP_QR_OK=true
     elif [[ -n "$_py" ]]; then
       echo ""
-      "$_py" "$_qr_script" "$uri"
-      _TOTP_QR_OK=true
+      # PYTHONIOENCODING=utf-8 — Windows code pages (e.g. cp1254 on TR) cannot
+      # encode the Unicode block chars (█▀▄▌▐) qrcode prints, raising
+      # UnicodeEncodeError and crashing the installer. Make it non-fatal:
+      # the secret/URI is already shown above, and the no-QR recovery path
+      # below offers to send TOTP codes via messenger.
+      if PYTHONIOENCODING=utf-8 "$_py" "$_qr_script" "$uri" 2>/dev/null; then
+        _TOTP_QR_OK=true
+      else
+        warn "  QR terminalde çizilemedi — yukarıdaki Secret'ı elle Authenticator'a girin"
+      fi
     else
       # Online QR URL fallback — no terminal rendering possible
       local _encoded_uri

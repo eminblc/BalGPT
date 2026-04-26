@@ -89,18 +89,19 @@ _parse_wiz() {
 
 
 _env_get() {
-  local _key="$1" _file="$2"
-  "$PY" -c "
-import sys
-key = sys.argv[1]
-try:
-    for line in open(sys.argv[2]).read().splitlines():
-        if line.startswith(key + '='):
-            val = line[len(key)+1:].strip('\"').strip(\"'\")
-            print(val)
-            break
-except Exception:
-    pass
-" "$_key" "$_file" 2>/dev/null || true
+  # Bash/grep-only — avoids Git Bash + native Windows Python path-conversion
+  # quirks where open(sys.argv[N]) on /c/Users/... silently fails inside
+  # try/except: pass and returns empty (this skipped the Telegram wizard).
+  # Behavior matches _read_env_var: strips surrounding "/' and trailing CR.
+  local _key="$1" _file="$2" _line _val
+  _line="$(grep "^${_key}=" "$_file" 2>/dev/null | head -1)"
+  [[ -z "$_line" ]] && return 0
+  _val="${_line#${_key}=}"
+  _val="${_val%$'\r'}"
+  # Strip a single layer of surrounding double or single quotes
+  if [[ "$_val" == \"*\" ]]; then _val="${_val#\"}"; _val="${_val%\"}"
+  elif [[ "$_val" == \'*\' ]]; then _val="${_val#\'}"; _val="${_val%\'}"
+  fi
+  printf '%s' "$_val"
 }
 
