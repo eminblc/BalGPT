@@ -57,11 +57,13 @@ Kurulum tamamlandığında Telegram veya WhatsApp üzerinden dosya oluşturabile
 
 ```bash
 docker --version
-python3 --version
+python3 --version   # ya da: python --version  /  py --version  (Windows)
 bash --version | head -1
 ```
 
 Çıktı: Docker 24+, Python 3.11+, Bash 4+ olmalıdır. Herhangi bir komut `command not found` hatası veriyorsa ilgili aracı yeniden kurun.
+
+> **Windows notu:** `python3` komutu Windows'ta olmayabilir — `python --version` veya `py --version` da çalışır. `install.sh` bunu otomatik olarak algılar.
 
 ### 1. Adım — Docker'ın çalıştığından emin olun
 

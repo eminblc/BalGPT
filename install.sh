@@ -82,6 +82,22 @@ source "$ROOT_DIR/lib/steps.sh"
 # Platform detection — Git Bash/MSYS/Cygwin venv layout differs (Scripts/ vs bin/)
 is_windows() { [[ "$(uname -s 2>/dev/null)" =~ ^(MINGW|MSYS|CYGWIN) ]]; }
 
+# ── Python3 normalization (Windows: py / python may shadow python3) ───────────
+# Ensures every downstream `python3` call works on Windows Git Bash.
+if ! command -v python3 &>/dev/null; then
+  for _py_candidate in python py; do
+    if command -v "$_py_candidate" &>/dev/null; then
+      _py_major="$("$_py_candidate" -c 'import sys; print(sys.version_info.major)' 2>/dev/null || echo 0)"
+      if [[ "$_py_major" == "3" ]]; then
+        python3() { "$_py_candidate" "$@"; }
+        export -f python3
+        break
+      fi
+    fi
+  done
+  unset _py_candidate _py_major
+fi
+
 # ── Language selection / Dil seçimi ──────────────────────────────────────────
 
 INSTALL_LANG="${INSTALL_LANG:-}"  # override via env; empty = ask

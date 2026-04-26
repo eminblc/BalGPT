@@ -44,14 +44,20 @@ _load_strings() {
     echo "[install] FATAL: python3 required to load install locales" >&2
     exit 1
   fi
-  local _generated
-  _generated="$(python3 - "$_file" <<'PYEOF'
+  local _generated _py_tmp
+  _py_tmp="$(mktemp "${TMPDIR:-/tmp}/balgpt_locale_XXXXXX.py")"
+  cat > "$_py_tmp" << 'PYEOF'
 import json, shlex, sys
 with open(sys.argv[1], encoding="utf-8") as f:
     data = json.load(f)
 for key, val in data.items():
     print(f"_S_{key}={shlex.quote(val)}")
 PYEOF
-  )" || { echo "[install] FATAL: locale load failed" >&2; exit 1; }
+  _generated="$(python3 "$_py_tmp" "$_file")"
+  local _rc=$?
+  rm -f "$_py_tmp"
+  if [ $_rc -ne 0 ] || [ -z "$_generated" ]; then
+    echo "[install] FATAL: locale load failed" >&2; exit 1
+  fi
   eval "$_generated"
 }

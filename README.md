@@ -57,11 +57,13 @@ Open **Git Bash** (Start Menu → "Git Bash"), then paste these one at a time:
 
 ```bash
 docker --version
-python3 --version
+python3 --version   # or: python --version  /  py --version  (Windows)
 bash --version | head -1
 ```
 
 You should see Docker 24+, Python 3.11+, Bash 4+. If any prints `command not found`, reinstall that tool.
+
+> **Windows note:** `python3` may not exist on Windows — `python --version` or `py --version` works too. `install.sh` detects this automatically.
 
 ### Step 1 — Make sure Docker is running
 
