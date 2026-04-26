@@ -45,14 +45,15 @@ _load_strings() {
     exit 1
   fi
   local _generated _rc
-  _generated="$(python3 - "$_file" <<'PYEOF'
+  # python3 -c avoids both temp-file path issues (Windows) and stdin/heredoc
+  # pipe issues (Git Bash + native Windows Python combination).
+  _generated="$(python3 -c "
 import json, shlex, sys
-with open(sys.argv[1], encoding="utf-8") as f:
+with open(sys.argv[1], encoding='utf-8') as f:
     data = json.load(f)
-for key, val in data.items():
-    print(f"_S_{key}={shlex.quote(val)}")
-PYEOF
-  )"
+for k, v in data.items():
+    print('_S_' + k + '=' + shlex.quote(v))
+" "$_file")"
   _rc=$?
   if [ $_rc -ne 0 ] || [ -z "$_generated" ]; then
     echo "[install] FATAL: locale load failed" >&2; exit 1
