@@ -45,13 +45,14 @@ _load_strings() {
     exit 1
   fi
   local _generated _rc
-  # Single-line -c avoids:
-  #   1. Windows CreateProcess stripping embedded newlines from multiline -c strings
-  #   2. stdin/heredoc pipe issues (Git Bash + native Windows Python combination)
-  # sys.argv[1] receives the POSIX path; MSYS2 automatically converts /c/... → C:\...
-  # for arguments passed to native Windows binaries, so open() works on all platforms.
+  # PYTHONIOENCODING=utf-8  — forces UTF-8 stdout on Windows (default code page
+  #   e.g. CP1254 causes UnicodeEncodeError for Turkish chars → exit 1).
+  # < "$_file" (shell redirection, not a Python argument) — bash/MSYS2 opens
+  #   the file using its own POSIX path layer, so Python never sees /c/Users/...
+  #   and path-conversion issues are eliminated entirely.
+  # sys.stdin (json.load) — reads the file content Python receives via stdin.
   # shellcheck disable=SC2016
-  _generated="$(python3 -c 'import json,shlex,sys; data=json.load(open(sys.argv[1],encoding="utf-8")); [print("_S_"+k+"="+shlex.quote(v)) for k,v in data.items()]' "$_file")"
+  _generated="$(PYTHONIOENCODING=utf-8 python3 -c 'import json,shlex,sys; data=json.load(sys.stdin); [print("_S_"+k+"="+shlex.quote(v)) for k,v in data.items()]' < "$_file")"
   _rc=$?
   if [ $_rc -ne 0 ] || [ -z "$_generated" ]; then
     echo "[install] FATAL: locale load failed" >&2; exit 1
