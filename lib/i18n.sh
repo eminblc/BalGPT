@@ -40,14 +40,13 @@ _load_strings() {
     echo "[install] FATAL: locale file missing under $ROOT_DIR/locales/" >&2
     exit 1
   fi
-  # Find a working Python 3: try python3, python, py in order.
-  # Handles: MS Store stub (exits 49), python3 missing, Windows-only 'py' launcher.
+  # Find a working Python 3: try py first (most reliable on Windows), then fallbacks.
+  # Uses direct execution without command -v to bypass MS Store stubs that are found
+  # by command -v but output nothing (exit 0 silently, breaking || echo 0 fallback).
   local _py="" _candidate _ver
-  for _candidate in python3 python py; do
-    if command -v "$_candidate" &>/dev/null; then
-      _ver="$("$_candidate" -c 'import sys; print(sys.version_info.major)' 2>/dev/null || echo 0)"
-      if [[ "$_ver" == "3" ]]; then _py="$_candidate"; break; fi
-    fi
+  for _candidate in py python3 python; do
+    _ver="$("$_candidate" -c 'import sys; print(sys.version_info.major)' 2>/dev/null)" || continue
+    if [[ "$_ver" == "3" ]]; then _py="$_candidate"; break; fi
   done
   if [[ -z "$_py" ]]; then
     echo "[install] FATAL: Python 3 bulunamadı / Python 3 not found (tried: python3 python py)" >&2

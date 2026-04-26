@@ -86,20 +86,21 @@ is_windows() { [[ "$(uname -s 2>/dev/null)" =~ ^(MINGW|MSYS|CYGWIN) ]]; }
 # Ensures every downstream `python3` call works on Windows Git Bash.
 # Also handles the MS Store python3.exe stub (Win10/11) which is found by
 # `command -v python3` but exits with code 49 (0x31) without doing anything.
-# We probe with a real import to confirm the binary is functional.
+# We probe with actual output (not just exit code) to detect MS Store stubs that
+# exit 0 silently — sys.exit(0) would pass the stub, version check won't.
 _py3_functional() {
-  command -v python3 &>/dev/null \
-    && python3 -c 'import sys; sys.exit(0)' 2>/dev/null
+  local _v
+  _v="$(python3 -c 'import sys; print(sys.version_info.major)' 2>/dev/null)" || return 1
+  [[ "$_v" == "3" ]]
 }
 if ! _py3_functional; then
-  for _py_candidate in python py; do
-    if command -v "$_py_candidate" &>/dev/null; then
-      _py_major="$("$_py_candidate" -c 'import sys; print(sys.version_info.major)' 2>/dev/null || echo 0)"
-      if [[ "$_py_major" == "3" ]]; then
-        python3() { "$_py_candidate" "$@"; }
-        export -f python3
-        break
-      fi
+  # py first: Windows 'py' launcher is the most reliable on Win10/11.
+  for _py_candidate in py python python3; do
+    _py_major="$("$_py_candidate" -c 'import sys; print(sys.version_info.major)' 2>/dev/null)" || continue
+    if [[ "$_py_major" == "3" ]]; then
+      python3() { "$_py_candidate" "$@"; }
+      export -f python3
+      break
     fi
   done
   unset _py_candidate _py_major
