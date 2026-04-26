@@ -45,15 +45,13 @@ _load_strings() {
     exit 1
   fi
   local _generated _rc
-  # python3 -c avoids both temp-file path issues (Windows) and stdin/heredoc
-  # pipe issues (Git Bash + native Windows Python combination).
-  _generated="$(python3 -c "
-import json, shlex, sys
-with open(sys.argv[1], encoding='utf-8') as f:
-    data = json.load(f)
-for k, v in data.items():
-    print('_S_' + k + '=' + shlex.quote(v))
-" "$_file")"
+  # Single-line -c avoids:
+  #   1. Windows CreateProcess stripping embedded newlines from multiline -c strings
+  #   2. stdin/heredoc pipe issues (Git Bash + native Windows Python combination)
+  # sys.argv[1] receives the POSIX path; MSYS2 automatically converts /c/... → C:\...
+  # for arguments passed to native Windows binaries, so open() works on all platforms.
+  # shellcheck disable=SC2016
+  _generated="$(python3 -c 'import json,shlex,sys; data=json.load(open(sys.argv[1],encoding="utf-8")); [print("_S_"+k+"="+shlex.quote(v)) for k,v in data.items()]' "$_file")"
   _rc=$?
   if [ $_rc -ne 0 ] || [ -z "$_generated" ]; then
     echo "[install] FATAL: locale load failed" >&2; exit 1

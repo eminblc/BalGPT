@@ -84,7 +84,14 @@ is_windows() { [[ "$(uname -s 2>/dev/null)" =~ ^(MINGW|MSYS|CYGWIN) ]]; }
 
 # ── Python3 normalization (Windows: py / python may shadow python3) ───────────
 # Ensures every downstream `python3` call works on Windows Git Bash.
-if ! command -v python3 &>/dev/null; then
+# Also handles the MS Store python3.exe stub (Win10/11) which is found by
+# `command -v python3` but exits with code 49 (0x31) without doing anything.
+# We probe with a real import to confirm the binary is functional.
+_py3_functional() {
+  command -v python3 &>/dev/null \
+    && python3 -c 'import sys; sys.exit(0)' 2>/dev/null
+}
+if ! _py3_functional; then
   for _py_candidate in python py; do
     if command -v "$_py_candidate" &>/dev/null; then
       _py_major="$("$_py_candidate" -c 'import sys; print(sys.version_info.major)' 2>/dev/null || echo 0)"
@@ -97,6 +104,7 @@ if ! command -v python3 &>/dev/null; then
   done
   unset _py_candidate _py_major
 fi
+unset -f _py3_functional
 
 # ── Language selection / Dil seçimi ──────────────────────────────────────────
 
