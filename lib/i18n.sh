@@ -40,19 +40,26 @@ _load_strings() {
     echo "[install] FATAL: locale file missing under $ROOT_DIR/locales/" >&2
     exit 1
   fi
-  if ! command -v python3 &>/dev/null; then
-    echo "[install] FATAL: python3 required to load install locales" >&2
+  # Find a working Python 3: try python3, python, py in order.
+  # Handles: MS Store stub (exits 49), python3 missing, Windows-only 'py' launcher.
+  local _py="" _candidate _ver
+  for _candidate in python3 python py; do
+    if command -v "$_candidate" &>/dev/null; then
+      _ver="$("$_candidate" -c 'import sys; print(sys.version_info.major)' 2>/dev/null || echo 0)"
+      if [[ "$_ver" == "3" ]]; then _py="$_candidate"; break; fi
+    fi
+  done
+  if [[ -z "$_py" ]]; then
+    echo "[install] FATAL: Python 3 bulunamadı / Python 3 not found (tried: python3 python py)" >&2
     exit 1
   fi
   local _generated _rc
-  # PYTHONIOENCODING=utf-8  — forces UTF-8 stdout on Windows (default code page
-  #   e.g. CP1254 causes UnicodeEncodeError for Turkish chars → exit 1).
-  # < "$_file" (shell redirection, not a Python argument) — bash/MSYS2 opens
-  #   the file using its own POSIX path layer, so Python never sees /c/Users/...
-  #   and path-conversion issues are eliminated entirely.
-  # sys.stdin (json.load) — reads the file content Python receives via stdin.
+  # PYTHONIOENCODING=utf-8  — prevents UnicodeEncodeError for Turkish/non-ASCII
+  #   chars on Windows (default code page e.g. CP1254 cannot encode them).
+  # < "$_file" — bash/MSYS2 opens the file; Python reads sys.stdin, never
+  #   sees the /c/Users/... POSIX path, eliminating all path-conversion issues.
   # shellcheck disable=SC2016
-  _generated="$(PYTHONIOENCODING=utf-8 python3 -c 'import json,shlex,sys; data=json.load(sys.stdin); [print("_S_"+k+"="+shlex.quote(v)) for k,v in data.items()]' < "$_file")"
+  _generated="$(PYTHONIOENCODING=utf-8 "$_py" -c 'import json,shlex,sys; data=json.load(sys.stdin); [print("_S_"+k+"="+shlex.quote(v)) for k,v in data.items()]' < "$_file")"
   _rc=$?
   if [ $_rc -ne 0 ] || [ -z "$_generated" ]; then
     echo "[install] FATAL: locale load failed" >&2; exit 1
