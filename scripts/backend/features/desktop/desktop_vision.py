@@ -19,8 +19,8 @@ from typing import Optional
 
 from .desktop_capture import capture_screen
 from .desktop_common import _detect_display, _env, _xdotool_available, x11_lock
-from ..config import get_settings
-from ..store.repositories import token_stat_repo
+from ...config import get_settings
+from ...store.repositories import token_stat_repo
 
 logger = logging.getLogger(__name__)
 

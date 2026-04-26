@@ -77,6 +77,12 @@ from .desktop_system import (
     get_windows,
     focus_window,
 )
+from .desktop_common import is_screen_locked
+from .desktop_recording import (
+    record_screen,
+    record_all_monitors,
+    check_size_mb,
+)
 
 __all__ = [
     # Capture
@@ -113,6 +119,12 @@ __all__ = [
     "start_watch_popup",
     "stop_watch_popup",
     "list_watch_popups",
+    # Common helpers re-exported for external use
+    "is_screen_locked",
+    # Recording
+    "record_screen",
+    "record_all_monitors",
+    "check_size_mb",
 ]
 
 logger = logging.getLogger(__name__)

@@ -147,7 +147,7 @@ async def test_desktop_action_with_valid_code_unlocks_and_runs():
                AsyncMock(return_value=(0, 0))), \
          patch("backend.store.sqlite_store.totp_reset_lockout",
                AsyncMock(return_value=None)), \
-         patch("backend.features.desktop_capture.capture_all_monitors",
+         patch("backend.features.desktop.capture_all_monitors",
                AsyncMock(return_value=[("monitor0", "/tmp/x.png")])):
         resp = await desktop_router.desktop_action(
             desktop_router.DesktopRequest(action="screenshot", code="123456"),
@@ -207,7 +207,7 @@ async def test_desktop_action_second_call_does_not_require_code():
               AsyncMock(return_value=(0, 0))),
         patch("backend.store.sqlite_store.totp_reset_lockout",
               AsyncMock(return_value=None)),
-        patch("backend.features.desktop_capture.capture_all_monitors",
+        patch("backend.features.desktop.capture_all_monitors",
               AsyncMock(return_value=[("monitor0", "/tmp/x.png")])),
     ]
     for p in common_patches:

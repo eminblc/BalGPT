@@ -30,7 +30,7 @@ async def _handle_ocr(body: DesktopRequest) -> dict:
 
 async def _handle_screenshot(body: DesktopRequest) -> dict:
     from ..features.desktop import capture_screen
-    from ..features.desktop_capture import capture_all_monitors
+    from ..features.desktop import capture_all_monitors
 
     region = tuple(body.region) if body.region else None  # type: ignore[arg-type]
 
@@ -126,7 +126,7 @@ async def _handle_record_screen(body: DesktopRequest) -> dict:
             ),
         }
 
-    from ..features.desktop_recording import (
+    from ..features.desktop import (
         record_screen, record_all_monitors, check_size_mb,
     )
 

@@ -20,7 +20,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-from ..config import settings
+from ...config import settings
 from .desktop_common import _detect_display, _detect_xauthority, _env, x11_lock  # _detect_display: ocr_screen hata mesajında kullanılır
 
 logger = logging.getLogger(__name__)

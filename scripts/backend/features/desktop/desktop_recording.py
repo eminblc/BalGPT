@@ -43,13 +43,13 @@ _FFMPEG_BASE_ARGS = [
 
 def _recording_enabled() -> bool:
     """DESKTOP_RECORDING config flag'ini kontrol eder."""
-    from ..config import settings
+    from ...config import settings
     return settings.desktop_recording
 
 
 def _max_mb() -> int:
     """WhatsApp boyut limiti (MB)."""
-    from ..config import settings
+    from ...config import settings
     return settings.desktop_recording_max_mb
 
 

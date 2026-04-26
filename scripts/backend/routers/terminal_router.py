@@ -87,7 +87,7 @@ async def terminal_run(body: TerminalRequest, request: Request):
         r"\bxdotool\s+(type|key|click|mousemove|mousedown|mouseup)\b", __import__("re").IGNORECASE
     )
     if _XDO_INPUT_RE.search(body.cmd):
-        from ..features.desktop_common import is_screen_locked
+        from ..features.desktop import is_screen_locked
         if await is_screen_locked():
             logger.warning(
                 "terminal_router: ekran kilitli — xdotool girdi komutu engellendi (BUG-DESK-LOCK-2) cmd=%r",

@@ -86,12 +86,20 @@ is_windows() { [[ "$(uname -s 2>/dev/null)" =~ ^(MINGW|MSYS|CYGWIN) ]]; }
 # Single source of truth: every script-side python call uses "$PY".
 # Detects MS Store python3.exe stub (Win10/11) which is found by `command -v`
 # but exits silently — version probe rejects it (no usable output).
-# Order: py (Windows launcher, most reliable) → python3 → python.
+# Windows order: py (PEP 397 launcher) → python3 → python.
+# Linux/macOS order: python3 → python → py  (avoids tools named "py" that are
+#   not real interpreters, e.g. the "pythonpy" one-liner utility on Ubuntu).
 # Pyotp-dependent code (security.sh, totp.sh) prefers the venv binary first
 # and falls back to "$PY" — this is the system-side picker only.
 _pick_python() {
   local _c _v
-  for _c in py python3 python; do
+  local _list
+  if is_windows; then
+    _list="py python3 python"
+  else
+    _list="python3 python py"
+  fi
+  for _c in $_list; do
     command -v "$_c" >/dev/null 2>&1 || continue
     "$_c" -c '' 2>/dev/null || continue
     _v="$("$_c" -c 'import sys; print(sys.version_info.major)' 2>/dev/null)" || continue

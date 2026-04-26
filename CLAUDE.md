@@ -102,14 +102,17 @@ cd scripts && backend/venv/bin/python -c "from backend.main import app; print('P
 # Node.js syntax check
 node --check scripts/claude-code-bridge/server.js && echo "Node OK"
 
-# Unit tests (scripts/tests/ directory: dedup, rate_limiter, slugify, sqlite_store)
+# Unit tests (scripts/tests/ directory — full suite)
 cd scripts && backend/venv/bin/python -m pytest tests/ -v
 
 # Run a single test file
 cd scripts && backend/venv/bin/python -m pytest tests/test_dedup.py -v
+
+# Install script tests (tests/install/ — bats; covers env helpers, locale parity, misc helpers)
+bats tests/install/
 ```
 
-CI (`.github/workflows/ci.yml`) runs three jobs: Python syntax + import check, `pytest tests/`, and Node.js syntax check.
+CI (`.github/workflows/ci.yml`) runs three jobs: Python syntax + import check, `pytest tests/`, and Node.js syntax check. The `bats tests/install/` suite is also run in CI.
 
 ## Running with PM2 (Alternative)
 

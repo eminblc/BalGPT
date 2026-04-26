@@ -300,7 +300,7 @@ async def _handle_unlock_screen(body: DesktopRequest) -> dict:
 
 async def _handle_is_locked(body: DesktopRequest) -> dict:
     """DESK-LOGIN-2: Ekran kilit durumunu boolean olarak döner."""
-    from ..features.desktop_common import is_screen_locked
+    from ..features.desktop import is_screen_locked
     locked = await is_screen_locked()
     logger.info("desktop/is_locked: %s", locked)
     return {"ok": True, "locked": locked, "message": f"Ekran {'kilitli' if locked else 'açık'}."}
@@ -423,7 +423,7 @@ async def _check_screen_lock(action: str) -> dict | None:
     """
     if action not in _INPUT_ACTIONS:
         return None
-    from ..features.desktop_common import is_screen_locked
+    from ..features.desktop import is_screen_locked
     if await is_screen_locked():
         logger.warning(
             "desktop_router: ekran kilitli — '%s' aksiyonu engellendi (BUG-DESK-LOCK-1)",

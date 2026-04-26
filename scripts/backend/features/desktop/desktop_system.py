@@ -153,7 +153,7 @@ async def sudo_exec(cmd: list[str], timeout: int = 60) -> tuple[int, str]:
 
     Döner: (returncode, çıktı_metni). Hata durumunda returncode=-1.
     """
-    from ..config import settings
+    from ...config import settings
     password = settings.system_psswrd.get_secret_value()
     if not password:
         return -1, "❌ SYSTEM_PSSWRD ayarlanmamış — sudo_exec çalışamaz."
@@ -201,7 +201,7 @@ async def run_installer(path: str, timeout: int = 120) -> str:
     ext = p.suffix.lower()
 
     if ext == ".deb":
-        from ..config import settings as _settings
+        from ...config import settings as _settings
         if _settings.system_psswrd.get_secret_value():
             code, output = await sudo_exec(["dpkg", "-i", str(p)], timeout=timeout)
             if code == 0:
@@ -224,7 +224,7 @@ async def run_installer(path: str, timeout: int = 120) -> str:
     elif ext == ".rpm":
         if not shutil.which("rpm"):
             return "❌ rpm bulunamadı. Debian tabanlı sistemde .deb tercih et."
-        from ..config import settings as _settings
+        from ...config import settings as _settings
         if _settings.system_psswrd.get_secret_value():
             code, output = await sudo_exec(["rpm", "-i", str(p)], timeout=timeout)
             if code == 0:
