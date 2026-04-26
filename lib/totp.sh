@@ -33,24 +33,36 @@ step_show_totp() {
     #      (Ubuntu 23+/Debian 12+/brew block `pip install --user`).  Cached
     #      across owner+admin calls; cleaned up at end of step_show_totp.
     local _py=""
-    if [[ -x "$BACKEND_DIR/venv/bin/python" ]] && \
-       "$BACKEND_DIR/venv/bin/python" -c "import qrcode" 2>/dev/null; then
-      _py="$BACKEND_DIR/venv/bin/python"
+    # Windows uses Scripts/python.exe, Linux/macOS uses bin/python
+    local _venv_py="$BACKEND_DIR/venv/bin/python"
+    [[ -x "$BACKEND_DIR/venv/Scripts/python.exe" ]] && _venv_py="$BACKEND_DIR/venv/Scripts/python.exe"
+    if [[ -x "$_venv_py" ]] && "$_venv_py" -c "import qrcode" 2>/dev/null; then
+      _py="$_venv_py"
     fi
     if [[ -z "$_py" ]]; then
-      for _cand in python3 python; do
-        if command -v "$_cand" &>/dev/null && "$_cand" -c "import qrcode" 2>/dev/null; then
-          _py="$_cand"; break
-        fi
+      local _cand _cv
+      # py first on Windows to avoid MS Store stub
+      for _cand in py python3 python; do
+        _cv="$("$_cand" -c 'import sys; print(sys.version_info.major)' 2>/dev/null)" || continue
+        [[ "$_cv" == "3" ]] || continue
+        "$_cand" -c "import qrcode" 2>/dev/null && { _py="$_cand"; break; }
       done
     fi
-    if [[ -z "$_py" ]] && command -v python3 &>/dev/null; then
+    local _pick_py_for_venv=""
+    if [[ -z "$_py" ]]; then
+      local _cand2 _cv2
+      for _cand2 in py python3 python; do
+        _cv2="$("$_cand2" -c 'import sys; print(sys.version_info.major)' 2>/dev/null)" || continue
+        [[ "$_cv2" == "3" ]] && { _pick_py_for_venv="$_cand2"; break; }
+      done
+    fi
+    if [[ -z "$_py" ]] && [[ -n "$_pick_py_for_venv" ]]; then
       : "${_TOTP_QR_VENV:=${TMPDIR:-/tmp}/balgpt_qr_venv_$$}"
       local _vbin="bin"; is_windows && _vbin="Scripts"
       local _vpy="$_TOTP_QR_VENV/$_vbin/python"
       is_windows && _vpy="${_vpy}.exe"
       if [[ ! -x "$_vpy" ]]; then
-        python3 -m venv "$_TOTP_QR_VENV" 2>/dev/null \
+        "$_pick_py_for_venv" -m venv "$_TOTP_QR_VENV" 2>/dev/null \
           && "$_TOTP_QR_VENV/$_vbin/pip" install --quiet qrcode 2>/dev/null \
           || true
       fi

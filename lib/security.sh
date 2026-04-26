@@ -11,19 +11,25 @@ _gen_api_key() {
 
 
 _gen_totp() {
-  # venv python (systemd/PM2 modu)
-  if "$BACKEND_DIR/venv/bin/python" -c "import pyotp" 2>/dev/null; then
-    "$BACKEND_DIR/venv/bin/python" -c 'import pyotp; print(pyotp.random_base32())'
-  # system python3 (Docker modu / Git Bash)
-  elif python3 -c "import pyotp" 2>/dev/null; then
-    python3 -c 'import pyotp; print(pyotp.random_base32())'
-  elif python -c "import pyotp" 2>/dev/null; then
-    python -c 'import pyotp; print(pyotp.random_base32())'
-  # pyotp yoksa base32 uyumlu rastgele string üret
+  local _py=""
+  # Detect venv python — Windows uses Scripts/python.exe, Linux/macOS uses bin/python
+  if   [[ -x "$BACKEND_DIR/venv/Scripts/python.exe" ]]; then _py="$BACKEND_DIR/venv/Scripts/python.exe"
+  elif [[ -x "$BACKEND_DIR/venv/bin/python"         ]]; then _py="$BACKEND_DIR/venv/bin/python"
+  fi
+  # Fallback to system python — py first (Windows launcher avoids MS Store stub)
+  if [[ -z "$_py" ]]; then
+    local _c _v
+    for _c in py python3 python; do
+      _v="$("$_c" -c 'import sys; print(sys.version_info.major)' 2>/dev/null)" || continue
+      [[ "$_v" == "3" ]] && { _py="$_c"; break; }
+    done
+  fi
+  # Use pyotp if available; otherwise generate a valid base32 secret via openssl/date
+  if [[ -n "$_py" ]] && "$_py" -c "import pyotp" 2>/dev/null; then
+    "$_py" -c 'import pyotp; print(pyotp.random_base32())'
   else
     local raw=""
     if command -v openssl &>/dev/null; then
-      # Generate enough bytes so after filtering we get at least 32 chars
       while [[ ${#raw} -lt 32 ]]; do
         raw+="$(openssl rand -base64 64 | tr -dc 'A-Z2-7')"
       done
