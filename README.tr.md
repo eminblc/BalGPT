@@ -1,8 +1,8 @@
 # BalGPT
 
-> _Sunucunda çalışan kişisel AI ajanı — WhatsApp veya Telegram üzerinden sohbet et._
+> _Sunucunuzda çalışan kişisel AI ajanı — WhatsApp veya Telegram üzerinden sohbet edin._
 
-**BalGPT**, makinende çalışan ve WhatsApp veya Telegram'ı dinleyen kişisel bir asistandır. Mesaj gönder, işleri yaptırsın — proje oluştur, görevleri yönet, takvim hatırlatıcıları kur, shell komutları çalıştır, PDF içe aktar ve doğrudan telefonundan Claude Code ile sohbet et. Her şey kendi makinende çalışır; bulut servisleri yapılandırmadıkça veriler dışarı çıkmaz.
+**BalGPT**, makinenizde çalışan ve WhatsApp veya Telegram'ı dinleyen kişisel bir asistandır. Mesaj gönderin; proje oluşturun, görevleri yönetin, takvim hatırlatıcıları kurun, shell komutları çalıştırın, PDF içe aktarın ve doğrudan telefonunuzdan Claude Code ile sohbet edin. Her şey kendi makinenizde çalışır; bulut servisleri yapılandırılmadıkça veriler dışarı çıkmaz.
 
 ---
 
@@ -22,9 +22,9 @@ WhatsApp / Telegram → POST /whatsapp/webhook  veya  POST /telegram/webhook
 
 ---
 
-## 🚀 Kuruluma Başlangıç — Yeni Başlayanlar İçin Rehber
+## 🚀 Kurulum
 
-> **Terminal veya sunucu konusunda yeniyseniz endişelenmeyin.** Bu rehber sıfırdan yazıldı. İşletim sisteminizi seçin ve adımları sırayla uygulayın. Toplam süre: ~10-20 dakika (büyük kısmı Docker imajlarını indirirken geçer).
+İşletim sisteminizi seçin ve ilgili bölümdeki adımları uygulayın. Kurulum süresi tahminen 10–20 dakikadır (büyük bölümü Docker imajlarının indirilmesi).
 
 | İşletim Sisteminiz | Bölüm |
 |--------------------|-------|
@@ -32,28 +32,28 @@ WhatsApp / Telegram → POST /whatsapp/webhook  veya  POST /telegram/webhook
 | 🍎 **macOS** (Intel veya Apple Silicon) | [macOS Kurulumu](#-macos-kurulumu) |
 | 🐧 **Linux** (Ubuntu / Debian / Fedora) | [Linux Kurulumu](#-linux-kurulumu) |
 
-> 💡 **Sonuçta elinize geçecek olan:** Telefonunuzda (Telegram veya WhatsApp) sohbet edebileceğiniz, dosya oluşturabilen, komut çalıştırabilen, hatırlatıcı kurabilen ve konuşmalarınızı hatırlayan bir bot — hepsi sizin bilgisayarınızda çalışıyor olacak.
+Kurulum tamamlandığında Telegram veya WhatsApp üzerinden dosya oluşturabilen, komut çalıştırabilen, hatırlatıcı kurabilen ve konuşma geçmişini saklayan bir bot kullanıma hazır olacak; tüm bunlar kendi makinenizde çalışacak.
 
 ---
 
 ## 🪟 Windows Kurulumu
 
-### Gerekli olanlar (ücretsiz, bir defalık kurulum)
+### Gereksinimler
 
-| # | Araç | İndirme | Ne işe yarar |
-|---|------|---------|--------------|
+| # | Araç | İndirme | Açıklama |
+|---|------|---------|----------|
 | 1 | **Docker Desktop** | [docker.com/desktop](https://docs.docker.com/desktop/install/windows-install/) | Botu container içinde çalıştırır |
-| 2 | **Git for Windows** | [git-scm.com/download/win](https://git-scm.com/download/win) | "Git Bash" terminali sağlar |
-| 3 | **Python 3.11+** | [python.org/downloads/windows](https://www.python.org/downloads/windows/) | Kurulum sihirbazının ihtiyacı |
+| 2 | **Git for Windows** | [git-scm.com/download/win](https://git-scm.com/download/win) | Git Bash terminalini sağlar |
+| 3 | **Python 3.11+** | [python.org/downloads/windows](https://www.python.org/downloads/windows/) | Kurulum sihirbazı için gereklidir |
 
-**Kurulum sırasında dikkat:**
-- Docker Desktop: tüm varsayılanları işaretli bırakın. Kurulumdan sonra **uygulamayı başlatın** (sistem tepsisindeki balina simgesi, ~1 dakika içinde hazır olur).
+**Kurulum sırasında dikkat edilmesi gerekenler:**
+- Docker Desktop: tüm varsayılanları işaretli bırakın. Kurulumdan sonra **uygulamayı başlatın** (sistem tepsisindeki balina simgesi ~1 dakika içinde hazır olur).
 - Git for Windows: tüm varsayılanları kabul edin (özellikle "Git Bash Here" seçeneği).
-- Python: ☑ İlk ekranda **"Add python.exe to PATH"** kutusunu işaretleyin — bu olmadan kurulum scripti Python'u bulamaz.
+- Python: ilk ekranda **"Add python.exe to PATH"** kutusunu işaretleyin — aksi hâlde kurulum scripti Python'u bulamaz.
 
-### Her şey hazır mı kontrol edin
+### Bağımlılıkları Doğrulayın
 
-**Git Bash**'i açın (Başlat → "Git Bash"), şu komutları tek tek yapıştırın:
+**Git Bash**'i açın (Başlat → "Git Bash") ve aşağıdaki komutları çalıştırın:
 
 ```bash
 docker --version
@@ -61,11 +61,11 @@ python3 --version
 bash --version | head -1
 ```
 
-Çıktı: Docker 24+, Python 3.11+, Bash 4+ olmalı. Herhangi biri `command not found` derse, o aracı tekrar kurun.
+Çıktı: Docker 24+, Python 3.11+, Bash 4+ olmalıdır. Herhangi bir komut `command not found` hatası veriyorsa ilgili aracı yeniden kurun.
 
 ### 1. Adım — Docker'ın çalıştığından emin olun
 
-Sistem tepsisine bakın (sağ alt). Balina simgesi **"Docker Desktop is running"** demeli. Demiyorsa simgeye tıklayıp başlatın.
+Sistem tepsisini kontrol edin (sağ alt). Balina simgesi **"Docker Desktop is running"** durumunu göstermelidir; göstermiyorsa simgeye tıklayarak başlatın.
 
 ### 2. Adım — Projeyi indirin
 
@@ -82,11 +82,11 @@ cd 99-root
 bash install.sh --docker
 ```
 
-Sihirbaz size ~6 soru sorar, sonra botu kurar. Her sorunun bir **önerilen cevabı** var — emin değilseniz onu seçin. [Sihirbaz neyi soruyor](#-sihirbaz-neyi-soruyor) bölümüne bakın.
+Sihirbaz ~6 soru sorar ve ardından kurulumu tamamlar. Her sorunun önerilen varsayılan yanıtı belirtilmiştir. Bkz. [Sihirbaz Soruları](#-sihirbaz-neyi-soruyor).
 
-### 4. Adım — Çalıştığını doğrulayın
+### 4. Adım — Doğrulayın
 
-Kurulum bittikten sonra (ilk seferde 10-15 dk):
+Kurulum tamamlandıktan sonra (ilk seferde 10–15 dakika):
 
 ```bash
 docker compose ps
@@ -94,7 +94,7 @@ curl -s http://localhost:8010/health
 curl -s http://localhost:8013/health
 ```
 
-İki `curl` komutu da `"status":"ok"` içeren JSON dönmeli. Sonra **botunuza bir mesaj atın** (Telegram veya WhatsApp). Birkaç saniye içinde cevap almalısınız.
+İki `curl` çıktısı da `"status":"ok"` içermelidir. Botunuza bir mesaj gönderin (Telegram veya WhatsApp) ve birkaç saniye içinde yanıt geldiğini doğrulayın.
 
 ### Windows'ta sık karşılaşılan sorunlar
 
@@ -102,29 +102,29 @@ curl -s http://localhost:8013/health
 |---------|-------|
 | `bash: install.sh: No such file or directory` | Proje klasöründe değilsiniz. Önce `cd 99-root` yazın. |
 | `Docker daemon is not running` | Docker Desktop'ı açın, balina simgesinin animasyonu durana kadar bekleyin. |
-| Sihirbaz PowerShell'de açıldı, görüntü bozuk | Scripti PowerShell'den çalıştırdınız. Kapatın; **Git Bash**'te açın. |
-| `python3: command not found` | Python'u python.org'dan ☑ **Add to PATH** işaretli olarak yeniden kurun. |
+| Sihirbaz PowerShell'de açıldı, görüntü bozuk | Script PowerShell'den çalıştırıldı. Kapatın; **Git Bash**'te açın. |
+| `python3: command not found` | Python'u python.org'dan **Add to PATH** seçeneği işaretli olarak yeniden kurun. |
 | `claude auth login` sırasında tarayıcı açılmıyor | Terminalde yazılan URL'yi kopyalayıp tarayıcıya manuel yapıştırın. |
-| Kurulum "Public URL bekleniyor" satırında takılıyor | ngrok hesap problemi. [ngrok.com](https://ngrok.com) hesabı açıp authtoken kopyalayın, `--reconfigure-capabilities` ile yeniden çalıştırın. |
+| Kurulum "Public URL bekleniyor" satırında takılıyor | ngrok hesap problemi. [ngrok.com](https://ngrok.com)'da hesap oluşturup authtoken kopyalayın; `--reconfigure-capabilities` ile yeniden çalıştırın. |
 
 ---
 
 ## 🍎 macOS Kurulumu
 
-### Gerekli olanlar (ücretsiz, bir defalık kurulum)
+### Gereksinimler
 
-| # | Araç | Nasıl kurulur | Ne işe yarar |
-|---|------|---------------|--------------|
-| 1 | **Homebrew** | Terminal'de: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` | Paket yöneticisi — diğerleri için lazım |
-| 2 | **Docker Desktop** | `brew install --cask docker` (veya [docker.com'dan indirin](https://docs.docker.com/desktop/install/mac-install/)) | Botu container içinde çalıştırır |
-| 3 | **Python 3.11+** | `brew install python@3.11` (çoğu mac'te zaten var) | Kurulum sihirbazının ihtiyacı |
-| 4 | **Git** | `brew install git` (çoğu mac'te zaten var) | Projeyi indirir |
+| # | Araç | Kurulum | Açıklama |
+|---|------|---------|----------|
+| 1 | **Homebrew** | `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` | Paket yöneticisi |
+| 2 | **Docker Desktop** | `brew install --cask docker` veya [docker.com](https://docs.docker.com/desktop/install/mac-install/) | Botu container içinde çalıştırır |
+| 3 | **Python 3.11+** | `brew install python@3.11` (çoğu macOS kurulumunda mevcuttur) | Kurulum sihirbazı için gereklidir |
+| 4 | **Git** | `brew install git` (çoğu macOS kurulumunda mevcuttur) | Projeyi indirir |
 
-Homebrew + Docker kurulumundan sonra **Docker Desktop'ı başlatın** (Uygulamalar → Docker). ~1 dk'da hazır olur.
+Homebrew ve Docker kurulumundan sonra **Docker Desktop'ı başlatın** (Uygulamalar → Docker). ~1 dakika içinde hazır olur.
 
-### Her şey hazır mı kontrol edin
+### Bağımlılıkları Doğrulayın
 
-**Terminal**'i açın (Cmd+Space → "Terminal"), sonra:
+**Terminal**'i açın (Cmd+Space → "Terminal"):
 
 ```bash
 docker --version          # 24+
@@ -146,7 +146,7 @@ cd 99-root
 bash install.sh --docker
 ```
 
-(Sorular için bkz. [Sihirbaz neyi soruyor](#-sihirbaz-neyi-soruyor).)
+Bkz. [Sihirbaz Soruları](#-sihirbaz-neyi-soruyor).
 
 ### 3. Adım — Doğrulayın
 
@@ -156,46 +156,46 @@ curl -s http://localhost:8010/health
 curl -s http://localhost:8013/health
 ```
 
-Botunuza mesaj atıp cevap verdiğini doğrulayın.
+Botunuza mesaj göndererek yanıt verdiğini doğrulayın.
 
 ### macOS'ta sık karşılaşılan sorunlar
 
 | Belirti | Çözüm |
 |---------|-------|
 | `Cannot connect to the Docker daemon` | Uygulamalar'dan Docker Desktop'ı açıp başlamasını bekleyin. |
-| `python3: command not found` | `brew install python@3.11`, sonra Terminal'i yeniden açın. |
-| Apple Silicon (M1/M2/M3) image build yavaş | Normal — ilk build 10-15 dk. Sonraki çalıştırmalar saniyeler. |
-| `xcrun: error: invalid active developer path` | `xcode-select --install` çalıştırıp gelen istemi kabul edin. |
+| `python3: command not found` | `brew install python@3.11`, ardından Terminal'i yeniden açın. |
+| Apple Silicon (M1/M2/M3) image build yavaş | İlk build 10–15 dakika sürebilir. Sonraki çalıştırmalar saniyeler içinde tamamlanır. |
+| `xcrun: error: invalid active developer path` | `xcode-select --install` çalıştırın ve gelen istemi onaylayın. |
 | `/etc/...` oluşturmada permission denied | `sudo` kullanmayın — macOS'ta Docker modu gerektirmez. |
 
 ---
 
 ## 🐧 Linux Kurulumu
 
-### Gerekli olanlar (Ubuntu/Debian komutları gösteriliyor)
+### Gereksinimler (Ubuntu/Debian)
 
 ```bash
-# 1. Paket index'ini güncelle
+# 1. Paket indeksini güncelleyin
 sudo apt update
 
-# 2. Docker + Docker Compose kur
+# 2. Docker + Docker Compose kurun
 sudo apt install -y docker.io docker-compose-v2
 
-# 3. Kendinizi docker grubuna ekleyin (sudo'suz docker komutları için)
+# 3. Kullanıcıyı docker grubuna ekleyin (sudo olmadan docker komutları çalıştırmak için)
 sudo usermod -aG docker $USER
-# ⚠ Etkili olması için oturumu kapatıp yeniden açın
+# ⚠️ Değişikliğin etkili olması için oturumu kapatıp yeniden açın
 
 # 4. Python 3.11+, git, curl ve venv modülünü kurun
 sudo apt install -y python3 python3-venv python3-pip git curl
 
-# 5. (Opsiyonel) terminal QR kod desteği için:
+# 5. (İsteğe bağlı) Terminal QR kod desteği için:
 sudo apt install -y qrencode whiptail
 ```
 
-Fedora: `sudo dnf install docker docker-compose python3 python3-pip git curl qrencode newt`
+Fedora: `sudo dnf install docker docker-compose python3 python3-pip git curl qrencode newt`  
 Arch: `sudo pacman -S docker docker-compose python python-pip git curl qrencode libnewt`
 
-### Doğrulayın
+### Bağımlılıkları Doğrulayın
 
 ```bash
 docker --version
@@ -233,9 +233,9 @@ curl -s http://localhost:8010/health
 curl -s http://localhost:8013/health
 ```
 
-Sonra botunuza mesaj atın.
+Botunuza mesaj göndererek doğrulayın.
 
-### Native kurulum (Docker'sız) — Adanmış sunucu için ileri kullanıcılar
+### Native kurulum (Docker'sız)
 
 ```bash
 sudo bash install.sh
@@ -245,16 +245,16 @@ sudo bash install.sh
 
 | Belirti | Çözüm |
 |---------|-------|
-| `permission denied while trying to connect to the Docker daemon` | `usermod -aG docker` sonrası oturumu yenilemediniz. Geçici çözüm: `sudo` ekleyin. |
+| `permission denied while trying to connect to the Docker daemon` | `usermod -aG docker` sonrası oturumu yenileyin. Geçici çözüm: komutlara `sudo` ekleyin. |
 | `error: externally-managed-environment` (PEP 668) | Kurulum scripti otomatik ephemeral venv oluşturur. `python3-venv` paketinin kurulu olduğundan emin olun. |
-| `qrencode not found` ve Python `qrcode` da yok | Otomatik ephemeral venv'de qrcode kurulur. Başarısız olursa online QR URL gösterilir. |
-| Docker modunda systemd hataları | `bash install.sh` (--docker olmadan) çalıştırdınız. `--docker` flag'ini ekleyin. |
+| `qrencode not found` ve Python `qrcode` da yok | Ephemeral venv içinde qrcode kurulur. Başarısız olursa online QR URL gösterilir. |
+| Docker modunda systemd hataları | `--docker` flag'ini ekleyerek çalıştırın. |
 
 ---
 
 ## ❓ Sihirbaz Neyi Soruyor
 
-Kurulum scripti etkileşimlidir: ~6 soru sorar, sonra build eder. Her sorunun anlamı ve emin değilseniz ne seçeceğiniz:
+Kurulum scripti etkileşimlidir. ~6 soru sorar ve ardından kurulum/derleme işlemini tamamlar.
 
 ### S1 — Dil
 
@@ -264,33 +264,31 @@ Language / Dil:
   2) English
 ```
 
-Hangi dilde rahat okuyorsanız onu seçin.
-
 ### S2 — Messenger Platformu
 
 ```
 Hangi platform üzerinden mesaj alınacak?
   whatsapp    WhatsApp (Meta Cloud API)
   telegram    Telegram (BotFather token)
-  cli         CLI — Sadece terminal çıktı (test)
+  cli         CLI — Sadece terminal çıktısı (test)
 ```
 
-🎯 **Önerilen: `telegram`** — en kolay kurulum. Sadece ücretsiz Telegram hesabı yeter (iş doğrulaması, Meta developer hesabı yok).
+🎯 **Önerilen: `telegram`** — Yalnızca Telegram hesabı gerektirir; Meta Developer hesabı veya iş doğrulaması gerekmez.
 
-- WhatsApp Meta Developer hesabı + telefon + onaylı işletme gerektirir.
-- CLI modu messenger olmadan bot mantığını test etmek için.
+- WhatsApp için Meta Developer hesabı, telefon numarası ve onaylı işletme kaydı gereklidir.
+- CLI modu, messenger olmadan bot işlevini yerel olarak test etmek için kullanılır.
 
-### S3 — Telegram Kurulumu (telegram seçtiyseniz)
+### S3 — Telegram Kurulumu (telegram seçildiyse)
 
 1. **Bot Token** — [@BotFather](https://t.me/BotFather)'dan:
-   - Telegram'ı açın, @BotFather'a mesaj atın
-   - `/newbot` gönderin
-   - İsim ve `bot` ile biten kullanıcı adı girin
-   - BotFather token verir, kopyalayın
+   - Telegram'ı açın, @BotFather'a mesaj gönderin.
+   - `/newbot` komutunu gönderin.
+   - Bot adı ve `bot` ile biten kullanıcı adı girin.
+   - BotFather token'ı iletir; kopyalayın.
 2. **Chat ID** — otomatik algılanır:
-   - Sihirbaz "şimdi bota bir mesaj at" der
-   - Bota "merhaba" yazın
-   - Sihirbaz chat ID'nizi otomatik yakalar
+   - Sihirbaz bot'a mesaj göndermenizi ister.
+   - Bot'a herhangi bir mesaj gönderin.
+   - Sihirbaz chat ID'nizi otomatik algılar.
 
 ### S4 — LLM Backend
 
@@ -301,11 +299,11 @@ Hangi yapay zeka modelini kullanmak istiyorsunuz?
   gemini       Google Gemini (AI Studio API key)
 ```
 
-🎯 **Önerilen: `anthropic`** + **Claude Login** — en iyi sonuç, yönetilecek API anahtarı yok.
+🎯 **Önerilen: `anthropic`** + **Claude Login** — En iyi performans; ayrı bir API anahtarı gerektirmez.
 
-- Aboneliğiniz yoksa API Key seçin.
-- Yerel ve ücretsiz isterseniz Ollama (yavaş, araç kullanımı güvenilmez).
-- Ücretsiz bulut için Gemini ([aistudio.google.com](https://aistudio.google.com)).
+- Aboneliğiniz yoksa API Key seçeneğini tercih edin.
+- Yerel ve ücretsiz bir çözüm için Ollama kullanılabilir; ancak yavaş çalışır ve araç kullanımı güvenilmez olabilir.
+- Ücretsiz bulut seçeneği için Google Gemini tercih edilebilir ([aistudio.google.com](https://aistudio.google.com)).
 
 ### S5 — Webhook Proxy
 
@@ -317,43 +315,41 @@ Dış erişim için hangi yöntem kullanılacak?
   external     Kendi domain'iniz
 ```
 
-🎯 **Önerilen: `ngrok`** — ücretsiz kalıcı public HTTPS URL verir.
+🎯 **Önerilen: `ngrok`** — Ücretsiz hesapla kalıcı public HTTPS URL sağlar.
 
 ngrok kurulumu:
-- [ngrok.com](https://ngrok.com)'da ücretsiz hesap açın
-- Dashboard → Your Authtoken → kopyalayın
-- Dashboard → Domains → "+ New domain" → ücretsiz statik domain alın
-- İkisini de sihirbaza yapıştırın
+- [ngrok.com](https://ngrok.com)'da ücretsiz hesap oluşturun.
+- Dashboard → Domains → "+ New domain" ile ücretsiz statik domain alın.
+- Dashboard → Your Authtoken bölümünden token'ı kopyalayın.
+- Her ikisini sihirbaza yapıştırın.
 
 ### S6 — Saat Dilimi
 
-Size en yakın şehri seçin. Türkiye'deyseniz `Europe/Istanbul`.
+Size en yakın şehri seçin. Türkiye için `Europe/Istanbul`.
 
 ### S7 — Yetenekler
 
-🎯 **Önerilen: varsayılanları koru.** Desktop ve Browser dışındakiler açık. Desktop/Browser GUI otomasyon paketleri (~500 MB ek), yalnızca lazımsa açın.
+🎯 **Önerilen: Varsayılan seçimleri koruyun.** Desktop ve Browser yetenekleri varsayılan olarak kapalıdır; yalnızca gerektiğinde etkinleştirin (~500 MB ek paket).
 
-### S8 — Anthropic Login (Claude Login seçtiyseniz)
+### S8 — Anthropic Login (Claude Login seçildiyse)
 
 Tarayıcı açılır; claude.ai hesabınızla giriş yapın.
 
 ### S9 — TOTP QR Kodları
 
-İki QR kod (owner + admin). **Google Authenticator ile tarayın.** `!restart`/`!shutdown` gibi hassas komutlar için 6 haneli kod sağlar.
+İki QR kod gösterilir (owner + admin). **Google Authenticator ile tarayın.** Bu kodlar, `!restart` ve `!shutdown` gibi hassas komutlar için 6 haneli TOTP kimlik doğrulaması sağlar.
 
 ### S10 — Webhook Ayarı
 
-Sihirbaz webhook URL'i basar. Telegram + ngrok ile otomatik kaydolur. WhatsApp için URL'i Meta Console'a yapıştırın.
+Sihirbaz webhook URL'ini ekrana yazdırır. Telegram + ngrok kombinasyonunda otomatik kayıt yapılır. WhatsApp kullanıyorsanız URL'yi Meta Console'a yapıştırın.
 
 ---
 
 ## 🔧 Referans: Kurulum Modları
 
-Aşağıdaki bölümler kurulum modlarının detaylı referansıdır — çoğu kullanıcı buraya ihtiyaç duymaz.
-
 ### Seçenek A — Docker ✅ Önerilen
 
-> Çoğu kullanıcı için en iyi seçenek. Linux, macOS ve Windows'ta (Git Bash + Docker Desktop) çalışır. Host'ta sihirbazı çalıştırmak için `bash`, `python3` 3.11+ ve `curl` gerekir — bkz. [Ön Koşullar](#ön-koşullar). Node.js host'ta **gerekmez** (Bridge container'ı içinde gelir).
+> Çoğu kullanıcı için önerilen seçenektir. Linux, macOS ve Windows'ta (Git Bash + Docker Desktop) çalışır. Host'ta sihirbazı çalıştırmak için `bash`, `python3` 3.11+ ve `curl` gerekir — bkz. [Ön Koşullar](#ön-koşullar). Node.js host'ta **gerekmez** (Bridge container içinde gelir).
 
 ```bash
 git clone https://github.com/kullanici-adin/99-root.git
@@ -361,24 +357,24 @@ cd 99-root
 bash install.sh --docker
 ```
 
-Sihirbaz hangi messenger, LLM backend, webhook proxy, kimlik bilgileri ve yeteneklerin istediğini sorar. Ardından `.env` dosyasını yazar, `CAPABILITIES` build-arg içeren bir `docker-compose.override.yml` oluşturur, yalnızca seçili paketlerin kurulu olduğu image'ı build eder ve container'ları başlatır.
+Sihirbaz messenger, LLM backend, webhook proxy, kimlik bilgileri ve yetenekleri yapılandırır. Ardından `.env` dosyasını yazar, `CAPABILITIES` build-arg içeren bir `docker-compose.override.yml` oluşturur, yalnızca seçili paketlerin kurulu olduğu image'ı derler ve container'ları başlatır.
 
-Güvenlik anahtarları (`API_KEY`, `TOTP_SECRET`, `TOTP_SECRET_ADMIN`) ve webhook token'ları sihirbaz tarafından **otomatik üretilir** — elle giriş gerekmez. TOTP QR kodları kurulum sonunda ekrana gösterilir; Google Authenticator'a okutabilirsin.
+Güvenlik anahtarları (`API_KEY`, `TOTP_SECRET`, `TOTP_SECRET_ADMIN`) ve webhook token'ları sihirbaz tarafından **otomatik üretilir**. TOTP QR kodları kurulum sonunda ekrana gösterilir; Google Authenticator ile taranabilir.
 
-Compose dosyası `./data` ve `./outputs/logs` dizinlerini volume olarak bağlar; tüm veriler container dışında kalıcı olarak saklanır.
+Compose dosyası `./data` ve `./outputs/logs` dizinlerini volume olarak bağlar; veriler container dışında kalıcı olarak saklanır.
 
-Yetenekleri yeniden yapılandırmak ve image'ı rebuild etmek için:
+Yetenekleri yeniden yapılandırmak ve image'ı yeniden derlemek için:
 
 ```bash
 bash install.sh --docker --reconfigure-capabilities
 ```
 
-> **Windows kullanıcıları:** PowerShell'de `bash` komutu yoktur — `bash install.sh --docker` çalışmaz. Şu seçeneklerden birini kullanmanız gerekir:
-> - **Git Bash** (önerilen): [Git for Windows](https://git-scm.com/download/win) kur, Git Bash'i aç, komutu çalıştır.
-> - **WSL**: PowerShell'de `wsl --install -d Ubuntu` çalıştır, Ubuntu terminalini aç, komutu çalıştır.
-> - **Sihirbaz olmadan**: `.env.example`'ı `.env`'e kopyala, elle doldur, ardından PowerShell'den `docker compose up -d --build` çalıştır. Tüm yetenekler kurulur (daha büyük image).
+> **Windows kullanıcıları:** PowerShell'de `bash` komutu yoktur — `bash install.sh --docker` çalışmaz. Aşağıdaki seçeneklerden birini kullanın:
+> - **Git Bash** (önerilen): [Git for Windows](https://git-scm.com/download/win)'ı kurun, Git Bash'i açın ve komutu çalıştırın.
+> - **WSL**: PowerShell'de `wsl --install -d Ubuntu` çalıştırın, Ubuntu terminalini açın ve komutu çalıştırın.
+> - **Sihirbaz olmadan**: `.env.example`'ı `.env`'e kopyalayın, elle doldurun, ardından PowerShell'den `docker compose up -d --build` çalıştırın. Tüm yetenekler kurulur (daha büyük image).
 
-Servis sağlığını kontrol et:
+Servis durumunu doğrulayın:
 
 ```bash
 docker compose ps
@@ -386,14 +382,14 @@ curl -s http://localhost:8010/health
 curl -s http://localhost:8013/health
 ```
 
-Logları izle:
+Logları izleyin:
 
 ```bash
 docker compose logs -f 99-api
 docker compose logs -f 99-bridge
 ```
 
-Yeniden başlat:
+Yeniden başlatma:
 
 ```bash
 docker compose restart
@@ -401,7 +397,7 @@ docker compose restart
 
 ### Seçenek B — systemd (yalnızca Linux)
 
-> Yerel performans ve otomatik başlatma istediğiniz Linux sunucu veya Raspberry Pi için en iyi seçenek.
+> Yerel performans ve otomatik başlatma gerektiren Linux sunucu veya Raspberry Pi kurulumları için önerilir.
 
 ```bash
 git clone https://github.com/kullanici-adin/99-root.git
@@ -411,9 +407,9 @@ sudo bash install.sh
 
 `install.sh` etkileşimli bir sihirbaz çalıştırır (messenger, LLM backend, webhook proxy, saat dilimi, yetenekler), Python venv'i oluşturur, yalnızca etkin yeteneklerin gerektirdiği paketleri kurar (pip-compile + pip-sync), Node bağımlılıklarını kurar, systemd unit dosyalarını oluşturur ve servisleri etkinleştirir.
 
-> `sudo` ile çalıştırılırsa systemd unit'leri otomatik olarak kurulur ve etkinleştirilir. `sudo` olmadan çalıştırılırsa sihirbaz ve bağımlılık kurulumu tamamlanır, ardından manuel `systemctl` komutları ekrana yazdırılır.
+> `sudo` ile çalıştırılırsa systemd unit'leri otomatik kurulur ve etkinleştirilir. `sudo` olmadan çalıştırılırsa sihirbaz ve bağımlılık kurulumu tamamlanır, ardından gerekli `systemctl` komutları ekrana yazdırılır.
 
-Servisleri kontrol et:
+Servis durumunu kontrol edin:
 
 ```bash
 sudo systemctl status personal-agent.service personal-agent-bridge.service
@@ -423,16 +419,16 @@ journalctl -u personal-agent.service -f
 Diğer kurulum seçenekleri:
 
 ```bash
-bash install.sh --no-systemd             # sadece bağımlılıkları kur, systemd kurma
+bash install.sh --no-systemd             # yalnızca bağımlılıkları kur, systemd kurma
 bash install.sh --pm2                    # systemd yerine PM2 ile başlat
 bash install.sh --reconfigure-capabilities  # yetenek sihirbazını tekrar çalıştır ve paketleri güncelle
 ```
 
-> **Not:** `.env` dosyasında `DESKTOP_ENABLED`, `BROWSER_ENABLED` veya herhangi bir `RESTRICT_*` flag'ini elle değiştirdikten sonra `bash install.sh --reconfigure-capabilities` çalıştır; aksi hâlde gerekli Python paketleri kurulmaz/kaldırılmaz.
+> **Not:** `.env` dosyasında `DESKTOP_ENABLED`, `BROWSER_ENABLED` veya herhangi bir `RESTRICT_*` flag'ini değiştirdikten sonra `bash install.sh --reconfigure-capabilities` çalıştırın; aksi hâlde gerekli Python paketleri kurulmaz/kaldırılmaz.
 
 ### Seçenek C — PM2 (Linux / macOS / Windows)
 
-Systemd yoksa PM2 kullan (macOS, Windows WSL, root'suz VPS).
+Systemd kullanılamıyorsa PM2 tercih edin (macOS, Windows WSL, root'suz VPS).
 
 ```bash
 git clone https://github.com/kullanici-adin/99-root.git
@@ -452,9 +448,9 @@ pm2 logs 99-bridge
 
 ## Zorunlu Ortam Değişkenleri
 
-Sihirbaz yalnızca dışarıdan alman gereken kimlik bilgilerini sorar. Geri kalanı otomatik üretilir.
+Sihirbaz yalnızca dışarıdan alınması gereken kimlik bilgilerini sorar. Geri kalanı otomatik üretilir.
 
-**Sihirbaz tarafından otomatik üretilir (giriş gerekmez):**
+**Sihirbaz tarafından otomatik üretilir:**  
 `API_KEY`, `TOTP_SECRET`, `TOTP_SECRET_ADMIN`, `WHATSAPP_VERIFY_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`
 
 ### WhatsApp
@@ -464,14 +460,14 @@ Sihirbaz yalnızca dışarıdan alman gereken kimlik bilgilerini sorar. Geri kal
 | `WHATSAPP_ACCESS_TOKEN` | Meta WhatsApp Cloud API erişim tokeni (Meta Developer Console'dan) |
 | `WHATSAPP_PHONE_NUMBER_ID` | Meta Developer Console'daki sayısal telefon numarası ID'si |
 | `WHATSAPP_APP_SECRET` | Webhook HMAC imza doğrulaması için uygulama sırrı |
-| `WHATSAPP_OWNER` | Kendi WhatsApp numaranız ülke koduyla (`+90...`) |
+| `WHATSAPP_OWNER` | WhatsApp numaranız ülke koduyla (`+90...`) |
 
 ### Telegram
 
 | Değişken | Açıklama |
 |----------|----------|
 | `TELEGRAM_BOT_TOKEN` | @BotFather'dan alınan bot token'ı (`123456789:ABCdef...`) |
-| `TELEGRAM_CHAT_ID` | Kişisel Telegram chat ID'n — [@userinfobot](https://t.me/userinfobot)'tan öğren |
+| `TELEGRAM_CHAT_ID` | Kişisel Telegram chat ID'niz — [@userinfobot](https://t.me/userinfobot)'tan öğrenebilirsiniz |
 
 ### LLM
 
@@ -513,9 +509,9 @@ Saat dilimi ve yetenek flag'leri dahil tüm seçenekler için bkz. [`scripts/bac
 | `!shutdown` | FastAPI servisini durdur | Math + Admin TOTP |
 
 **Yetki seviyeleri:**
-- **Owner** — mesaj, yapılandırılmış sahip telefon/sohbet kimliğinden gelmeli
-- **Owner + TOTP** — sahip + kimlik doğrulayıcı uygulamadan 6 haneli kod (`TOTP_SECRET`)
-- **Math + Admin TOTP** — sahip + basit matematik sorusu + 6 haneli admin kodu (`TOTP_SECRET_ADMIN`)
+- **Owner** — mesaj, yapılandırılmış sahip telefon/sohbet kimliğinden gelmelidir
+- **Owner + TOTP** — sahip kimliği + kimlik doğrulayıcı uygulamadan 6 haneli kod (`TOTP_SECRET`)
+- **Math + Admin TOTP** — sahip kimliği + basit matematik sorusu + 6 haneli admin kodu (`TOTP_SECRET_ADMIN`)
 
 Komut olmayan mesajlar serbest konuşma için Claude Code'a iletilir.
 
@@ -525,29 +521,29 @@ Yetenek flag'leri, sistem gereksinimleri ve dahili API endpoint'leri için bkz. 
 
 ## Webhook Proxy
 
-Ajanın çalışması için WhatsApp veya Telegram'ın sunucuna mesaj gönderebileceği genel HTTPS URL'e ihtiyacı var. Sihirbaz dört seçenek sunar:
+Ajanın çalışması için WhatsApp veya Telegram'ın sunucunuza mesaj gönderebileceği genel bir HTTPS URL gereklidir. Sihirbaz dört seçenek sunar:
 
 | Seçenek | Ne zaman kullanılır |
 |---------|---------------------|
 | **Yok** | Sabit genel IP'si veya domain'i olan VPS |
-| **ngrok** ✅ Yerel kurulum için önerilen | Ücretsiz hesapta kalıcı static domain mevcut; binary kurulumu gerekmez |
+| **ngrok** ✅ Yerel kurulum için önerilen | Ücretsiz hesapta kalıcı statik domain mevcuttur; binary kurulumu gerekmez |
 | **Cloudflare Tunnel** | Kalıcı ücretsiz seçenek — Cloudflare hesabı ve DNS ayarı gerektirir |
-| **Harici URL** | Bu makineye yönlendirilmiş kendi domain'in var |
+| **Harici URL** | Bu makineye yönlendirilmiş kendi domain'iniz |
 
 ### ngrok kurulumu
 
-Ajan ngrok'u `pyngrok` Python paketi aracılığıyla yönetir — **ngrok binary'sini manuel kurman gerekmez**. pyngrok binary'yi otomatik indirir ve çalıştırır.
+Ajan ngrok'u `pyngrok` Python paketi aracılığıyla yönetir — **ngrok binary'sini manuel olarak kurmanız gerekmez**. pyngrok, binary'yi otomatik indirir ve çalıştırır.
 
-1. [ngrok.com](https://ngrok.com)'da ücretsiz hesap oluştur.
-2. **Ücretsiz static domain** al: ngrok Dashboard → Domains → New Domain → domain'i kopyala (ör. `adın.ngrok-free.app`). Bu URL kalıcıdır, hiç değişmez.
-3. Auth token'ını kopyala: **ngrok Dashboard → Your Authtoken**.
-4. `bash install.sh --docker` (veya `install.sh`) çalıştır, proxy olarak **ngrok** seç — sihirbaz auth token'ını sorar ve `.env`'e yazar.
-5. Servis başladıktan sonra ngrok otomatik olarak static domain'inde tünel açar. Public URL başlangıçta loglanır ve sihirbazın sonunda webhook bilgisinde gösterilir.
-6. Webhook URL'ini Meta Developer Console'a (WhatsApp) veya `setWebhook` ile (Telegram) kaydet — sihirbaz tam komutu yazdırır.
+1. [ngrok.com](https://ngrok.com)'da ücretsiz hesap oluşturun.
+2. **Ücretsiz statik domain** alın: ngrok Dashboard → Domains → New Domain → domain'i kopyalayın (ör. `adınız.ngrok-free.app`). Bu URL kalıcıdır.
+3. Auth token'ınızı kopyalayın: **ngrok Dashboard → Your Authtoken**.
+4. `bash install.sh --docker` çalıştırın ve proxy olarak **ngrok**'u seçin — sihirbaz auth token'ını sorar ve `.env` dosyasına yazar.
+5. Servis başladıktan sonra ngrok otomatik olarak statik domain üzerinde tünel açar. Public URL başlangıçta loglanır ve sihirbazın sonunda gösterilir.
+6. Webhook URL'ini Meta Developer Console'a (WhatsApp için) veya `setWebhook` komutuyla (Telegram için) kaydedin — sihirbaz tam komutu ekrana yazdırır.
 
-> **Ücretsiz hesaplarda bir adet kalıcı static domain bulunur** — auth token ve static domain kullandığın sürece URL her yeniden başlatmada değişmez.
+> **Ücretsiz hesaplarda bir adet kalıcı statik domain bulunur** — auth token ve statik domain kullanıldığı sürece URL her yeniden başlatmada değişmez.
 >
-> **Hesabın yok mu?** Auth token alanını boş bırakabilirsin — ngrok anonim çalışır ancak URL rastgele üretilir ve her yeniden başlatmada değişir.
+> Auth token girilmezse ngrok anonim modda çalışır; ancak URL rastgele üretilir ve her yeniden başlatmada değişir.
 
 ---
 
@@ -555,14 +551,14 @@ Ajan ngrok'u `pyngrok` Python paketi aracılığıyla yönetir — **ngrok binar
 
 | Messenger | `.env` ayarı | Notlar |
 |-----------|-------------|--------|
-| Telegram ✅ Önerilen | `MESSENGER_TYPE=telegram` | En kolay kurulum — @BotFather ile 2 dakikada bot oluştur, iş hesabı gerekmez. Sihirbaz chat ID'yi otomatik algılar. |
+| Telegram ✅ Önerilen | `MESSENGER_TYPE=telegram` | @BotFather ile hızlı kurulum; iş hesabı gerekmez. Sihirbaz chat ID'yi otomatik algılar. |
 | WhatsApp | `MESSENGER_TYPE=whatsapp` | Meta iş hesabı, Meta Developer Console'da doğrulanmış uygulama ve HMAC webhook kurulumu gerektirir. |
 | CLI (yerel test) | `MESSENGER_TYPE=cli` | Stdout'a yazar; hesap gerekmez. |
 
 **Telegram mı WhatsApp mı?**
 
-- Hızlı kurulum istiyorsan **Telegram** seç. İş doğrulaması yok, Meta hesabı yok, 5 dakikada çalışır.
-- Ajanı özellikle WhatsApp'tan kontrol etmen gerekiyorsa (örn. Telegram kullanmıyorsan) **WhatsApp** seç.
+- Hızlı kurulum için **Telegram** tercih edin. Meta hesabı veya iş doğrulaması gerektirmez.
+- Ajanı özellikle WhatsApp üzerinden kullanmak istiyorsanız **WhatsApp**'ı tercih edin.
 
 Ayrıntılı Telegram kurulum adımları için bkz. [docs/deployment/telegram.md](docs/deployment/telegram.md).
 
@@ -572,9 +568,9 @@ Ayrıntılı Telegram kurulum adımları için bkz. [docs/deployment/telegram.md
 
 | Backend | `.env` ayarı | Maliyet | Gizlilik | Notlar |
 |---------|-------------|---------|----------|--------|
-| Anthropic ✅ Önerilen | `LLM_BACKEND=anthropic` | Kullanım başına ücret | Bulut | `ANTHROPIC_API_KEY` gerekli. Tam araç desteği, zamanlama ve tüm özellikler güvenilir çalışır. |
-| Gemini | `LLM_BACKEND=gemini` | Ücretsiz kota | Bulut | `GEMINI_API_KEY` gerekli; `GEMINI_MODEL` opsiyonel (varsayılan: `gemini-2.0-flash`). Temel sohbet çalışır. |
-| Ollama (yerel) | `LLM_BACKEND=ollama` | Ücretsiz | Tamamen yerel | `OLLAMA_BASE_URL` ve `OLLAMA_MODEL` gerekli. Önce `ollama pull llama3` çalıştır. Karmaşık araç kullanımı güvenilmeyebilir. |
+| Anthropic ✅ Önerilen | `LLM_BACKEND=anthropic` | Kullanım başına ücret | Bulut | `ANTHROPIC_API_KEY` gereklidir. Tam araç desteği, zamanlama ve tüm özellikler güvenilir çalışır. |
+| Gemini | `LLM_BACKEND=gemini` | Ücretsiz kota | Bulut | `GEMINI_API_KEY` gereklidir; `GEMINI_MODEL` isteğe bağlıdır (varsayılan: `gemini-2.0-flash`). Temel sohbet çalışır. |
+| Ollama (yerel) | `LLM_BACKEND=ollama` | Ücretsiz | Tamamen yerel | `OLLAMA_BASE_URL` ve `OLLAMA_MODEL` gereklidir. Önce `ollama pull llama3` çalıştırın. Karmaşık araç kullanımı güvenilmeyebilir. |
 
 > `INTENT_CLASSIFIER_MODEL` ayarı yalnızca Anthropic backend için geçerlidir.
 
@@ -586,14 +582,14 @@ Ayrıntılar için bkz. [docs/deployment/byok.md](docs/deployment/byok.md).
 
 ### Her kurulum modunda zorunlu
 
-| Araç | install.sh neden ihtiyaç duyuyor |
+| Araç | install.sh için neden gereklidir |
 |------|----------------------------------|
 | `bash` 4+ | Script yorumlayıcı; `set -euo pipefail`, ilişkisel diziler |
 | **`python3` 3.11+** | i18n locale loader, JSON parsing, .env yardımcıları, messenger bildirimleri, systemd template render, TOTP QR üretimi. Eksikse install.sh fatal ile çıkar. |
 | `curl` | Telegram/WhatsApp/ngrok API çağrıları |
-| Standart POSIX araçlar | `awk`, `sed`, `grep`, `mktemp`, `tr`, `cut` (her Linux/macOS'ta var, Git Bash ile gelir) |
+| Standart POSIX araçlar | `awk`, `sed`, `grep`, `mktemp`, `tr`, `cut` (her Linux/macOS'ta mevcuttur, Git Bash ile gelir) |
 
-> ⚠️ Docker modu her şeyi container içinde yönetse bile, **install.sh'ın kendisi host'ta çalışır ve host'ta Python 3.11+ gerektirir.** Önceki "Python gerekmez" ifadesi yanıltıcıydı.
+> ⚠️ Docker modu her şeyi container içinde yönetse de **install.sh host'ta çalışır ve host'ta Python 3.11+ gerektirir.**
 
 ### Moda özgü
 
@@ -601,40 +597,40 @@ Ayrıntılar için bkz. [docs/deployment/byok.md](docs/deployment/byok.md).
 |-----|---------------|
 | **Docker** (Seçenek A) | Docker Engine + Docker Compose v2 (`docker compose version`); host'ta `claude` CLI (eksikse install.sh `npm` ile otomatik kurar) |
 | **systemd** (Seçenek B) | Node.js 18+; `sudo` erişimi; `claude` CLI |
-| **PM2** (Seçenek C) | Node.js 18+; `claude` CLI; `npm install -g pm2` (script halleder) |
+| **PM2** (Seçenek C) | Node.js 18+; `claude` CLI; `npm install -g pm2` (script tarafından kurulur) |
 
-### Opsiyonel ama önerilen
+### İsteğe bağlı
 
 | Araç | Eksikse ne olur |
 |------|-----------------|
-| `whiptail` | Sihirbaz düz metin moduna düşer (yine çalışır, daha az şık) |
-| `qrencode` **veya** `python3-venv` | TOTP QR terminalde gösterilir. **İkisi birden** yoksa online QR URL + manuel anahtar talimatı gösterilir. Debian/Ubuntu'da `python3-venv` ayrı paket: `sudo apt install python3-venv` |
-| `openssl` | Kriptografik rastgele anahtar (`API_KEY`, TOTP secret). Eksikse `date +%s%N \| sha256sum` fallback (entropi düşer) |
-| `node` + `npm` (Docker mod) | `claude` CLI otomatik kurulumu için. Yoksa Bridge başlamadan önce Claude CLI'yi elle kurmalısın |
+| `whiptail` | Sihirbaz düz metin moduna geçer (işlevsel olmaya devam eder) |
+| `qrencode` **veya** `python3-venv` | TOTP QR terminalde gösterilir. Her ikisi de yoksa online QR URL + manuel anahtar talimatı gösterilir. Debian/Ubuntu'da `python3-venv` ayrı pakettir: `sudo apt install python3-venv` |
+| `openssl` | Kriptografik rastgele anahtar üretimi için (`API_KEY`, TOTP secret). Eksikse `date +%s%N \| sha256sum` kullanılır (daha düşük entropi). |
+| `node` + `npm` (Docker modu) | `claude` CLI otomatik kurulumu için. Yoksa Bridge başlamadan önce Claude CLI manuel olarak kurulmalıdır. |
 
 ### Platform notları
 
-- **Linux (Ubuntu 23.04+, Debian 12+, Fedora 38+, vb.)** — PEP 668 `pip install --user`'ı bloke eder. install.sh QR rendering için otomatik olarak ephemeral venv oluşturur, ek müdahale gerekmez; sadece `python3-venv` kurulu olsun.
-- **macOS** — Homebrew ya da python.org Python 3.11+ — ikisi de çalışır. Aynı PEP 668 uyarısı geçerli.
-- **Windows** — Native install **desteklenmiyor**; install.sh net hata mesajıyla çıkar. Git Bash + Docker Desktop ile `bash install.sh --docker` kullan. Yine de Python 3.11+ PATH'te olmalı.
-- **WSL** — Linux gibi davran. Seçenek B için systemd'i `/etc/wsl.conf` → `[boot] systemd=true` ile etkinleştirmek gerekebilir.
+- **Linux (Ubuntu 23.04+, Debian 12+, Fedora 38+, vb.)** — PEP 668 `pip install --user`'ı kısıtlar. install.sh QR rendering için otomatik ephemeral venv oluşturur; yalnızca `python3-venv` paketinin kurulu olması yeterlidir.
+- **macOS** — Homebrew veya python.org Python 3.11+ desteklenmektedir. PEP 668 uyarısı geçerlidir.
+- **Windows** — Native kurulum **desteklenmemektedir**; install.sh açıklayıcı hata mesajıyla çıkar. Git Bash + Docker Desktop ile `bash install.sh --docker` kullanın. Python 3.11+ PATH'te mevcut olmalıdır.
+- **WSL** — Linux olarak değerlendirin. Seçenek B için systemd'i `/etc/wsl.conf` → `[boot] systemd=true` ile etkinleştirmek gerekebilir.
 
 ### Harici servis / hesap
 
 - Bir **Telegram bot token** ([@BotFather](https://t.me/BotFather)) **veya** **Meta WhatsApp Cloud API** uygulaması
 - Bir [Anthropic API key](https://console.anthropic.com) **veya** Claude Pro/Max aboneliği (`claude auth login` için); alternatif olarak Ollama (yerel) ya da Google Gemini
-- Webhook için **genel HTTPS URL** — yukarıdaki [Webhook Proxy](#webhook-proxy) (ngrok hesabıyla domain almadan da olur)
+- Webhook için **genel HTTPS URL** — bkz. [Webhook Proxy](#webhook-proxy)
 
 ### Hızlı kontrol
 
 ```bash
 bash --version | head -1
-python3 --version    # 3.11+ olmalı
+python3 --version    # 3.11+ olmalıdır
 curl --version | head -1
-docker --version     # yalnızca Docker mod
+docker --version     # yalnızca Docker modu
 node --version       # yalnızca native modlar
 
-# QR kod desteği (opsiyonel)
+# QR kod desteği (isteğe bağlı)
 command -v qrencode || python3 -c 'import venv'
 ```
 
