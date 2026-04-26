@@ -420,5 +420,5 @@ main() {
 }
 
 # Run main() only when executed directly — not when sourced for testing.
-# Bats/pytest tests source this file via `head -n -1` to strip the last line.
-[[ "${BASH_SOURCE[0]}" == "${0}" ]] && main "$@"
+# Single-line if: head -n -1 removes it for pytest; if-false exits 0 for bats (set -e safe).
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then main "$@"; fi
