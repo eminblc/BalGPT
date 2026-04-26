@@ -85,11 +85,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run shellcheck on install.sh
+      - name: Run shellcheck on install.sh and lib/*.sh
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq shellcheck
-          shellcheck --severity=warning install.sh
+          shellcheck --severity=warning install.sh lib/*.sh
 
   install-tests:
     name: install.sh — Bats Tests
@@ -102,3 +102,15 @@ jobs:
           sudo apt-get install -y -qq bats python3
       - name: Run bats test suite
         run: bats tests/install/
+      - name: Locale parity check
+        run: |
+          python3 -c "
+          import json, re, glob
+          src = open('install.sh').read() + ''.join(open(f).read() for f in glob.glob('lib/*.sh'))
+          refs = set(re.findall(r'_S_[A-Z][A-Z0-9_]*', src))
+          for lang in ('tr', 'en'):
+              keys = {'_S_' + k for k in json.load(open(f'locales/install_{lang}.json'))}
+              missing = refs - keys
+              assert not missing, f'{lang}: missing keys {sorted(missing)}'
+          print('locale parity OK')
+          "
