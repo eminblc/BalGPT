@@ -20,7 +20,7 @@ set -euo pipefail
 
 # ── Constants / Sabitler ──────────────────────────────────────────────────────
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="${ROOT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 SCRIPTS_DIR="$ROOT_DIR/scripts"
 BACKEND_DIR="$SCRIPTS_DIR/backend"
 BRIDGE_DIR="$SCRIPTS_DIR/claude-code-bridge"
@@ -228,6 +228,7 @@ main() {
       step_docker_build
     elif [ -d "$BACKEND_DIR/venv" ]; then
       # Yeni seçime göre paketleri yeniden kur (venv varsa)
+      step_proxy_binary
       step_venv
     fi
     ok "$_S_DONE_TITLE"
@@ -267,19 +268,56 @@ main() {
     echo "  ════════════════════════════════════════════════════"
     echo ""
 
-    # 3. Run messenger wizard
+    # 3. Run messenger wizard (Python in background; terminal monitors for secret requests)
     local _tg_tok _tg_cid _wiz_result
     _tg_tok="$(_env_get "TELEGRAM_BOT_TOKEN" "$_env_file")"
     _tg_cid="$(_env_get "TELEGRAM_CHAT_ID"   "$_env_file")"
     _wiz_result=""
     if [[ -n "$_tg_tok" && -n "$_tg_cid" ]] && command -v python3 &>/dev/null; then
-      # Fire a heads-up message so the user knows to switch to Telegram
+      local _wiz_tmp _req_dir _ans_dir _wiz_pid _wiz_exit
+      _wiz_tmp="$(mktemp /tmp/wiz_result.XXXXXX)"
+      _req_dir="$(mktemp -d /tmp/wiz_req.XXXXXX)"
+      _ans_dir="$(mktemp -d /tmp/wiz_ans.XXXXXX)"
+
+      # Fire heads-up so the user knows to switch to Telegram
       _tg_notify "$_tg_tok" "$_tg_cid" "$_S_MSG_WIZ_TG_NOTIFY"
-      # Write wizard output to a temp file to avoid $() subshell inheriting tee redirect.
-      local _wiz_tmp; _wiz_tmp="$(mktemp /tmp/wiz_result.XXXXXX)"
-      if _run_messenger_wizard "$_tg_tok" "$_tg_cid" > "$_wiz_tmp" 2>/tmp/wizard_err.log; then
-        _wiz_result="$(cat "$_wiz_tmp")"
-      fi
+
+      # Start Python wizard in the background; secrets come back through temp files
+      WIZARD_MESSENGER="telegram" \
+      WIZARD_TG_TOKEN="$_tg_tok" \
+      WIZARD_TG_CHAT_ID="$_tg_cid" \
+      WIZARD_REQ_DIR="$_req_dir" \
+      WIZARD_ANS_DIR="$_ans_dir" \
+      INSTALL_LANG="$INSTALL_LANG" \
+      python3 "$SCRIPTS_DIR/setup_wizard_messenger.py" > "$_wiz_tmp" 2>/tmp/wizard_err.log &
+      _wiz_pid=$!
+
+      # Terminal monitors for secret-request files left by Python wizard
+      local _rf _key _val
+      while kill -0 "$_wiz_pid" 2>/dev/null; do
+        for _rf in "$_req_dir"/*; do
+          [[ -f "$_rf" ]] || continue
+          _key="$(basename "$_rf")"
+          _val=""
+          echo ""
+          echo "  ════════════════════════════════════════════════════"
+          echo "  $_S_TXT_WIZ_TERMINAL_SECRETS_TITLE"
+          echo "  ════════════════════════════════════════════════════"
+          echo ""
+          case "$_key" in
+            anthropic_key) _ask_secret "$_S_TXT_WIZ_ANTHROPIC_KEY" _val ;;
+            gemini_key)    _ask_secret "$_S_TXT_WIZ_GEMINI_KEY"    _val ;;
+            ngrok_token)   _ask_secret "$_S_TXT_WIZ_NGROK_TOKEN"   _val ;;
+          esac
+          printf '%s' "$_val" > "$_ans_dir/$_key"
+          rm -f "$_rf"
+        done
+        sleep 0.3
+      done
+      wait "$_wiz_pid"; _wiz_exit=$?
+      rm -rf "$_req_dir" "$_ans_dir"
+
+      [[ -s "$_wiz_tmp" && "$_wiz_exit" -eq 0 ]] && _wiz_result="$(cat "$_wiz_tmp")"
       rm -f "$_wiz_tmp"
     fi
 
@@ -310,6 +348,7 @@ main() {
     step_docker_group
     step_docker_build
   else
+    step_proxy_binary  # cloudflared seçildiyse binary'yi kur
     step_venv          # seçili yeteneklere göre paketleri kur
     step_npm
     step_data_dirs
@@ -365,8 +404,5 @@ main() {
 }
 
 # Run main() only when executed directly — not when sourced for testing.
-# Bats tests source this file to call individual helpers without triggering
-# the full installer flow (which would tee stdout, prompt, etc.).
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  main "$@"
-fi
+# Bats/pytest tests source this file via `head -n -1` to strip the last line.
+[[ "${BASH_SOURCE[0]}" == "${0}" ]] && main "$@"

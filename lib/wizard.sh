@@ -46,23 +46,21 @@ _wizard_whiptail() {
       tg_token=$(_wt_password "$_S_WIZ_TG_INFO_TITLE" "$_S_WIZ_TG_TOKEN") || return 1
       [[ -n "$tg_token" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
     done
-    # Delete any existing webhook so getUpdates works (previous failed install may leave one)
-    curl -s --max-time 5 -X POST "https://api.telegram.org/bot${tg_token}/deleteWebhook" >/dev/null 2>&1 || true
-    # Flush old updates so only the next fresh message is returned
-    local _tg_flush _tg_next_offset=0
-    _tg_flush="$(curl -s --max-time 8 "https://api.telegram.org/bot${tg_token}/getUpdates?limit=100" 2>/dev/null || true)"
-    _tg_next_offset="$(_tg_extract_next_offset "$_tg_flush")"
-    # Ask user to send a message, then long-poll for the NEW message only
+    # Drop webhook + all pending updates atomically so getUpdates starts clean
+    curl -s --max-time 5 -X POST "https://api.telegram.org/bot${tg_token}/deleteWebhook?drop_pending_updates=true" >/dev/null 2>&1 || true
+    # Show instructions AFTER clearing updates so the user's next message is the first one
     _wt_msg "$_S_WIZ_TG_SEND_MSG_TITLE" "$_S_WIZ_TG_SEND_MSG" || return 1
     local _tg_auto_id=""
-    _tg_auto_id="$(curl -s --max-time 35 "https://api.telegram.org/bot${tg_token}/getUpdates?timeout=30&limit=1&offset=${_tg_next_offset}" 2>/dev/null \
+    _tg_auto_id="$(curl -s --max-time 70 "https://api.telegram.org/bot${tg_token}/getUpdates?timeout=60&limit=1" 2>/dev/null \
       | python3 -c "import sys,json
 try:
     d=json.load(sys.stdin)
-    print(d['result'][0]['message']['chat']['id'])
+    for u in d.get('result', []):
+        if 'message' in u:
+            print(u['message']['chat']['id'])
+            break
 except: pass" 2>/dev/null || true)"
     if [[ -n "$_tg_auto_id" ]]; then
-      _wt_msg "$_S_WIZ_TG_INFO_TITLE" "$_S_TXT_TG_CHATID_OK: $_tg_auto_id" || return 1
       tg_chat_id="$_tg_auto_id"
     else
       _wt_msg "$_S_WIZ_TG_INFO_TITLE" "$_S_TXT_TG_CHATID_FAIL" || return 1
@@ -239,33 +237,30 @@ _wizard_text() {
     _ask_req "$_S_WIZ_TG_TOKEN" tg_token
 
     # Chat ID — auto-detect
+    # Drop webhook + all pending updates atomically so the user's next message is the first
+    curl -s --max-time 5 -X POST "https://api.telegram.org/bot${tg_token}/deleteWebhook?drop_pending_updates=true" >/dev/null 2>&1 || true
     _sep
     echo ""
     echo "  ▶ $_S_WIZ_TG_SEND_MSG_TITLE"
     echo ""
     printf "  %b\n" "$_S_WIZ_TG_SEND_MSG"
     echo ""
-    # Delete any existing webhook so getUpdates works
-    curl -s --max-time 5 -X POST "https://api.telegram.org/bot${tg_token}/deleteWebhook" >/dev/null 2>&1 || true
-    local _tg_flush2 _tg_next_offset2=0
-    _tg_flush2="$(curl -s --max-time 8 "https://api.telegram.org/bot${tg_token}/getUpdates?limit=100" 2>/dev/null || true)"
-    _tg_next_offset2="$(_tg_extract_next_offset "$_tg_flush2")"
-    _ask_inline "$_S_TXT_TG_CHATID_TIP" tg_chat_id
-    if [[ -z "$tg_chat_id" ]]; then
-      log "  $_S_WIZ_TG_SEND_MSG_TITLE..."
-      local _tg_updates
-      _tg_updates="$(curl -s --max-time 35 "https://api.telegram.org/bot${tg_token}/getUpdates?timeout=30&limit=1&offset=${_tg_next_offset2}" 2>/dev/null || true)"
-      tg_chat_id="$(echo "$_tg_updates" | python3 -c "import sys,json
+    log "  Waiting (up to 60s)..."
+    local _tg_updates
+    _tg_updates="$(curl -s --max-time 70 "https://api.telegram.org/bot${tg_token}/getUpdates?timeout=60&limit=1" 2>/dev/null || true)"
+    tg_chat_id="$(echo "$_tg_updates" | python3 -c "import sys,json
 try:
     d=json.load(sys.stdin)
-    print(d['result'][0]['message']['chat']['id'])
+    for u in d.get('result', []):
+        if 'message' in u:
+            print(u['message']['chat']['id'])
+            break
 except: pass" 2>/dev/null || true)"
-      if [[ -n "$tg_chat_id" ]]; then
-        ok "  $_S_TXT_TG_CHATID_OK: $tg_chat_id"
-      else
-        warn "  $_S_TXT_TG_CHATID_FAIL"
-        _ask_req "$_S_WIZ_TG_CHAT" tg_chat_id
-      fi
+    if [[ -n "$tg_chat_id" ]]; then
+      ok "  $_S_TXT_TG_CHATID_OK: $tg_chat_id"
+    else
+      warn "  $_S_TXT_TG_CHATID_FAIL"
+      _ask_req "$_S_WIZ_TG_CHAT" tg_chat_id
     fi
     tg_webhook_secret="$(_gen_api_key)"
     ok "  $_S_TXT_WSECRET_AUTO"

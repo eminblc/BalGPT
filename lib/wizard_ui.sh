@@ -59,5 +59,18 @@ _ask_req() {
 }
 
 
+_ask_secret() {
+  local _lbl="$1" _var="$2"
+  while true; do
+    printf "  %s " "$_lbl" > /dev/tty 2>/dev/null || printf "  %s " "$_lbl"
+    # shellcheck disable=SC2229
+    IFS= read -rs "$_var"
+    echo
+    [[ -n "${!_var}" ]] && break
+    warn "    $_S_REQUIRED"
+  done
+}
+
+
 _sep() { echo ""; echo "  ────────────────────────────────────────────────────"; }
 

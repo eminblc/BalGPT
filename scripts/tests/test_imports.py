@@ -215,6 +215,8 @@ class TestBrowserImports:
             pytest.skip(".env: BROWSER_ENABLED=false — paket kurulu olmayabilir")
 
     def test_playwright(self):
+        if not _feat_enabled("BROWSER_ENABLED"):
+            pytest.skip(".env: BROWSER_ENABLED=false — paket kurulu olmayabilir")
         from playwright.async_api import async_playwright  # noqa: F401
 
 

@@ -368,37 +368,37 @@ End-user runs `git pull && docker compose restart` (Docker) or `sudo systemctl r
 
 ### Safe vs Risky edits — how to keep sync work bug-free
 
-The installer was deliberately built with **registry / data-driven patterns** so that 80% of sync work is **append-only**: you add a row to a table, you don't modify a function body.  The danger zone is when you have to touch existing logic.  Categorise your change before editing.
+The installer was deliberately built with **registry / data-driven patterns** so that 80% of sync work is **append-only**: you add a row to a table, you don't modify a function body. The danger zone is when you have to touch existing logic. Categorise your change before editing.
 
 **🟢 Safe — append-only (~2% regression risk)**
 
-These edits add a row to a registry; the surrounding function code is not modified.  Bats + shellcheck catch the rest.
+These edits add a row to a registry; the surrounding function code is not modified. Bats + shellcheck catch the rest.
 
 | Change | What you add |
 |---|---|
 | New env variable | A line at the bottom of `scripts/backend/.env.example`. Installer just `cp`s the file — no parsing involved. |
-| New capability flag | A string each in `cap_keys` / `cap_envs` arrays (`lib/capabilities.sh`).  Loop counts adjust automatically; runtime `cap_keys/cap_envs length mismatch` guard will hard-fail if you miscount. |
-| New capability with packages | A row in `_PKG_CAP_KEYS`/`_PKG_ENV_VARS`/`_PKG_ACTIVE_VAL` (`lib/packages.sh`) + `scripts/backend/requirements/<name>.txt`.  `_resolve_requirements` is fully data-driven. |
-| New locale string | A `"KEY": "value"` pair in **both** `install_tr.json` and `install_en.json`.  Bats `every _S_* reference exists in both locales` test catches asymmetry. |
+| New capability flag | A string each in `cap_keys` / `cap_envs` arrays (`lib/capabilities.sh`). Loop counts adjust automatically; runtime `cap_keys/cap_envs length mismatch` guard will hard-fail if you miscount. |
+| New capability with packages | A row in `_PKG_CAP_KEYS`/`_PKG_ENV_VARS`/`_PKG_ACTIVE_VAL` (`lib/packages.sh`) + `scripts/backend/requirements/<name>.txt`. `_resolve_requirements` is fully data-driven. |
+| New locale string | A `"KEY": "value"` pair in **both** `install_tr.json` and `install_en.json`. Bats `every _S_* reference exists in both locales` test catches asymmetry. |
 
 **🟡 Medium — adds a branch to existing logic (~10% regression risk)**
 
-You're modifying an existing `case` statement or a function with a fixed signature.  Write a bats test for the new branch before merging.
+You're modifying an existing `case` statement or a function with a fixed signature. Write a bats test for the new branch before merging.
 
 | Change | What's at risk | Mitigation |
 |---|---|---|
-| New LLM provider (e.g., Mistral) | `lib/wizard.sh` Phase-2 `case` AND `_write_env`'s 24-positional-arg signature.  Forgetting to wire the new args through `_apply_wiz_to_env` (Telegram bot path) leaves the .env partial. | Add a bats test that calls `_write_env` with the new provider's args; verify `.env` contains both old + new fields. |
+| New LLM provider (e.g., Mistral) | `lib/wizard.sh` Phase-2 `case` AND `_write_env`'s 24-positional-arg signature. Forgetting to wire the new args through `_apply_wiz_to_env` (Telegram bot path) leaves the .env partial. | Add a bats test that calls `_write_env` with the new provider's args; verify `.env` contains both old + new fields. |
 | New messenger platform | **Two** wizards (`_wizard_whiptail` AND `_wizard_text`) need parallel branches — easy to update one and forget the other. | After editing whiptail flow, grep for the equivalent question in `_wizard_text`; both must end with the same `_write_env` call. |
-| New webhook proxy option | `case` in Phase-2 + Docker auto-registration polling in `step_docker_build`.  ngrok-specific URL detection may need re-thinking. | Test with `bash install.sh --docker --no-wizard` to skip the wizard but exercise the build path. |
+| New webhook proxy option | `case` in Phase-2 + Docker auto-registration polling in `step_docker_build`. ngrok-specific URL detection may need re-thinking. | Test with `bash install.sh --docker --no-wizard` to skip the wizard but exercise the build path. |
 
 **🔴 Risky — modifies existing function bodies (~25% regression risk)**
 
-These touch validated, working code paths.  Treat as a refactor: separate commit, fresh bats run before AND after, prefer hooks over rewrites.
+These touch validated, working code paths. Treat as a refactor: separate commit, fresh bats run before AND after, prefer hooks over rewrites.
 
 | Change | Why it's risky | What to do instead |
 |---|---|---|
 | Bump min Python / Node version | `check_prereqs` version compare uses fragile `tr -d 'v' \| cut -d. -f1` — bumping past 9 → 10 boundary is a string-sort trap. | Replace the comparison with `printf '%s\n%s\n' "$current" "$min" \| sort -V \| head -1` instead of editing the existing line by hand. |
-| Rename systemd unit | Any user with a running deployment breaks on next `git pull`.  `systemctl disable old-name` not handled. | Don't rename.  If you must, add a one-shot migration in `step_systemd` that detects the old unit and disables it before installing the new one. |
+| Rename systemd unit | Any user with a running deployment breaks on next `git pull`. `systemctl disable old-name` not handled. | Don't rename. If you must, add a one-shot migration in `step_systemd` that detects the old unit and disables it before installing the new one. |
 | Remove a capability | Old users have stale `RESTRICT_X=true/false` lines; `_caps_already_set` returns true and they never re-pick. | Bump a `# capability schema v=N` comment line in `.env.example`; have `_caps_already_set` compare versions, not just key existence. |
 | Rename Docker compose service | Health-check polling URL + webhook auto-register URL break silently (curl returns 404, install.sh shows "Public URL bekleniyor" forever). | Update `docker-compose.yml`, `lib/steps.sh:step_docker_build` (search for service-name string literals), AND the README's troubleshooting tables in the same commit. |
 | Refactor `_write_env`'s 24-arg signature | Every wizard, every messenger path, and `_apply_wiz_to_env` calls it positionally. | Convert to associative array (`declare -A` env_values) in **its own commit** with no other changes; bats tests should still pass; only THEN add the new field. |

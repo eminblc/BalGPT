@@ -28,6 +28,10 @@ import urllib.request
 
 LANG: str = os.environ.get("INSTALL_LANG", "tr")
 
+# Temp directories for terminal secret IPC (set by install.sh monitoring loop)
+_REQ_DIR: str = os.environ.get("WIZARD_REQ_DIR", "")
+_ANS_DIR: str = os.environ.get("WIZARD_ANS_DIR", "")
+
 # ── Localised strings ─────────────────────────────────────────────────────────
 
 _STR: dict[str, dict[str, str]] = {
@@ -48,10 +52,11 @@ _STR: dict[str, dict[str, str]] = {
         ),
         "anthropic_login": "Claude Login (önerilen)",
         "anthropic_apikey": "API Anahtarı (ücretli)",
-        "anthropic_key_q": (
-            "🔑 Anthropic API anahtarınızı girin.\n"
-            "Format: <code>sk-ant-api03-...</code>\n\n"
-            "Anahtarınız yoksa <code>-</code> yazın."
+        "anthropic_key_terminal": (
+            "🔒 <b>Anthropic API Anahtarı — Terminal Gerekli</b>\n\n"
+            "Bu bilgi güvenlik nedeniyle mesajlaşma üzerinden alınmaz.\n"
+            "Kurulum terminaline geçin — API anahtarını orada gireceksiniz.\n\n"
+            "Format: <code>sk-ant-api03-...</code>"
         ),
         "ollama_info": (
             "ℹ️ <b>Ollama</b>\n\n"
@@ -59,10 +64,11 @@ _STR: dict[str, dict[str, str]] = {
             "Varsayılan: <code>http://localhost:11434</code>, model: <code>llama3</code>\n\n"
             "Devam ediliyor..."
         ),
-        "gemini_key_q": (
-            "🔑 Google Gemini API anahtarınızı girin.\n"
-            "Format: <code>AIza...</code>\n\n"
-            "Anahtarınız yoksa <code>-</code> yazın."
+        "gemini_key_terminal": (
+            "🔒 <b>Google Gemini API Anahtarı — Terminal Gerekli</b>\n\n"
+            "Bu bilgi güvenlik nedeniyle mesajlaşma üzerinden alınmaz.\n"
+            "Kurulum terminaline geçin — API anahtarını orada gireceksiniz.\n\n"
+            "Format: <code>AIza...</code>"
         ),
         "proxy_q": (
             "🌐 <b>Webhook Proxy</b>\n\n"
@@ -123,6 +129,12 @@ _STR: dict[str, dict[str, str]] = {
             "✅ <b>Tüm yetenekler</b> seçildi:\n"
             "Temel + masaüstü otomasyonu + tarayıcı otomasyonu"
         ),
+        "ngrok_token_terminal": (
+            "🔒 <b>ngrok Auth Token — Terminal Gerekli</b>\n\n"
+            "Bu bilgi güvenlik nedeniyle mesajlaşma üzerinden alınmaz.\n"
+            "Kurulum terminaline geçin — token'ı orada gireceksiniz."
+        ),
+        "secret_received": "✅ Alındı. Devam ediliyor…",
         "done": (
             "✅ <b>Kurulum tamamlandı!</b>\n\n"
             "Tüm seçimler kaydedildi.\n"
@@ -147,10 +159,11 @@ _STR: dict[str, dict[str, str]] = {
         ),
         "anthropic_login": "Claude Login (recommended)",
         "anthropic_apikey": "API Key (pay-per-use)",
-        "anthropic_key_q": (
-            "🔑 Enter your Anthropic API key.\n"
-            "Format: <code>sk-ant-api03-...</code>\n\n"
-            "Type <code>-</code> if you don't have one yet."
+        "anthropic_key_terminal": (
+            "🔒 <b>Anthropic API Key — Terminal Required</b>\n\n"
+            "For security, API keys are not collected over messaging.\n"
+            "Switch to your install terminal — enter the key there.\n\n"
+            "Format: <code>sk-ant-api03-...</code>"
         ),
         "ollama_info": (
             "ℹ️ <b>Ollama</b>\n\n"
@@ -158,10 +171,11 @@ _STR: dict[str, dict[str, str]] = {
             "Default: <code>http://localhost:11434</code>, model: <code>llama3</code>\n\n"
             "Continuing..."
         ),
-        "gemini_key_q": (
-            "🔑 Enter your Google Gemini API key.\n"
-            "Format: <code>AIza...</code>\n\n"
-            "Type <code>-</code> if you don't have one yet."
+        "gemini_key_terminal": (
+            "🔒 <b>Google Gemini API Key — Terminal Required</b>\n\n"
+            "For security, API keys are not collected over messaging.\n"
+            "Switch to your install terminal — enter the key there.\n\n"
+            "Format: <code>AIza...</code>"
         ),
         "proxy_q": (
             "🌐 <b>Webhook Proxy</b>\n\n"
@@ -177,10 +191,10 @@ _STR: dict[str, dict[str, str]] = {
             "Must start with <code>https://</code>\n\n"
             "Example: <code>https://example.com</code>"
         ),
-        "ngrok_token_q": (
-            "🔑 <b>ngrok Auth Token</b>\n\n"
-            "ngrok.com → Dashboard → Your Authtoken\n"
-            "Type <code>-</code> for anonymous mode."
+        "ngrok_token_terminal": (
+            "🔒 <b>ngrok Auth Token — Terminal Required</b>\n\n"
+            "For security, tokens are not collected over messaging.\n"
+            "Switch to your install terminal — enter the token there."
         ),
         "ngrok_domain_q": (
             "🌐 <b>ngrok Static Domain</b>\n\n"
@@ -222,6 +236,12 @@ _STR: dict[str, dict[str, str]] = {
             "✅ <b>All capabilities</b> selected:\n"
             "Basic + desktop automation + browser automation"
         ),
+        "ngrok_token_q": (
+            "🔑 <b>ngrok Auth Token</b>\n\n"
+            "ngrok.com → Dashboard → Your Authtoken\n"
+            "Type <code>-</code> for anonymous mode."
+        ),
+        "secret_received": "✅ Received. Continuing…",
         "done": (
             "✅ <b>Setup complete!</b>\n\n"
             "All choices saved.\n"
@@ -235,6 +255,36 @@ _STR: dict[str, dict[str, str]] = {
 def t(key: str) -> str:
     lang = LANG if LANG in _STR else "tr"
     return _STR[lang].get(key, _STR["tr"].get(key, key))
+
+
+def _request_terminal_secret(key: str) -> str:
+    """Signal the install.sh monitoring loop to prompt for a secret in the terminal.
+
+    Creates a sentinel file in REQ_DIR; polls ANS_DIR for the answer written by the shell.
+    Falls back to empty string if IPC dirs are not set or timeout (5 min) expires.
+    """
+    if not _REQ_DIR or not _ANS_DIR:
+        return ""
+    req_path = os.path.join(_REQ_DIR, key)
+    ans_path = os.path.join(_ANS_DIR, key)
+    try:
+        open(req_path, "w").close()  # signal: terminal input needed for this key
+    except OSError as exc:
+        print(f"[warn] could not write req file: {exc}", file=sys.stderr)
+        return ""
+    deadline = time.time() + 300  # 5-minute window for user to type
+    while time.time() < deadline:
+        if os.path.exists(ans_path):
+            try:
+                with open(ans_path) as f:
+                    val = f.read().strip()
+                os.remove(ans_path)
+                return val
+            except OSError:
+                pass
+        time.sleep(0.3)
+    print(f"[warn] terminal secret '{key}' timed out", file=sys.stderr)
+    return ""
 
 
 # ── Capability presets ────────────────────────────────────────────────────────
@@ -429,10 +479,10 @@ def run_wizard(token: str, chat_id: str) -> dict | None:
             return None
         result["anthropic_method"] = method
         if method == "apikey":
-            key = bot.ask_text(t("anthropic_key_q"))
-            if key is None:
-                _bail(bot)
-                return None
+            bot.send(t("anthropic_key_terminal"))
+            key = _request_terminal_secret("anthropic_key")
+            if key:
+                bot.send(t("secret_received"))
             result["anthropic_key"] = key
         else:
             result["anthropic_key"] = ""
@@ -443,10 +493,10 @@ def run_wizard(token: str, chat_id: str) -> dict | None:
         result["ollama_model"] = "llama3"
 
     elif llm == "gemini":
-        key = bot.ask_text(t("gemini_key_q"))
-        if key is None:
-            _bail(bot)
-            return None
+        bot.send(t("gemini_key_terminal"))
+        key = _request_terminal_secret("gemini_key")
+        if key:
+            bot.send(t("secret_received"))
         result["gemini_key"]   = key
         result["gemini_model"] = "gemini-2.0-flash"
 
@@ -473,10 +523,10 @@ def run_wizard(token: str, chat_id: str) -> dict | None:
 
     elif proxy == "ngrok":
         result["public_url"] = ""
-        ngrok_tok = bot.ask_text(t("ngrok_token_q"))
-        if ngrok_tok is None:
-            _bail(bot)
-            return None
+        bot.send(t("ngrok_token_terminal"))
+        ngrok_tok = _request_terminal_secret("ngrok_token")
+        if ngrok_tok:
+            bot.send(t("secret_received"))
         result["ngrok_token"] = ngrok_tok
 
         ngrok_dom = bot.ask_text(t("ngrok_domain_q"))

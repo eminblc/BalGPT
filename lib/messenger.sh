@@ -90,3 +90,37 @@ _apply_wiz_to_env() {
   fi
 }
 
+
+_collect_terminal_secrets() {
+  local _json="$1" _env="$2"
+  local _sentinel="__TERMINAL__"
+  local _ak _gk _nt
+  _ak="$(_parse_wiz "$_json" "anthropic_key" "")"
+  _gk="$(_parse_wiz "$_json" "gemini_key"    "")"
+  _nt="$(_parse_wiz "$_json" "ngrok_token"   "")"
+
+  if [[ "$_ak" == "$_sentinel" || "$_gk" == "$_sentinel" || "$_nt" == "$_sentinel" ]]; then
+    echo ""
+    echo "  ════════════════════════════════════════════════════"
+    echo "  $_S_TXT_WIZ_TERMINAL_SECRETS_TITLE"
+    echo "  ════════════════════════════════════════════════════"
+    echo ""
+    if [[ "$_ak" == "$_sentinel" ]]; then
+      local _val=""
+      _ask_secret "$_S_TXT_WIZ_ANTHROPIC_KEY" _val
+      [[ -n "$_val" ]] && _env_set "ANTHROPIC_API_KEY" "$_val" "$_env"
+    fi
+    if [[ "$_gk" == "$_sentinel" ]]; then
+      local _val=""
+      _ask_secret "$_S_TXT_WIZ_GEMINI_KEY" _val
+      [[ -n "$_val" ]] && _env_set "GEMINI_API_KEY" "$_val" "$_env"
+    fi
+    if [[ "$_nt" == "$_sentinel" ]]; then
+      local _val=""
+      _ask_secret "$_S_TXT_WIZ_NGROK_TOKEN" _val
+      [[ -n "$_val" ]] && _env_set "NGROK_AUTHTOKEN" "$_val" "$_env"
+    fi
+    echo ""
+  fi
+}
+

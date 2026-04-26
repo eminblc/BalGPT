@@ -49,6 +49,36 @@ step_npm() {
 }
 
 
+step_proxy_binary() {
+  local _proxy
+  _proxy="$(_read_env_var "WEBHOOK_PROXY" "$ENV_FILE")"
+  [[ "$_proxy" != "cloudflared" ]] && return 0
+
+  if command -v cloudflared &>/dev/null; then
+    ok "  $_S_STEP_CF_SKIP: $(cloudflared --version 2>&1 | head -1)"
+    return 0
+  fi
+
+  log "$_S_STEP_CF_INSTALL"
+  local _arch _url
+  _arch="$(uname -m)"
+  case "$_arch" in
+    x86_64)  _url="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64" ;;
+    aarch64) _url="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64" ;;
+    armv7l)  _url="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm"   ;;
+    *)       warn "  $_S_STEP_CF_ARCH_WARN"; return 1 ;;
+  esac
+
+  if curl -fL "$_url" -o /usr/local/bin/cloudflared 2>/dev/null \
+      && chmod +x /usr/local/bin/cloudflared; then
+    ok "  $_S_STEP_CF_DONE: $(cloudflared --version 2>&1 | head -1)"
+  else
+    warn "  $_S_STEP_CF_FAIL"
+    return 1
+  fi
+}
+
+
 step_data_dirs() {
   log "$_S_STEP_DIRS"
   mkdir -p \
