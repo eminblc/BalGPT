@@ -48,10 +48,20 @@ except: pass" 2>/dev/null || true
 }
 
 
+_sed_i() {
+  # Portable in-place sed: GNU sed (Linux) and BSD sed (macOS) have
+  # incompatible -i syntax; temp-file approach works on both.
+  # Usage: _sed_i FILE EXPR
+  local _file="$1" _expr="$2" _tmp
+  _tmp="$(mktemp "${_file}.XXXXXX")"
+  sed "$_expr" "$_file" > "$_tmp" && mv "$_tmp" "$_file" || { rm -f "$_tmp"; return 1; }
+}
+
+
 _env_comment_out() {
   local key="$1" file="$2"
   if grep -q "^${key}=" "$file" 2>/dev/null; then
-    sed -i "s@^${key}=@# ${key}=@" "$file"
+    _sed_i "$file" "s@^${key}=@# ${key}=@"
   fi
 }
 
@@ -59,7 +69,7 @@ _env_comment_out() {
 _env_uncomment() {
   local key="$1" file="$2"
   if grep -q "^# ${key}=" "$file" 2>/dev/null; then
-    sed -i "s@^# ${key}=@${key}=@" "$file"
+    _sed_i "$file" "s@^# ${key}=@${key}=@"
   fi
 }
 

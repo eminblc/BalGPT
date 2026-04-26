@@ -6,7 +6,7 @@
 
 _gen_api_key() {
   if command -v openssl &>/dev/null; then openssl rand -hex 32
-  else date +%s%N | sha256sum | head -c 64; fi
+  else { date +%s%N 2>/dev/null || date +%s; echo "$RANDOM$RANDOM"; } | sha256sum | head -c 64; fi
 }
 
 
@@ -29,7 +29,7 @@ _gen_totp() {
       done
     else
       while [[ ${#raw} -lt 32 ]]; do
-        raw+="$(date +%s%N | sha256sum | tr -dc 'A-Z2-7')"
+        raw+="$({ date +%s%N 2>/dev/null || date +%s; echo "$RANDOM"; } | sha256sum | tr -dc 'A-Z2-7')"
       done
     fi
     echo "${raw:0:32}"

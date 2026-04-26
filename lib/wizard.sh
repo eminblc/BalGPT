@@ -428,7 +428,7 @@ _write_env() {
     _env_set "ANTHROPIC_API_KEY" "$anthropic_key" "$env_dst"
   else
     # Claude Login seçildi — placeholder satırını sil ki step_claude_auth atlama
-    sed -i '/^ANTHROPIC_API_KEY=/d' "$env_dst"
+    _sed_i "$env_dst" '/^ANTHROPIC_API_KEY=/d'
   fi
   [[ -n "$ollama_url"    ]] && _env_set "OLLAMA_BASE_URL"   "$ollama_url"    "$env_dst"
   [[ -n "$ollama_model"  ]] && _env_set "OLLAMA_MODEL"      "$ollama_model"  "$env_dst"

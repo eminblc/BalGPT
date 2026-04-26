@@ -74,7 +74,7 @@ _apply_wiz_to_env() {
   if [[ -n "$_ak" ]]; then
     _env_set "ANTHROPIC_API_KEY" "$_ak" "$_env"
   else
-    sed -i '/^ANTHROPIC_API_KEY=/d' "$_env"
+    _sed_i "$_env" '/^ANTHROPIC_API_KEY=/d'
   fi
   [[ -n "$_ou" ]] && _env_set "OLLAMA_BASE_URL" "$_ou" "$_env"
   [[ -n "$_om" ]] && _env_set "OLLAMA_MODEL"    "$_om" "$_env"

@@ -108,7 +108,7 @@ step_docker_group() {
   if docker info &>/dev/null 2>&1; then
     ok "$_S_STEP_DOCKER_OK"; return
   fi
-  if [ "$EUID" -eq 0 ]; then
+  if [ "$EUID" -eq 0 ] && command -v usermod &>/dev/null; then
     usermod -aG docker "$CURRENT_USER"
     ok "$_S_STEP_DOCKER_ADDED"
   else
