@@ -4,6 +4,17 @@
 # Sourced by install.sh; do not execute directly.
 # shellcheck shell=bash
 
+# Whitelist of valid timezone callback values. Telegram occasionally redelivers
+# stale callbacks (e.g. the user re-taps an earlier message's still-visible
+# keyboard); without validation we'd write "anthropic" or another LLM-button
+# value into TIMEZONE.
+_TZ_VALID_VALUES="Europe/Istanbul Europe/London Europe/Paris America/New_York America/Los_Angeles Asia/Tokyo UTC __other__"
+_is_valid_tz_cb() {
+  local v="$1" t
+  for t in $_TZ_VALID_VALUES; do [[ "$v" == "$t" ]] && return 0; done
+  return 1
+}
+
 _wizard_whiptail() {
   local env_dst="$1"
 
@@ -54,7 +65,7 @@ _wizard_whiptail() {
     # Show instructions AFTER clearing updates so the user's next message is the first one
     _wt_msg "$_S_WIZ_TG_SEND_MSG_TITLE" "$_S_WIZ_TG_SEND_MSG" || return 1
     local _tg_auto_id=""
-    _tg_auto_id="$(curl -s --max-time 70 "https://api.telegram.org/bot${tg_token}/getUpdates?timeout=60&limit=1" 2>/dev/null \
+    _tg_auto_id="$(curl -s --max-time 100 "https://api.telegram.org/bot${tg_token}/getUpdates?timeout=90&limit=1" 2>/dev/null \
       | "$PY" -c "import sys,json
 try:
     d=json.load(sys.stdin)
@@ -98,6 +109,14 @@ except: pass" 2>/dev/null || true)"
       fi
       break
     done
+
+    # Final "ready" notification with the public URL.
+    local _public_url=""
+    [[ -n "$ngrok_domain" ]] && _public_url="https://${ngrok_domain}"
+    if [[ -n "$_public_url" ]]; then
+      # shellcheck disable=SC2059
+      _tg_notify "$tg_token" "$tg_chat_id" "$(printf "$_S_TXT_TG_TEST_MSG_READY" "$_public_url")" || true
+    fi
 
     # ── Telegram-driven Phase 2: LLM + timezone via inline buttons ────────────
     local _tg_offset _cb _cb_uid _cb_id _cb_data
@@ -147,17 +166,28 @@ except: pass" 2>/dev/null || true)"
     fi
 
     # Timezone selection
-    log "  $_S_TXT_TG_WAIT"
-    _tg_send_buttons "$tg_token" "$tg_chat_id" "*$_S_WIZ_TZ_TITLE*" \
-      "🇹🇷 Istanbul:Europe/Istanbul"       "🇬🇧 London:Europe/London"      "|" \
-      "🇫🇷 Paris:Europe/Paris"             "🇺🇸 New York:America/New_York"  "|" \
-      "🇺🇸 Los Angeles:America/Los_Angeles" "🇯🇵 Tokyo:Asia/Tokyo"          "|" \
-      "UTC:UTC"                             "✏️ Other:__other__" >/dev/null
-    _cb="$(_tg_poll_callback "$tg_token" "$tg_chat_id" "$_tg_offset" 120)" || _cb="0 0 Europe/Istanbul"
-    _cb_uid="$(echo "$_cb" | cut -d' ' -f1)"
-    _cb_id="$(echo  "$_cb" | cut -d' ' -f2)"
-    _cb_data="$(echo "$_cb" | cut -d' ' -f3)"
-    _tg_answer_callback "$tg_token" "$_cb_id"
+    local _tz_attempt=0
+    while (( _tz_attempt < 3 )); do
+      log "  $_S_TXT_TG_WAIT"
+      _tg_send_buttons "$tg_token" "$tg_chat_id" "*$_S_WIZ_TZ_TITLE*" \
+        "🇹🇷 Istanbul:Europe/Istanbul"       "🇬🇧 London:Europe/London"      "|" \
+        "🇫🇷 Paris:Europe/Paris"             "🇺🇸 New York:America/New_York"  "|" \
+        "🇺🇸 Los Angeles:America/Los_Angeles" "🇯🇵 Tokyo:Asia/Tokyo"          "|" \
+        "UTC:UTC"                             "✏️ Other:__other__" >/dev/null
+      _cb="$(_tg_poll_callback "$tg_token" "$tg_chat_id" "$_tg_offset" 120)" || _cb="0 0 Europe/Istanbul"
+      _cb_uid="$(echo "$_cb" | cut -d' ' -f1)"
+      _cb_id="$(echo  "$_cb" | cut -d' ' -f2)"
+      _cb_data="$(echo "$_cb" | cut -d' ' -f3)"
+      _tg_answer_callback "$tg_token" "$_cb_id"
+      [[ "$_cb_uid" =~ ^[0-9]+$ && "$_cb_uid" -gt 0 ]] && _tg_offset=$(( _cb_uid + 1 ))
+      if _is_valid_tz_cb "$_cb_data"; then break; fi
+      _tz_attempt=$(( _tz_attempt + 1 ))
+      warn "  Telegram returned unexpected value '$_cb_data' — re-asking timezone"
+    done
+    if ! _is_valid_tz_cb "$_cb_data"; then
+      _cb_data="Europe/Istanbul"
+      warn "  Falling back to default timezone Europe/Istanbul"
+    fi
     if [[ "$_cb_data" == "__other__" ]]; then
       tz_value=$(_wt_input "$_S_WIZ_TZ_TITLE" "$_S_WIZ_TZ_CUSTOM" "Europe/Istanbul") || return 1
       tz_value="${tz_value:-Europe/Istanbul}"
@@ -332,7 +362,8 @@ _wizard_text() {
     echo ""
     _ask_req "$_S_WIZ_TG_TOKEN" tg_token
 
-    # Chat ID — auto-detect
+    # Chat ID — auto-detect (90s long-poll). User can press Enter immediately
+    # to skip auto-detect and type the chat ID manually.
     # Drop webhook + all pending updates atomically so the user's next message is the first
     curl -s --max-time 5 -X POST "https://api.telegram.org/bot${tg_token}/deleteWebhook?drop_pending_updates=true" >/dev/null 2>&1 || true
     _sep
@@ -341,10 +372,12 @@ _wizard_text() {
     echo ""
     printf "  %b\n" "$_S_WIZ_TG_SEND_MSG"
     echo ""
-    log "  Waiting (up to 60s)..."
-    local _tg_updates
-    _tg_updates="$(curl -s --max-time 70 "https://api.telegram.org/bot${tg_token}/getUpdates?timeout=60&limit=1" 2>/dev/null || true)"
-    tg_chat_id="$(echo "$_tg_updates" | "$PY" -c "import sys,json
+    _ask_inline "$_S_TXT_TG_CHATID_TIP" tg_chat_id
+    if [[ -z "$tg_chat_id" ]]; then
+      log "  Waiting (up to 90s)..."
+      local _tg_updates
+      _tg_updates="$(curl -s --max-time 100 "https://api.telegram.org/bot${tg_token}/getUpdates?timeout=90&limit=1" 2>/dev/null || true)"
+      tg_chat_id="$(echo "$_tg_updates" | "$PY" -c "import sys,json
 try:
     d=json.load(sys.stdin)
     for u in d.get('result', []):
@@ -352,16 +385,19 @@ try:
             print(u['message']['chat']['id'])
             break
 except: pass" 2>/dev/null || true)"
-    if [[ -n "$tg_chat_id" ]]; then
-      ok "  $_S_TXT_TG_CHATID_OK: $tg_chat_id"
-    else
-      warn "  $_S_TXT_TG_CHATID_FAIL"
-      _ask_req "$_S_WIZ_TG_CHAT" tg_chat_id
+      if [[ -n "$tg_chat_id" ]]; then
+        ok "  $_S_TXT_TG_CHATID_OK: $tg_chat_id"
+      else
+        warn "  $_S_TXT_TG_CHATID_FAIL"
+        _ask_req "$_S_WIZ_TG_CHAT" tg_chat_id
+      fi
     fi
     tg_webhook_secret="$(_gen_api_key)"
     ok "  $_S_TXT_WSECRET_AUTO"
 
-    # Connectivity test — confirms bot can reach the user before continuing.
+    # Interim notification: bot is reachable; user now goes back to the
+    # terminal to enter ngrok credentials. After ngrok we'll send the final
+    # "ready" message that includes the public URL.
     _tg_notify "$tg_token" "$tg_chat_id" "$_S_TXT_TG_TEST_MSG" || true
     ok "  $_S_TXT_TG_TEST_SENT"
 
@@ -396,6 +432,15 @@ except: pass" 2>/dev/null || true)"
       fi
       break
     done
+
+    # Final "ready" notification with the public URL — confirms full setup
+    # before switching to inline-button Q&A.
+    local _public_url=""
+    [[ -n "$ngrok_domain" ]] && _public_url="https://${ngrok_domain}"
+    if [[ -n "$_public_url" ]]; then
+      # shellcheck disable=SC2059
+      _tg_notify "$tg_token" "$tg_chat_id" "$(printf "$_S_TXT_TG_TEST_MSG_READY" "$_public_url")" || true
+    fi
 
     # ── Telegram-driven Phase 2: LLM + timezone via inline buttons ────────────
     local _tg_offset _cb _cb_uid _cb_id _cb_data
@@ -450,17 +495,28 @@ except: pass" 2>/dev/null || true)"
 
     # Timezone selection
     _sep
-    log "  $_S_TXT_TG_WAIT"
-    _tg_send_buttons "$tg_token" "$tg_chat_id" "*$_S_WIZ_TZ_TITLE*" \
-      "🇹🇷 Istanbul:Europe/Istanbul"  "🇬🇧 London:Europe/London"    "|" \
-      "🇫🇷 Paris:Europe/Paris"        "🇺🇸 New York:America/New_York" "|" \
-      "🇺🇸 Los Angeles:America/Los_Angeles" "🇯🇵 Tokyo:Asia/Tokyo"  "|" \
-      "UTC:UTC"                        "✏️ Other:__other__" >/dev/null
-    _cb="$(_tg_poll_callback "$tg_token" "$tg_chat_id" "$_tg_offset" 120)" || _cb="0 0 Europe/Istanbul"
-    _cb_uid="$(echo "$_cb" | cut -d' ' -f1)"
-    _cb_id="$(echo  "$_cb" | cut -d' ' -f2)"
-    _cb_data="$(echo "$_cb" | cut -d' ' -f3)"
-    _tg_answer_callback "$tg_token" "$_cb_id"
+    local _tz_attempt=0
+    while (( _tz_attempt < 3 )); do
+      log "  $_S_TXT_TG_WAIT"
+      _tg_send_buttons "$tg_token" "$tg_chat_id" "*$_S_WIZ_TZ_TITLE*" \
+        "🇹🇷 Istanbul:Europe/Istanbul"  "🇬🇧 London:Europe/London"    "|" \
+        "🇫🇷 Paris:Europe/Paris"        "🇺🇸 New York:America/New_York" "|" \
+        "🇺🇸 Los Angeles:America/Los_Angeles" "🇯🇵 Tokyo:Asia/Tokyo"  "|" \
+        "UTC:UTC"                        "✏️ Other:__other__" >/dev/null
+      _cb="$(_tg_poll_callback "$tg_token" "$tg_chat_id" "$_tg_offset" 120)" || _cb="0 0 Europe/Istanbul"
+      _cb_uid="$(echo "$_cb" | cut -d' ' -f1)"
+      _cb_id="$(echo  "$_cb" | cut -d' ' -f2)"
+      _cb_data="$(echo "$_cb" | cut -d' ' -f3)"
+      _tg_answer_callback "$tg_token" "$_cb_id"
+      [[ "$_cb_uid" =~ ^[0-9]+$ && "$_cb_uid" -gt 0 ]] && _tg_offset=$(( _cb_uid + 1 ))
+      if _is_valid_tz_cb "$_cb_data"; then break; fi
+      _tz_attempt=$(( _tz_attempt + 1 ))
+      warn "  Telegram returned unexpected value '$_cb_data' — re-asking timezone"
+    done
+    if ! _is_valid_tz_cb "$_cb_data"; then
+      _cb_data="Europe/Istanbul"
+      warn "  Falling back to default timezone Europe/Istanbul"
+    fi
     if [[ "$_cb_data" == "__other__" ]]; then
       _ask_inline "  $_S_TXT_TG_TZ_OTHER" tz_value
       tz_value="${tz_value:-Europe/Istanbul}"

@@ -316,20 +316,27 @@ step_claude_auth() {
   # may be expired. The CLI handles already-authenticated sessions gracefully.
 
   # Install claude CLI if missing — strict: hard fail so user fixes Node/npm.
+  # On Git Bash for Windows (MINGW), `npm` is shipped as `npm.cmd`/`npm.ps1`
+  # shims; `command -v npm` returns empty even when npm is fully functional.
+  # Probe both forms so the installer doesn't crash on Windows.
   if ! command -v claude &>/dev/null; then
-    if ! command -v npm &>/dev/null; then
+    local _npm_cmd=""
+    if   command -v npm     &>/dev/null; then _npm_cmd=npm
+    elif command -v npm.cmd &>/dev/null; then _npm_cmd=npm.cmd
+    fi
+    if [[ -z "$_npm_cmd" ]]; then
       _auth_fail "$_S_AUTH_NPM_MISSING"; return
     fi
     log "$_S_AUTH_INSTALLING"
-    if ! npm install -g @anthropic-ai/claude-code 2>&1 | tail -3; then
+    if ! "$_npm_cmd" install -g @anthropic-ai/claude-code 2>&1 | tail -3; then
       _auth_fail "$_S_AUTH_INSTALL_FAIL"; return
     fi
     if ! command -v claude &>/dev/null; then
       # npm bin may not be on PATH yet — try to find it
       local _npm_bin="" _npm_prefix=""
-      _npm_bin="$(npm bin -g 2>/dev/null || true)"
+      _npm_bin="$("$_npm_cmd" bin -g 2>/dev/null || true)"
       if [[ -z "$_npm_bin" ]]; then
-        _npm_prefix="$(npm prefix -g 2>/dev/null || true)"
+        _npm_prefix="$("$_npm_cmd" prefix -g 2>/dev/null || true)"
         [[ -n "$_npm_prefix" ]] && _npm_bin="$_npm_prefix/bin"
       fi
       [[ -n "$_npm_bin" ]] && export PATH="$_npm_bin:$PATH"
