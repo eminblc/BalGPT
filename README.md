@@ -500,6 +500,8 @@ The wizard collects only the credentials you must obtain externally. Everything 
 
 > **Telegram + cloudflared:** When you pick Telegram, the wizard forces `WEBHOOK_PROXY=ngrok` — cloudflared isn't offered as a choice. To use cloudflared instead, finish the install, then edit `.env` to set `WEBHOOK_PROXY=cloudflared`, ensure the `cloudflared` binary is installed, and restart services. The `!wizard` command and the rest of the flow are proxy-agnostic — they work as long as the webhook is registered with a public URL.
 
+> **Telegram command menu:** On every service start, the bot automatically registers all available commands with Telegram via `setMyCommands`. This means the `/` shortcut menu in Telegram is always in sync — no manual BotFather steps needed. Slash commands (`/help`, `/restart`, etc.) are equivalent to their `!` counterparts and work the same way. When you add a new command and restart (`git pull` + `docker compose restart` or `systemctl restart`), the menu updates automatically.
+
 ### LLM
 
 | Variable | Description |
@@ -545,6 +547,8 @@ See [`scripts/backend/.env.example`](scripts/backend/.env.example) for all optio
 - **Math + Admin TOTP** — owner + simple math challenge + 6-digit admin code (`TOTP_SECRET_ADMIN`)
 
 Non-command messages are forwarded to Claude Code for free-form conversation.
+
+> **Telegram:** All commands are also available as native slash commands (`/help`, `/root_reset`, etc.). The bot registers them automatically on every startup — the `/` shortcut menu stays in sync without any BotFather configuration.
 
 For capability flags, system requirements, and internal API endpoints, see [docs/skills.md](docs/skills.md).
 

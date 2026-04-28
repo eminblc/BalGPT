@@ -28,6 +28,7 @@ from fastapi import APIRouter, Depends, Request, HTTPException
 from pydantic import BaseModel
 
 from ..config import settings
+from ..services.telegram_command_sync import build_tg_command_map
 from ..guards import (
     blacklist_mgr, rate_limiter, perm_mgr, dedup,
     record_status, capability_guard,
@@ -48,6 +49,32 @@ from ..app_types import InboundMessage
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# tg_name → cmd_id haritası — ilk kullanımda lazy doldurulur.
+# setMyCommands ile kayıtlı komutların ters çevirimi için kullanılır.
+_TG_COMMAND_MAP: dict[str, str] = {}
+
+
+def _resolve_tg_command(text: str) -> str:
+    """Telegram slash komutunu !komut formatına çevirir.
+
+    '/root_reset arg' → '!root-reset arg'
+    '/help'           → '!help'
+    '/start'          → '!help'
+    Slash ile başlamayan metinler değişmeden döner.
+    """
+    if not text.startswith("/"):
+        return text
+    global _TG_COMMAND_MAP
+    if not _TG_COMMAND_MAP:
+        _TG_COMMAND_MAP = build_tg_command_map()
+    parts = text[1:].split(None, 1)
+    tg_name = parts[0].lower().split("@")[0]  # /cmd@botname → cmd
+    cmd_id = _TG_COMMAND_MAP.get(tg_name)
+    remainder = (" " + parts[1]) if len(parts) > 1 else ""
+    if cmd_id:
+        return cmd_id + remainder
+    return "!" + tg_name + remainder
 
 # OCP-1: guard'lar inject edilen örneklerden oluşan zincir — WhatsApp router ile simetrik.
 # Telegram'a özgü fark: notification_target olarak telegram_chat_id kullanılır.
@@ -152,6 +179,7 @@ async def _handle_update(
 
         msg_type = _classify_tg_message(msg)
         text     = msg.get("text", "").strip() if msg_type == "text" else ""
+        text     = _resolve_tg_command(text)
         extra_desc = _describe_tg_media(msg, msg_type)
 
         await _process(

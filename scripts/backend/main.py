@@ -74,6 +74,14 @@ async def lifespan(app: FastAPI):
     from .features._registry import run_startup_hooks
     await run_startup_hooks()
 
+    # Telegram komut menüsünü senkronize et — her restart'ta otomatik güncellenir
+    if settings.messenger_type == "telegram":
+        from .services.telegram_command_sync import TelegramCommandSyncer
+        try:
+            await TelegramCommandSyncer().sync()
+        except Exception as exc:
+            logger.warning("Telegram komut menüsü senkronizasyonu başarısız: %s", exc)
+
     # Açılış bildirimi — proxy URL'sini de içerir (webhook_proxy start sonrası)
     await _notify(await _startup_message())
 

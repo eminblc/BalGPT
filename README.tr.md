@@ -473,6 +473,8 @@ Sihirbaz yalnızca dışarıdan alınması gereken kimlik bilgilerini sorar. Ger
 
 > **Telegram + cloudflared:** Sihirbaz Telegram seçildiğinde proxy olarak ngrok'u zorlar; cloudflared seçeneği gösterilmez. Cloudflared kullanmak istiyorsanız kurulumu tamamlayın, ardından `.env` dosyasında `WEBHOOK_PROXY=cloudflared` yapın, `cloudflared` binary'sinin yüklü olduğundan emin olun ve servisleri yeniden başlatın. `!wizard` komutu ve genel akış proxy-bağımsızdır — webhook public URL'den kayıtlı olduğu sürece çalışır.
 
+> **Telegram komut menüsü:** Servis her başladığında bot, `setMyCommands` API'si aracılığıyla mevcut tüm komutları Telegram'a otomatik olarak kaydeder. Bu sayede Telegram'daki `/` kısayol menüsü her zaman güncel kalır — BotFather'da manuel adım gerekmez. Slash komutları (`/help`, `/restart` vb.) `!` karşılıklarıyla birebir aynı şekilde çalışır. Yeni bir komut ekleyip servisi yeniden başlattığınızda (`git pull` + `docker compose restart` veya `systemctl restart`) menü otomatik güncellenir.
+
 ### LLM
 
 | Değişken | Açıklama |
@@ -518,6 +520,8 @@ Saat dilimi ve yetenek flag'leri dahil tüm seçenekler için bkz. [`scripts/bac
 - **Math + Admin TOTP** — sahip kimliği + basit matematik sorusu + 6 haneli admin kodu (`TOTP_SECRET_ADMIN`)
 
 Komut olmayan mesajlar serbest konuşma için Claude Code'a iletilir.
+
+> **Telegram:** Tüm komutlar aynı zamanda native slash komut olarak da kullanılabilir (`/help`, `/root_reset` vb.). Bot her başlangıçta bunları otomatik kaydeder — `/` kısayol menüsü BotFather yapılandırması gerektirmeden güncel kalır.
 
 Yetenek flag'leri, sistem gereksinimleri ve dahili API endpoint'leri için bkz. [docs/skills.md](docs/skills.md).
 
