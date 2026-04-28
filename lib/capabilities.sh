@@ -100,6 +100,91 @@ _capabilities_whiptail() {
 }
 
 
+_capabilities_telegram() {
+  local env_dst="$1"
+  local _tok _cid _offset _cb _cb_uid _cb_id _cb_data
+  _tok="$(_env_get "TELEGRAM_BOT_TOKEN" "$env_dst" 2>/dev/null || true)"
+  _cid="$(_env_get "TELEGRAM_CHAT_ID"   "$env_dst" 2>/dev/null || true)"
+  if [[ -z "$_tok" || -z "$_cid" ]]; then
+    warn "  ↳ Telegram credentials not in .env — falling back to text mode"
+    _capabilities_text
+    return
+  fi
+
+  local -a keys=( "fs" "network" "shell" "service_mgmt" "media" "calendar" "project_wizard" "screenshot" "scheduler" "pdf_import" "conv_history" "plans" "intent_classifier" "wizard_llm_scaffold" "desktop" "browser" )
+  local -a labels=( "$_S_CAP_FS" "$_S_CAP_NET" "$_S_CAP_SHELL" "$_S_CAP_SVC"
+                    "$_S_CAP_MEDIA" "$_S_CAP_CAL" "$_S_CAP_WIZ" "$_S_CAP_SS"
+                    "$_S_CAP_SCHED" "$_S_CAP_PDF" "$_S_CAP_HIST" "$_S_CAP_PLANS" "$_S_CAP_IC" "$_S_CAP_WIZ_LLM"
+                    "$_S_CAP_DESKTOP" "$_S_CAP_BROWSER" )
+  local -a defaults=( "Y" "Y" "Y" "Y" "Y" "Y" "Y" "Y" "Y" "Y" "Y" "Y" "Y" "Y" "N" "N" )
+
+  _offset="$(_tg_get_offset "$_tok")"
+
+  # Phase 1: defaults vs customize gateway
+  log "  $_S_TXT_TG_WAIT"
+  _tg_send_buttons "$_tok" "$_cid" "$_S_CAP_TG_INTRO" \
+    "$_S_CAP_TG_DEFAULTS_BTN:defaults"  "|" \
+    "$_S_CAP_TG_CUSTOM_BTN:customize" >/dev/null
+
+  local _gate_attempt=0
+  while (( _gate_attempt < 3 )); do
+    _cb="$(_tg_poll_callback "$_tok" "$_cid" "$_offset" 300)" || _cb="0 0 defaults"
+    _cb_uid="$(echo "$_cb" | cut -d' ' -f1)"
+    _cb_id="$(echo  "$_cb" | cut -d' ' -f2)"
+    _cb_data="$(echo "$_cb" | cut -d' ' -f3)"
+    _tg_answer_callback "$_tok" "$_cb_id"
+    [[ "$_cb_uid" =~ ^[0-9]+$ && "$_cb_uid" -gt 0 ]] && _offset=$(( _cb_uid + 1 ))
+    [[ "$_cb_data" == "defaults" || "$_cb_data" == "customize" ]] && break
+    _gate_attempt=$(( _gate_attempt + 1 ))
+  done
+  [[ "$_cb_data" != "defaults" && "$_cb_data" != "customize" ]] && _cb_data="defaults"
+
+  if [[ "$_cb_data" == "defaults" ]]; then
+    _tg_notify "$_tok" "$_cid" "$_S_CAP_TG_DEFAULTS_APPLIED"
+    ok "  $_S_CAP_TG_DEFAULTS_APPLIED"
+    _write_capabilities "$(_caps_basic_str)"
+    return
+  fi
+
+  # Phase 2: per-capability Y/N. After each click, send confirmation.
+  local selected="" i
+  for (( i=0; i<${#keys[@]}; i++ )); do
+    local def="${defaults[$i]}" label="${labels[$i]}" key="${keys[$i]}"
+    local _intro_label="*${label}*"
+    [[ "$def" == "Y" ]] && _intro_label+="  _(önerilen: aktif)_" || _intro_label+="  _(önerilen: pasif)_"
+    log "  $_S_TXT_TG_WAIT"
+    _tg_send_buttons "$_tok" "$_cid" "$_intro_label" \
+      "$_S_CAP_TG_BTN_ENABLE:y"  "$_S_CAP_TG_BTN_DISABLE:n" >/dev/null
+
+    local _yn_attempt=0 _ans=""
+    while (( _yn_attempt < 3 )); do
+      _cb="$(_tg_poll_callback "$_tok" "$_cid" "$_offset" 300)" || _cb="0 0 ${def,,}"
+      _cb_uid="$(echo "$_cb" | cut -d' ' -f1)"
+      _cb_id="$(echo  "$_cb" | cut -d' ' -f2)"
+      _cb_data="$(echo "$_cb" | cut -d' ' -f3)"
+      _tg_answer_callback "$_tok" "$_cb_id"
+      [[ "$_cb_uid" =~ ^[0-9]+$ && "$_cb_uid" -gt 0 ]] && _offset=$(( _cb_uid + 1 ))
+      if [[ "$_cb_data" == "y" || "$_cb_data" == "n" ]]; then _ans="$_cb_data"; break; fi
+      _yn_attempt=$(( _yn_attempt + 1 ))
+    done
+    [[ -z "$_ans" ]] && _ans="${def,,}"
+
+    if [[ "$_ans" == "y" ]]; then
+      selected+=" \"${key}\""
+      # shellcheck disable=SC2059
+      _tg_notify "$_tok" "$_cid" "$(printf "$_S_CAP_TG_CONF_ENABLED" "$label")"
+    else
+      # shellcheck disable=SC2059
+      _tg_notify "$_tok" "$_cid" "$(printf "$_S_CAP_TG_CONF_DISABLED" "$label")"
+    fi
+  done
+
+  _tg_notify "$_tok" "$_cid" "$_S_CAP_TG_DONE"
+  ok "  $_S_CAP_TG_DONE"
+  _write_capabilities "$selected"
+}
+
+
 _capabilities_text() {
   local selected=""
   local -a keys=( "fs" "network" "shell" "service_mgmt" "media" "calendar" "project_wizard" "screenshot" "scheduler" "pdf_import" "conv_history" "plans" "intent_classifier" "wizard_llm_scaffold" "desktop" "browser" )
@@ -180,7 +265,14 @@ with open(sys.argv[1], 'w') as f: f.write(''.join(lines))
     return 0
   fi
 
-  if _wt_available; then
+  # Route to Telegram inline buttons when MESSENGER_TYPE=telegram so the user
+  # can complete capability selection from their phone instead of the desktop
+  # terminal. Falls back to text mode if credentials are missing.
+  local _messenger
+  _messenger="$(_env_get "MESSENGER_TYPE" "$env_dst" 2>/dev/null || true)"
+  if [[ "$_messenger" == "telegram" ]]; then
+    _capabilities_telegram "$env_dst"
+  elif _wt_available; then
     _capabilities_whiptail
   else
     _capabilities_text

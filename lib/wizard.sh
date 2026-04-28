@@ -149,6 +149,8 @@ except: pass" 2>/dev/null || true)"
     fi
     llm="$_cb_data"
     ok "  $_S_TXT_TG_LLM_SELECTED: $llm"
+    # shellcheck disable=SC2059
+    _tg_notify "$tg_token" "$tg_chat_id" "$(printf "$_S_MSG_TG_LLM_CONFIRM" "$llm")" || true
 
     # LLM credentials — sensitive, collected via whiptail
     if [[ "$llm" == "anthropic" ]]; then
@@ -208,6 +210,8 @@ except: pass" 2>/dev/null || true)"
       tz_value="$_cb_data"
     fi
     ok "  $_S_TXT_TG_TZ_SELECTED: $tz_value"
+    # shellcheck disable=SC2059
+    _tg_notify "$tg_token" "$tg_chat_id" "$(printf "$_S_MSG_TG_TZ_CONFIRM" "$tz_value")" || true
   fi
 
   # ── Phase 2: LLM / Proxy / Timezone ─────────────────────────────────────────
@@ -484,6 +488,8 @@ except: pass" 2>/dev/null || true)"
     fi
     llm="$_cb_data"
     ok "  $_S_TXT_TG_LLM_SELECTED: $llm"
+    # shellcheck disable=SC2059
+    _tg_notify "$tg_token" "$tg_chat_id" "$(printf "$_S_MSG_TG_LLM_CONFIRM" "$llm")" || true
 
     # LLM credentials — sensitive, stay in terminal
     _sep
@@ -547,6 +553,8 @@ except: pass" 2>/dev/null || true)"
       tz_value="$_cb_data"
     fi
     ok "  $_S_TXT_TG_TZ_SELECTED: $tz_value"
+    # shellcheck disable=SC2059
+    _tg_notify "$tg_token" "$tg_chat_id" "$(printf "$_S_MSG_TG_TZ_CONFIRM" "$tz_value")" || true
   fi
 
   # ── Phase 2: LLM / Proxy / Timezone ─────────────────────────────────────────
