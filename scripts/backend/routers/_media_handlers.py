@@ -90,6 +90,12 @@ async def handle_document(
             )
             return
         lang = session.get("lang", "tr")
+        # Proje sihirbazı aktifken PDF import'u reddet; kullanıcı önce sihirbazı bitirmeli.
+        _WIZ_KEYS = ("awaiting_project_name", "awaiting_project_description",
+                     "wiz_name", "wiz_level", "awaiting_project_path", "wiz_svc_decision")
+        if any(session.get(k) for k in _WIZ_KEYS):
+            await get_messenger().send_text(sender, t("media.pdf_wizard_active", lang))
+            return
         session.set_pending_pdf(media_id)
         await get_messenger().send_buttons(
             sender,

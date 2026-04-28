@@ -31,11 +31,25 @@ echo "  $OK Dizinler hazır"
 # ── 2. Claude CLI kimlik doğrulaması ─────────────────────────────
 echo ""
 echo "$INFO Claude kimlik bilgileri kontrol ediliyor..."
-CRED_FILE="/root/.claude/.credentials.json"
+CLAUDE_DIR="/home/claude/.claude"
+CRED_FILE="${CLAUDE_DIR}/.credentials.json"
+CLAUDE_JSON="/home/claude/.claude.json"
 CRED_CONTENT=""
 if [ -f "$CRED_FILE" ]; then
   CRED_CONTENT="$(tr -d ' \n\r\t' < "$CRED_FILE" 2>/dev/null || true)"
 fi
+
+# ~/.claude.json config dosyası eksikse backup'tan restore et
+if [ ! -f "$CLAUDE_JSON" ]; then
+  BACKUP="$(ls -t "${CLAUDE_DIR}/backups/.claude.json.backup."* 2>/dev/null | head -1)"
+  if [ -n "$BACKUP" ]; then
+    cp "$BACKUP" "$CLAUDE_JSON"
+    echo "  $OK .claude.json backup'tan restore edildi: $BACKUP"
+  else
+    echo "  $WARN .claude.json bulunamadı ve backup da yok — Claude ilk çalışmada oluşturacak"
+  fi
+fi
+
 CLI_JS="/app/scripts/claude-code-bridge/node_modules/@anthropic-ai/claude-code/cli.js"
 
 if [ -n "$ANTHROPIC_API_KEY" ]; then

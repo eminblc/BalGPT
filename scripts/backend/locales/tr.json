@@ -78,7 +78,7 @@
     "list_header": "Komutlar — detay için: !help !komut",
     "section_planning": "Planlama & Projeler",
     "section_system": "Sistem & Araçlar",
-    "fallback": "Komutlar:\n!help [!komut]   — Bu menü veya komut açıklaması\n!history [N|özet] — Son mesajlar\n!project [id]    — Aktif projeyi seç (TOTP)\n!lang <tr|en>    — Dil değiştir\n!model           — {model_hint}\n!beta        — Beta'dan çık\n\nProje oluşturma:\n  Menü → Yeni Proje → ad yaz → tür seç:\n  • Yazılım Projesi  (CLAUDE.md, BACKLOG.md ...)\n  • Görev Kaydet     (README + outputs/)\n  • Sadece Klasör    (boş klasör)\n  ya da PDF gönder → aynı tür seçimi\n\nSistem komutları:\n!root-reset  — Session sıfırla\n!restart     — Servisleri yeniden başlat\n!terminal <komut> — Shell komutu çalıştır (tehlikeli → admin TOTP)\n⚠️ Yıkıcı (matematik + admin TOTP):\n!shutdown    — Servisi kapat\n\nZamanlama (TOTP):\n!schedule                        → listele\n!schedule ekle 0 9 * * * <açık>  → her sabah 9 — Bridge'e prompt\n!schedule mesaj 0 9 * * * <metin> → her sabah 9 — sabit mesaj\n!schedule sil|durdur|başlat <id>\nDoğal dil: 'Her sabah 9'da brief yaz' → Claude otomatik oluşturur\n\nKomut olmayan mesajlar Claude'a gider. 💬",
+    "fallback": "Komutlar:\n!help [!komut]   — Bu menü veya komut açıklaması\n!history [N|özet] — Son mesajlar\n!project [id]    — Aktif projeyi seç (TOTP)\n!lang <tr|en>    — Dil değiştir\n!model           — {model_hint}\n!beta        — Beta'dan çık\n\nProje oluşturma:\n  Menü → Yeni Proje → ad yaz → tür seç:\n  • Yazılım Projesi  (CLAUDE.md, BACKLOG.md ...)\n  • Görev Kaydet     (README + outputs/)\n  • Sadece Klasör    (boş klasör)\n\nSistem komutları:\n!root-reset  — Session sıfırla\n!restart     — Servisleri yeniden başlat\n!terminal <komut> — Shell komutu çalıştır (tehlikeli → admin TOTP)\n⚠️ Yıkıcı (matematik + admin TOTP):\n!shutdown    — Servisi kapat\n\nZamanlama (TOTP):\n!schedule                        → listele\n!schedule ekle 0 9 * * * <açık>  → her sabah 9 — Bridge'e prompt\n!schedule mesaj 0 9 * * * <metin> → her sabah 9 — sabit mesaj\n!schedule sil|durdur|başlat <id>\nDoğal dil: 'Her sabah 9'da brief yaz' → Claude otomatik oluşturur\n\nKomut olmayan mesajlar Claude'a gider. 💬",
     "btn_chat": "💬 Sohbet",
     "btn_plans": "📋 Planlarım",
     "btn_projects": "📁 Projeler",
@@ -172,7 +172,7 @@
   "menu": {
     "chat_mode": "💬 Sohbet modunda. Mesajını yaz.",
     "no_projects": "📁 Henüz proje yok.\n\nYeni bir proje oluşturmak ister misin?",
-    "new_project_prompt": "Yeni proje adını yaz (veya PDF gönder):",
+    "new_project_prompt": "Yeni proje adını yaz:",
     "new_project_btn": "➕ Yeni Proje",
     "chat_btn": "💬 Sohbet",
     "no_tasks": "📌 Bekleyen görev yok.",
@@ -307,7 +307,8 @@
     "pdf_received": "📄 PDF alındı: *{filename}*\nNasıl bir proje oluşturalım?",
     "pdf_btn_full": "📁 Yazılım Projesi",
     "pdf_btn_minimal": "📝 Görev Kaydet",
-    "pdf_btn_none": "📂 Sadece Klasör"
+    "pdf_btn_none": "📂 Sadece Klasör",
+    "pdf_wizard_active": "⚠️ Proje oluşturma devam ediyor. Önce sihirbazı tamamla veya iptal et, sonra PDF gönder."
   },
   "pdf": {
     "downloading": "⚙️ PDF indiriliyor...",

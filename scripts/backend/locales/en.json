@@ -78,7 +78,7 @@
     "list_header": "Commands — for details: !help !command",
     "section_planning": "Planning & Projects",
     "section_system": "System & Tools",
-    "fallback": "Commands:\n!help [!cmd]     — This menu or command details\n!history [N|summary] — Recent messages\n!project [id]    — Set active project (TOTP)\n!lang <tr|en>    — Change language\n!model           — {model_hint}\n!beta       — Exit beta mode\n\nCreate project:\n  Menu → New Project → enter name → select type:\n  • Software Project  (CLAUDE.md, BACKLOG.md ...)\n  • Save Task         (README + outputs/)\n  • Folder Only       (empty folder)\n  or send PDF → same type selection\n\nSystem commands:\n!root-reset  — Reset session\n!restart     — Restart services\n!terminal <cmd> — Run shell command (dangerous → admin TOTP)\n⚠️ Destructive (math + admin TOTP):\n!shutdown    — Stop service\n\nScheduling (TOTP):\n!schedule                        → list\n!schedule ekle 0 9 * * * <desc>  → 9am daily — Bridge prompt\n!schedule mesaj 0 9 * * * <text> → 9am daily — fixed message\n!schedule sil|durdur|başlat <id>\nNatural language: 'Write a brief every morning at 9' → Claude creates it\n\nNon-command messages go to Claude. 💬",
+    "fallback": "Commands:\n!help [!cmd]     — This menu or command details\n!history [N|summary] — Recent messages\n!project [id]    — Set active project (TOTP)\n!lang <tr|en>    — Change language\n!model           — {model_hint}\n!beta       — Exit beta mode\n\nCreate project:\n  Menu → New Project → enter name → select type:\n  • Software Project  (CLAUDE.md, BACKLOG.md ...)\n  • Save Task         (README + outputs/)\n  • Folder Only       (empty folder)\n\nSystem commands:\n!root-reset  — Reset session\n!restart     — Restart services\n!terminal <cmd> — Run shell command (dangerous → admin TOTP)\n⚠️ Destructive (math + admin TOTP):\n!shutdown    — Stop service\n\nScheduling (TOTP):\n!schedule                        → list\n!schedule ekle 0 9 * * * <desc>  → 9am daily — Bridge prompt\n!schedule mesaj 0 9 * * * <text> → 9am daily — fixed message\n!schedule sil|durdur|başlat <id>\nNatural language: 'Write a brief every morning at 9' → Claude creates it\n\nNon-command messages go to Claude. 💬",
     "btn_chat": "💬 Chat",
     "btn_plans": "📋 My Plans",
     "btn_projects": "📁 Projects",
@@ -172,7 +172,7 @@
   "menu": {
     "chat_mode": "💬 Chat mode. Send your message.",
     "no_projects": "📁 No projects yet.\n\nWould you like to create a new project?",
-    "new_project_prompt": "Enter new project name (or send PDF):",
+    "new_project_prompt": "Enter new project name:",
     "new_project_btn": "➕ New Project",
     "chat_btn": "💬 Chat",
     "no_tasks": "📌 No pending tasks.",
@@ -307,7 +307,8 @@
     "pdf_received": "📄 PDF received: *{filename}*\nHow would you like to create the project?",
     "pdf_btn_full": "📁 Software Project",
     "pdf_btn_minimal": "📝 Save Task",
-    "pdf_btn_none": "📂 Folder Only"
+    "pdf_btn_none": "📂 Folder Only",
+    "pdf_wizard_active": "⚠️ Project creation is in progress. Finish or cancel the wizard first, then send the PDF."
   },
   "pdf": {
     "downloading": "⚙️ Downloading PDF...",

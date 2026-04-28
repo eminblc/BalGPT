@@ -7,6 +7,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Claude CLI --permission-mode bypassPermissions root/sudo ile çalışmaz;
+# non-root user gerekli.
+RUN groupadd -g 1001 claude && useradd -u 1001 -g 1001 -m -s /bin/sh claude
+
 WORKDIR /app
 
 # Kaynak kodun tamamını kopyala
@@ -26,6 +30,11 @@ RUN mkdir -p data/projects data/media data/claude_sessions data/conv_history \
 COPY docker/entrypoint-bridge.sh /entrypoint.sh
 COPY docker/llm_fix.py /docker/llm_fix.py
 RUN chmod +x /entrypoint.sh
+
+# Tüm uygulama dosyalarının sahipliğini claude user'a ver
+RUN chown -R claude:claude /app
+
+USER claude
 
 EXPOSE 8013
 

@@ -28,6 +28,8 @@ services:
       dockerfile: Dockerfile.bridge
     container_name: personal-agent-bridge
     restart: unless-stopped
+    # Claude CLI --permission-mode bypassPermissions root ile çalışmaz; non-root user zorunlu.
+    user: "1001:1001"
     ports:
       - "8013:8013"
     env_file:
@@ -52,4 +54,4 @@ services:
       # claude.ai subscription ile giriş yapıldıysa klasörün tamamı mount edilir;
       # :rw (read-write) olması token yenilemesine izin verir.
       # ⚠ Klasör host'ta yoksa install.sh otomatik oluşturur.
-      - ${HOME}/.claude:/root/.claude
+      - ${HOME}/.claude:/home/claude/.claude
