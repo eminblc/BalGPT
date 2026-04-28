@@ -316,13 +316,33 @@ step_claude_auth() {
   # may be expired. The CLI handles already-authenticated sessions gracefully.
 
   # Install claude CLI if missing — strict: hard fail so user fixes Node/npm.
-  # On Git Bash for Windows (MINGW), `npm` is shipped as `npm.cmd`/`npm.ps1`
-  # shims; `command -v npm` returns empty even when npm is fully functional.
-  # Probe both forms so the installer doesn't crash on Windows.
+  # On Git Bash for Windows (MINGW) the user often has `node` from MSYS2's
+  # `nodejs` package (which doesn't bundle npm) on bash $PATH while npm comes
+  # from the separate official Node.js Windows installer at C:\Program
+  # Files\nodejs\, which isn't on the MSYS path. We therefore probe in three
+  # tiers: (1) bash PATH via `command -v`, (2) Windows PATH via `where.exe`,
+  # (3) well-known install locations as a last resort.
   if ! command -v claude &>/dev/null; then
     local _npm_cmd=""
     if   command -v npm     &>/dev/null; then _npm_cmd=npm
     elif command -v npm.cmd &>/dev/null; then _npm_cmd=npm.cmd
+    elif command -v where.exe &>/dev/null; then
+      local _win_npm
+      _win_npm="$(where.exe npm.cmd 2>/dev/null | head -1 | tr -d '\r')"
+      if [[ -n "$_win_npm" ]]; then
+        # Windows-style path (C:\Program Files\nodejs\npm.cmd) — quote on use.
+        _npm_cmd="$_win_npm"
+      fi
+    fi
+    if [[ -z "$_npm_cmd" ]]; then
+      local _cand
+      for _cand in \
+          "/c/Program Files/nodejs/npm.cmd" \
+          "/c/Program Files (x86)/nodejs/npm.cmd" \
+          "${APPDATA:-}/npm/npm.cmd" \
+          "${ProgramFiles:-/c/Program Files}/nodejs/npm.cmd"; do
+        if [[ -f "$_cand" ]]; then _npm_cmd="$_cand"; break; fi
+      done
     fi
     if [[ -z "$_npm_cmd" ]]; then
       _auth_fail "$_S_AUTH_NPM_MISSING"; return
