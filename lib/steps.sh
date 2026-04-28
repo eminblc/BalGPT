@@ -344,49 +344,47 @@ step_claude_auth() {
         if [[ -f "$_cand" ]]; then _npm_cmd="$_cand"; break; fi
       done
     fi
-    # Last resort on Windows: bootstrap Node.js via winget or choco if available.
-    # winget ships with Windows 10 1809+ / 11 by default. After install we
-    # rescan the well-known paths (current shell's PATH won't see the new
-    # entry until restart, but the binary is at a deterministic location).
+    # Last resort on Windows: bootstrap Node.js via winget or choco. winget
+    # ships with Windows 10 1809+ / 11 by default; choco is third-party.
+    # Both may trigger a UAC prompt — we let stdout/stderr flow live so the
+    # user can respond. After install, the new PATH entry is added by the
+    # installer to the *system* PATH but won't propagate to this bash session,
+    # so we force-add the standard Node.js dir and clear bash's command hash
+    # before re-probing via `command -v`.
     if [[ -z "$_npm_cmd" ]]; then
-      # Try winget first
+      local _bootstrap_via=""
+
       if command -v winget.exe &>/dev/null; then
         log "$_S_AUTH_WINGET_INSTALLING"
         if winget.exe install --silent \
              --accept-source-agreements --accept-package-agreements \
-             OpenJS.NodeJS.LTS 2>&1 | tail -5; then
-          # Rescan well-known install locations
-          for _cand in \
-              "/c/Program Files/nodejs/npm.cmd" \
-              "/c/Program Files (x86)/nodejs/npm.cmd" \
-              "${ProgramFiles:-/c/Program Files}/nodejs/npm.cmd"; do
-            if [[ -f "$_cand" ]]; then
-              _npm_cmd="$_cand"
-              export PATH="$(dirname "$_cand"):$PATH"
-              hash -r  # Clear bash's command hash table
-              ok "$_S_AUTH_WINGET_INSTALLED"
-              break
-            fi
-          done
+             OpenJS.NodeJS.LTS; then
+          _bootstrap_via=winget
+        else
+          warn "winget exit $?"
         fi
       fi
 
-      # Fallback: try chocolatey if winget didn't succeed
-      if [[ -z "$_npm_cmd" ]] && command -v choco &>/dev/null; then
+      if [[ -z "$_bootstrap_via" ]] && command -v choco &>/dev/null; then
         log "$_S_AUTH_CHOCO_INSTALLING"
-        if choco install nodejs-lts -y 2>&1 | tail -5; then
-          for _cand in \
-              "/c/Program Files/nodejs/npm.cmd" \
-              "/c/Program Files (x86)/nodejs/npm.cmd" \
-              "${ProgramFiles:-/c/Program Files}/nodejs/npm.cmd"; do
-            if [[ -f "$_cand" ]]; then
-              _npm_cmd="$_cand"
-              export PATH="$(dirname "$_cand"):$PATH"
-              hash -r
-              ok "$_S_AUTH_CHOCO_INSTALLED"
-              break
-            fi
-          done
+        if choco install nodejs-lts -y; then
+          _bootstrap_via=choco
+        else
+          warn "choco exit $?"
+        fi
+      fi
+
+      if [[ -n "$_bootstrap_via" ]]; then
+        export PATH="/c/Program Files/nodejs:${ProgramFiles:-/c/Program Files}/nodejs:$PATH"
+        hash -r
+        if   command -v npm     &>/dev/null; then _npm_cmd=npm
+        elif command -v npm.cmd &>/dev/null; then _npm_cmd=npm.cmd
+        fi
+        if [[ -n "$_npm_cmd" ]]; then
+          case "$_bootstrap_via" in
+            winget) ok "$_S_AUTH_WINGET_INSTALLED" ;;
+            choco)  ok "$_S_AUTH_CHOCO_INSTALLED"  ;;
+          esac
         fi
       fi
     fi
