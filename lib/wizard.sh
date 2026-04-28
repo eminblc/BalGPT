@@ -4,16 +4,19 @@
 # Sourced by install.sh; do not execute directly.
 # shellcheck shell=bash
 
-# Whitelist of valid timezone callback values. Telegram occasionally redelivers
-# stale callbacks (e.g. the user re-taps an earlier message's still-visible
-# keyboard); without validation we'd write "anthropic" or another LLM-button
-# value into TIMEZONE.
+# Whitelists for inline-button callback values. Telegram occasionally
+# redelivers stale callbacks (e.g. the user re-taps an earlier message's
+# still-visible keyboard); without validation we'd write the wrong value
+# (such as "anthropic" into TIMEZONE) straight into .env.
 _TZ_VALID_VALUES="Europe/Istanbul Europe/London Europe/Paris America/New_York America/Los_Angeles Asia/Tokyo UTC __other__"
-_is_valid_tz_cb() {
-  local v="$1" t
-  for t in $_TZ_VALID_VALUES; do [[ "$v" == "$t" ]] && return 0; done
+_LLM_VALID_VALUES="anthropic ollama gemini"
+_is_in_whitelist() {  # _is_in_whitelist <value> <space-separated-list>
+  local v="$1" list="$2" t
+  for t in $list; do [[ "$v" == "$t" ]] && return 0; done
   return 1
 }
+_is_valid_tz_cb()  { _is_in_whitelist "$1" "$_TZ_VALID_VALUES"; }
+_is_valid_llm_cb() { _is_in_whitelist "$1" "$_LLM_VALID_VALUES"; }
 
 _wizard_whiptail() {
   local env_dst="$1"
@@ -122,18 +125,28 @@ except: pass" 2>/dev/null || true)"
     local _tg_offset _cb _cb_uid _cb_id _cb_data
     _tg_offset="$(_tg_get_offset "$tg_token")"
 
-    # LLM selection
-    log "  $_S_TXT_TG_WAIT"
-    _tg_send_buttons "$tg_token" "$tg_chat_id" "*$_S_WIZ_LLM_TITLE*" \
-      "Anthropic (Claude):anthropic" \
-      "Ollama (local):ollama" \
-      "Google Gemini:gemini" >/dev/null
-    _cb="$(_tg_poll_callback "$tg_token" "$tg_chat_id" "$_tg_offset" 120)" || _cb="0 0 anthropic"
-    _cb_uid="$(echo "$_cb" | cut -d' ' -f1)"
-    _cb_id="$(echo  "$_cb" | cut -d' ' -f2)"
-    _cb_data="$(echo "$_cb" | cut -d' ' -f3)"
-    _tg_answer_callback "$tg_token" "$_cb_id"
-    _tg_offset=$(( _cb_uid + 1 ))
+    # LLM selection (whitelist-validated; see _is_valid_llm_cb).
+    local _llm_attempt=0
+    while (( _llm_attempt < 3 )); do
+      log "  $_S_TXT_TG_WAIT"
+      _tg_send_buttons "$tg_token" "$tg_chat_id" "*$_S_WIZ_LLM_TITLE*" \
+        "Anthropic:anthropic" \
+        "Ollama:ollama" \
+        "Gemini:gemini" >/dev/null
+      _cb="$(_tg_poll_callback "$tg_token" "$tg_chat_id" "$_tg_offset" 120)" || _cb="0 0 anthropic"
+      _cb_uid="$(echo "$_cb" | cut -d' ' -f1)"
+      _cb_id="$(echo  "$_cb" | cut -d' ' -f2)"
+      _cb_data="$(echo "$_cb" | cut -d' ' -f3)"
+      _tg_answer_callback "$tg_token" "$_cb_id"
+      [[ "$_cb_uid" =~ ^[0-9]+$ && "$_cb_uid" -gt 0 ]] && _tg_offset=$(( _cb_uid + 1 ))
+      if _is_valid_llm_cb "$_cb_data"; then break; fi
+      _llm_attempt=$(( _llm_attempt + 1 ))
+      warn "  Telegram returned unexpected value '$_cb_data' — re-asking LLM"
+    done
+    if ! _is_valid_llm_cb "$_cb_data"; then
+      _cb_data="anthropic"
+      warn "  Falling back to default LLM backend anthropic"
+    fi
     llm="$_cb_data"
     ok "  $_S_TXT_TG_LLM_SELECTED: $llm"
 
@@ -171,8 +184,8 @@ except: pass" 2>/dev/null || true)"
       log "  $_S_TXT_TG_WAIT"
       _tg_send_buttons "$tg_token" "$tg_chat_id" "*$_S_WIZ_TZ_TITLE*" \
         "🇹🇷 Istanbul:Europe/Istanbul"       "🇬🇧 London:Europe/London"      "|" \
-        "🇫🇷 Paris:Europe/Paris"             "🇺🇸 New York:America/New_York"  "|" \
-        "🇺🇸 Los Angeles:America/Los_Angeles" "🇯🇵 Tokyo:Asia/Tokyo"          "|" \
+        "🇫🇷 Paris:Europe/Paris"             "🇺🇸 NYC:America/New_York"  "|" \
+        "🇺🇸 LA:America/Los_Angeles" "🇯🇵 Tokyo:Asia/Tokyo"          "|" \
         "UTC:UTC"                             "✏️ Other:__other__" >/dev/null
       _cb="$(_tg_poll_callback "$tg_token" "$tg_chat_id" "$_tg_offset" 120)" || _cb="0 0 Europe/Istanbul"
       _cb_uid="$(echo "$_cb" | cut -d' ' -f1)"
@@ -446,19 +459,29 @@ except: pass" 2>/dev/null || true)"
     local _tg_offset _cb _cb_uid _cb_id _cb_data
     _tg_offset="$(_tg_get_offset "$tg_token")"
 
-    # LLM selection
+    # LLM selection (whitelist-validated; see _is_valid_llm_cb).
     _sep
-    log "  $_S_TXT_TG_WAIT"
-    _tg_send_buttons "$tg_token" "$tg_chat_id" "*$_S_WIZ_LLM_TITLE*" \
-      "Anthropic (Claude):anthropic" \
-      "Ollama (local):ollama" \
-      "Google Gemini:gemini" >/dev/null
-    _cb="$(_tg_poll_callback "$tg_token" "$tg_chat_id" "$_tg_offset" 120)" || _cb="0 0 anthropic"
-    _cb_uid="$(echo "$_cb" | cut -d' ' -f1)"
-    _cb_id="$(echo  "$_cb" | cut -d' ' -f2)"
-    _cb_data="$(echo "$_cb" | cut -d' ' -f3)"
-    _tg_answer_callback "$tg_token" "$_cb_id"
-    _tg_offset=$(( _cb_uid + 1 ))
+    local _llm_attempt=0
+    while (( _llm_attempt < 3 )); do
+      log "  $_S_TXT_TG_WAIT"
+      _tg_send_buttons "$tg_token" "$tg_chat_id" "*$_S_WIZ_LLM_TITLE*" \
+        "Anthropic:anthropic" \
+        "Ollama:ollama" \
+        "Gemini:gemini" >/dev/null
+      _cb="$(_tg_poll_callback "$tg_token" "$tg_chat_id" "$_tg_offset" 120)" || _cb="0 0 anthropic"
+      _cb_uid="$(echo "$_cb" | cut -d' ' -f1)"
+      _cb_id="$(echo  "$_cb" | cut -d' ' -f2)"
+      _cb_data="$(echo "$_cb" | cut -d' ' -f3)"
+      _tg_answer_callback "$tg_token" "$_cb_id"
+      [[ "$_cb_uid" =~ ^[0-9]+$ && "$_cb_uid" -gt 0 ]] && _tg_offset=$(( _cb_uid + 1 ))
+      if _is_valid_llm_cb "$_cb_data"; then break; fi
+      _llm_attempt=$(( _llm_attempt + 1 ))
+      warn "  Telegram returned unexpected value '$_cb_data' — re-asking LLM"
+    done
+    if ! _is_valid_llm_cb "$_cb_data"; then
+      _cb_data="anthropic"
+      warn "  Falling back to default LLM backend anthropic"
+    fi
     llm="$_cb_data"
     ok "  $_S_TXT_TG_LLM_SELECTED: $llm"
 
@@ -500,8 +523,8 @@ except: pass" 2>/dev/null || true)"
       log "  $_S_TXT_TG_WAIT"
       _tg_send_buttons "$tg_token" "$tg_chat_id" "*$_S_WIZ_TZ_TITLE*" \
         "🇹🇷 Istanbul:Europe/Istanbul"  "🇬🇧 London:Europe/London"    "|" \
-        "🇫🇷 Paris:Europe/Paris"        "🇺🇸 New York:America/New_York" "|" \
-        "🇺🇸 Los Angeles:America/Los_Angeles" "🇯🇵 Tokyo:Asia/Tokyo"  "|" \
+        "🇫🇷 Paris:Europe/Paris"        "🇺🇸 NYC:America/New_York" "|" \
+        "🇺🇸 LA:America/Los_Angeles" "🇯🇵 Tokyo:Asia/Tokyo"  "|" \
         "UTC:UTC"                        "✏️ Other:__other__" >/dev/null
       _cb="$(_tg_poll_callback "$tg_token" "$tg_chat_id" "$_tg_offset" 120)" || _cb="0 0 Europe/Istanbul"
       _cb_uid="$(echo "$_cb" | cut -d' ' -f1)"
