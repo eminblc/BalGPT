@@ -46,7 +46,8 @@ def write_env(env_path: Path, updates: Mapping[str, str]) -> None:
             seen.add(key)
             # Preserve trailing newline if original had one
             nl = "\n" if line.endswith("\n") else ""
-            out_lines.append(f"{key}={updates[key]}{nl or '\n'}")
+            newline = nl if nl else "\n"
+            out_lines.append(f"{key}={updates[key]}{newline}")
         else:
             out_lines.append(line)
 
