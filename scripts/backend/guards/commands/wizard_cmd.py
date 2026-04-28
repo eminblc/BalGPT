@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 class WizardCommand:
     cmd_id      = "!wizard"
     perm        = Perm.OWNER
+    hidden      = True   # beta — !help ve slash menüde gösterilmez
     label       = "Kurulum Sihirbazı"
     description = "Kurulum tamamlanma sihirbazını başlatır (LLM, yetenekler, TOTP)."
     usage       = "!wizard"

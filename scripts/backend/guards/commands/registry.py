@@ -50,6 +50,10 @@ class CommandRegistry:
     def all_ids(self) -> list[str]:
         return list(self._commands.keys())
 
+    def visible_ids(self) -> list[str]:
+        """hidden=True olan komutlar hariç tüm komut ID'lerini döndürür."""
+        return [cid for cid, cmd in self._commands.items() if not getattr(cmd, "hidden", False)]
+
     def describe(self, cmd_id: str) -> dict[str, str] | None:
         """Komut için label/description/usage döndürür; kayıtlı değilse None."""
         cmd = self._commands.get(cmd_id)
@@ -59,6 +63,7 @@ class CommandRegistry:
             "label":       getattr(cmd, "label",       cmd_id),
             "description": getattr(cmd, "description", ""),
             "usage":       getattr(cmd, "usage",       cmd_id),
+            "hidden":      getattr(cmd, "hidden",      False),
         }
 
 
