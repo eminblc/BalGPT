@@ -29,6 +29,8 @@
   "AUTH_INSTALLED": "Claude CLI kuruldu",
   "AUTH_INSTALL_FAIL": "Claude CLI kurulamadı. Manuel kur: npm install -g @anthropic-ai/claude-code",
   "AUTH_NPM_MISSING": "Claude CLI VE npm eksik. Önce Node.js 18+ kur: https://nodejs.org sonra install.sh'yi tekrar çalıştır",
+  "AUTH_WINGET_INSTALLING": "npm bulunamadı — winget ile Node.js LTS kuruluyor (birkaç dakika sürebilir)...",
+  "AUTH_WINGET_INSTALLED": "Node.js LTS winget üzerinden kuruldu",
   "STEP_VENV": "Python venv oluşturuluyor →",
   "STEP_VENV_DONE": "Python bağımlılıkları senkronize edildi",
   "STEP_PKG_BOOTSTRAP": "  ↳ pip + pip-tools bootstrap ediliyor...",
