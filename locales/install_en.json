@@ -31,6 +31,8 @@
   "AUTH_NPM_MISSING": "Claude CLI missing AND npm missing. Install Node.js 18+ first: https://nodejs.org then re-run install.sh",
   "AUTH_WINGET_INSTALLING": "npm not found — installing Node.js LTS via winget (this may take a few minutes)...",
   "AUTH_WINGET_INSTALLED": "Node.js LTS installed via winget",
+  "AUTH_CHOCO_INSTALLING": "npm not found (winget failed or unavailable) — installing Node.js LTS via Chocolatey (this may take a few minutes)...",
+  "AUTH_CHOCO_INSTALLED": "Node.js LTS installed via Chocolatey",
   "STEP_VENV": "Creating Python venv →",
   "STEP_VENV_DONE": "Python dependencies synced",
   "STEP_PKG_BOOTSTRAP": "  ↳ Bootstrapping pip + pip-tools...",
