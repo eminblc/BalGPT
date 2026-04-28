@@ -28,7 +28,50 @@ for dir in \
 done
 echo "  $OK Dizinler hazır"
 
-# ── 2. CLAUDE.md ve GUARDRAILS.md kontrolü ───────────────────────
+# ── 2. Claude CLI kimlik doğrulaması ─────────────────────────────
+echo ""
+echo "$INFO Claude kimlik bilgileri kontrol ediliyor..."
+CRED_FILE="/root/.claude/.credentials.json"
+CRED_CONTENT=""
+if [ -f "$CRED_FILE" ]; then
+  CRED_CONTENT="$(tr -d ' \n\r\t' < "$CRED_FILE" 2>/dev/null || true)"
+fi
+CLI_JS="/app/scripts/claude-code-bridge/node_modules/@anthropic-ai/claude-code/cli.js"
+
+if [ -n "$ANTHROPIC_API_KEY" ]; then
+  echo "  $OK ANTHROPIC_API_KEY mevcut — OAuth gerekmez"
+elif [ -n "$CRED_CONTENT" ] && [ "$CRED_CONTENT" != "{}" ] && [ ${#CRED_CONTENT} -gt 10 ]; then
+  echo "  $OK Claude OAuth kimlik bilgileri mevcut"
+else
+  echo "  $WARN Claude OAuth kimlik bilgileri eksik veya boş."
+  echo "  $INFO API key kullanmıyorsanız aşağıdaki komutu YENİ bir terminalde çalıştırın:"
+  echo ""
+  echo "    docker exec -it personal-agent-bridge node $CLI_JS auth login"
+  echo ""
+  echo "  $INFO Tarayıcıda açılan URL'yi onaylayın. Tamamlandıktan sonra bridge otomatik devam eder."
+  echo "  $INFO Alternatif: scripts/backend/.env dosyasına ANTHROPIC_API_KEY ekleyin."
+  echo ""
+  # Kimlik bilgilerini bekle — en fazla 10 dakika (120 × 5s)
+  i=0
+  while [ $i -lt 120 ]; do
+    if [ -f "$CRED_FILE" ]; then
+      C="$(tr -d ' \n\r\t' < "$CRED_FILE" 2>/dev/null || true)"
+      if [ -n "$C" ] && [ "$C" != "{}" ] && [ ${#C} -gt 10 ]; then
+        echo "  $OK Kimlik bilgileri alındı — başlatılıyor..."
+        break
+      fi
+    fi
+    sleep 5
+    i=$((i + 5))
+  done
+  if [ $i -ge 120 ]; then
+    echo "  $ERR 10 dakika içinde kimlik bilgisi alınamadı."
+    echo "  $INFO ANTHROPIC_API_KEY olmadan devam edilemez. Lütfen .env dosyasını kontrol edin."
+    exit 1
+  fi
+fi
+
+# ── 3. CLAUDE.md ve GUARDRAILS.md kontrolü ───────────────────────
 echo ""
 echo "$INFO Kritik dosyalar kontrol ediliyor..."
 for f in /app/CLAUDE.md /app/GUARDRAILS.md; do

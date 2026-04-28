@@ -126,12 +126,12 @@ step_docker_build() {
     die "$_S_DOCKER_COMPOSE_NOT_FOUND"
   fi
 
-  # ── credentials.json pre-flight: Docker file mount requires source to be a file.
-  # If it doesn't exist, Docker creates a directory — breaking claude CLI auth.
-  local cred_file="$HOME/.claude/.credentials.json"
-  if [ ! -f "$cred_file" ]; then
-    mkdir -p "$HOME/.claude"
-    echo "{}" > "$cred_file"
+  # ── ~/.claude/ pre-flight: Docker directory mount requires source to exist.
+  # We mount the whole dir (not just .credentials.json) so the CLI can write
+  # refreshed tokens and so `docker exec ... claude auth login` works.
+  local claude_dir="$HOME/.claude"
+  if [ ! -d "$claude_dir" ]; then
+    mkdir -p "$claude_dir"
     warn "$_S_DOCKER_CRED_CREATED"
   else
     ok "$_S_DOCKER_CRED_OK"
