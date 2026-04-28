@@ -31,58 +31,26 @@ echo "  $OK Dizinler hazır"
 # ── 2. Claude CLI kimlik doğrulaması ─────────────────────────────
 echo ""
 echo "$INFO Claude kimlik bilgileri kontrol ediliyor..."
-CLAUDE_DIR="/home/claude/.claude"
-CRED_FILE="${CLAUDE_DIR}/.credentials.json"
 CLAUDE_JSON="/home/claude/.claude.json"
-CRED_CONTENT=""
-if [ -f "$CRED_FILE" ]; then
-  CRED_CONTENT="$(tr -d ' \n\r\t' < "$CRED_FILE" 2>/dev/null || true)"
-fi
-
-# ~/.claude.json config dosyası eksikse backup'tan restore et
-if [ ! -f "$CLAUDE_JSON" ]; then
-  BACKUP="$(ls -t "${CLAUDE_DIR}/backups/.claude.json.backup."* 2>/dev/null | head -1)"
-  if [ -n "$BACKUP" ]; then
-    cp "$BACKUP" "$CLAUDE_JSON"
-    echo "  $OK .claude.json backup'tan restore edildi: $BACKUP"
-  else
-    echo "  $WARN .claude.json bulunamadı ve backup da yok — Claude ilk çalışmada oluşturacak"
-  fi
-fi
-
-CLI_JS="/app/scripts/claude-code-bridge/node_modules/@anthropic-ai/claude-code/cli.js"
+CRED_FILE="/home/claude/.claude/.credentials.json"
 
 if [ -n "$ANTHROPIC_API_KEY" ]; then
   echo "  $OK ANTHROPIC_API_KEY mevcut — OAuth gerekmez"
-elif [ -n "$CRED_CONTENT" ] && [ "$CRED_CONTENT" != "{}" ] && [ ${#CRED_CONTENT} -gt 10 ]; then
-  echo "  $OK Claude OAuth kimlik bilgileri mevcut"
 else
-  echo "  $WARN Claude OAuth kimlik bilgileri eksik veya boş."
-  echo "  $INFO API key kullanmıyorsanız aşağıdaki komutu YENİ bir terminalde çalıştırın:"
-  echo ""
-  echo "    docker exec -it personal-agent-bridge node $CLI_JS auth login"
-  echo ""
-  echo "  $INFO Tarayıcıda açılan URL'yi onaylayın. Tamamlandıktan sonra bridge otomatik devam eder."
-  echo "  $INFO Alternatif: scripts/backend/.env dosyasına ANTHROPIC_API_KEY ekleyin."
-  echo ""
-  # Kimlik bilgilerini bekle — en fazla 10 dakika (120 × 5s)
-  i=0
-  while [ $i -lt 120 ]; do
-    if [ -f "$CRED_FILE" ]; then
-      C="$(tr -d ' \n\r\t' < "$CRED_FILE" 2>/dev/null || true)"
-      if [ -n "$C" ] && [ "$C" != "{}" ] && [ ${#C} -gt 10 ]; then
-        echo "  $OK Kimlik bilgileri alındı — başlatılıyor..."
-        break
-      fi
-    fi
-    sleep 5
-    i=$((i + 5))
-  done
-  if [ $i -ge 120 ]; then
-    echo "  $ERR 10 dakika içinde kimlik bilgisi alınamadı."
-    echo "  $INFO ANTHROPIC_API_KEY olmadan devam edilemez. Lütfen .env dosyasını kontrol edin."
+  if [ ! -f "$CLAUDE_JSON" ] || [ ! -r "$CLAUDE_JSON" ]; then
+    echo "  $ERR $CLAUDE_JSON mount edilmemiş veya okunamıyor."
+    echo "  $INFO Host'ta 'claude auth login' çalıştır ve container'ı yeniden başlat."
     exit 1
   fi
+  echo "  $OK .claude.json mevcut ve okunabilir"
+
+  if [ ! -f "$CRED_FILE" ] || [ ! -r "$CRED_FILE" ]; then
+    echo "  $ERR $CRED_FILE mount edilmemiş veya okunamıyor."
+    echo "  $INFO Host'ta 'claude auth login' çalıştır ve container'ı yeniden başlat."
+    exit 1
+  fi
+  echo "  $OK .credentials.json mevcut ve okunabilir"
+  echo "  $OK Claude OAuth kimlik bilgileri hazır"
 fi
 
 # ── 3. CLAUDE.md ve GUARDRAILS.md kontrolü ───────────────────────

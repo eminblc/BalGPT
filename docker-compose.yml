@@ -50,8 +50,6 @@ services:
       # CLAUDE.md ve GUARDRAILS.md her zaman güncel kalsın
       - ./CLAUDE.md:/app/CLAUDE.md:ro
       - ./GUARDRAILS.md:/app/GUARDRAILS.md:ro
-      # Claude CLI auth — ANTHROPIC_API_KEY yeterliyse bu mount opsiyoneldir.
-      # claude.ai subscription ile giriş yapıldıysa klasörün tamamı mount edilir;
-      # :rw (read-write) olması token yenilemesine izin verir.
-      # ⚠ Klasör host'ta yoksa install.sh otomatik oluşturur.
-      - ${HOME}/.claude:/home/claude/.claude
+      # Claude CLI auth — read-only; ön koşul: host'ta `claude auth login` çalıştırılmış olmalı.
+      - ${HOME}/.claude.json:/home/claude/.claude.json:ro
+      - ${HOME}/.claude/.credentials.json:/home/claude/.claude/.credentials.json:ro
