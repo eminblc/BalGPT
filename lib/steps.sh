@@ -367,13 +367,54 @@ step_claude_auth() {
     ok "$_S_AUTH_INSTALLED: $(claude --version 2>/dev/null | head -1 || echo 'installed')"
   fi
 
-  # Run the OAuth flow.  The CLI either opens the default browser or prints
-  # a fallback URL (headless / SSH).  Strict: non-zero exit aborts install.
+  # Run the OAuth flow. The CLI prints an authorization URL and exposes a
+  # localhost callback. When MESSENGER_TYPE=telegram we mirror that URL to
+  # Telegram so the user can read it from their phone — but emphasise it
+  # MUST be opened on the install machine, since the OAuth callback lands
+  # on localhost and a phone browser can't reach it.
   echo ""
   log "$_S_AUTH_NEEDED"
   echo "  $_S_AUTH_INSTR"
   echo ""
-  if ! claude auth login; then
+
+  local _tg_tok="" _tg_cid=""
+  _tg_tok="$(_env_get "TELEGRAM_BOT_TOKEN" "$env_dst" 2>/dev/null || true)"
+  _tg_cid="$(_env_get "TELEGRAM_CHAT_ID"   "$env_dst" 2>/dev/null || true)"
+
+  local _rc=0
+  if [[ -n "$_tg_tok" && -n "$_tg_cid" ]]; then
+    _tg_notify "$_tg_tok" "$_tg_cid" "$_S_AUTH_TG_HEADSUP" || true
+    # Mirror claude's stdout to both the terminal (via tee) and a watcher
+    # FIFO that scans for the auth URL and pushes it to Telegram once.
+    local _fifo
+    _fifo="$(mktemp -u 2>/dev/null || echo "/tmp/claude_auth.$$.fifo")"
+    if mkfifo "$_fifo" 2>/dev/null; then
+      (
+        local _sent=0 _line _url
+        while IFS= read -r _line; do
+          [[ $_sent -eq 1 ]] && continue
+          if [[ "$_line" =~ (https://[A-Za-z0-9./?=_\&%+~-]*(claude\.ai|anthropic\.com)[A-Za-z0-9./?=_\&%+~-]*) ]]; then
+            _url="${BASH_REMATCH[1]}"
+            # shellcheck disable=SC2059
+            _tg_notify "$_tg_tok" "$_tg_cid" "$(printf "$_S_AUTH_TG_URL_PROMPT" "$_url")" || true
+            _sent=1
+          fi
+        done < "$_fifo"
+      ) &
+      local _watcher=$!
+      claude auth login 2>&1 | tee "$_fifo"
+      _rc=${PIPESTATUS[0]}
+      wait "$_watcher" 2>/dev/null || true
+      rm -f "$_fifo"
+    else
+      # FIFO unavailable — fall back to plain run (URL only on terminal)
+      claude auth login || _rc=$?
+    fi
+  else
+    claude auth login || _rc=$?
+  fi
+
+  if [[ $_rc -ne 0 ]]; then
     _auth_fail "$_S_AUTH_FAIL_HARD"; return
   fi
 
