@@ -21,7 +21,9 @@ dotenv.config({ path: join(__dirname, "../backend/.env") });
 const PORT             = process.env.BRIDGE_PORT             || 8013;
 const CLI_PATH         = join(__dirname, "node_modules", "@anthropic-ai", "claude-code", "cli.js");
 // G5: env değerlerini init_prompt interpolasyonundan önce sanitize et
-const WHATSAPP_OWNER   = (process.env.WHATSAPP_OWNER || "").replace(/[^+\d]/g, "");
+const MESSENGER_TYPE   = (process.env.MESSENGER_TYPE   || "whatsapp").toLowerCase();
+const WHATSAPP_OWNER   = (process.env.WHATSAPP_OWNER   || "").replace(/[^+\d]/g, "");
+const TELEGRAM_CHAT_ID = (process.env.TELEGRAM_CHAT_ID || "").replace(/[^\d-]/g, "");
 const INTERNAL_API_KEY = process.env.API_KEY                 || "";
 const PERM_TIMEOUT_MS  = parseInt(process.env.PERMISSION_APPROVAL_TIMEOUT_MS || "300000", 10);
 const MAX_TURNS            = parseInt(process.env.CLAUDE_CODE_MAX_TURNS          || "1000",    10);
@@ -665,21 +667,29 @@ function logAction(sessionId, toolName, inputSummary, outputSummary) {
   try { appendFileSync(ACTIONS_LOG, line + "\n"); } catch {}
 }
 
-// ── WhatsApp bildirimi ────────────────────────────────────────────────────────
+// ── Messenger-agnostic owner bildirimi ───────────────────────────────────────
+
+function _notifyTarget() {
+  if (MESSENGER_TYPE === "telegram") {
+    return { url: `${FASTAPI_URL}/telegram/send`, to: TELEGRAM_CHAT_ID };
+  }
+  return { url: `${FASTAPI_URL}/whatsapp/send`, to: WHATSAPP_OWNER };
+}
 
 async function sendWhatsAppNotification(text) {
-  if (!WHATSAPP_OWNER) return;
+  const { url, to } = _notifyTarget();
+  if (!to) return;
   try {
     const headers = { "Content-Type": "application/json" };
     if (INTERNAL_API_KEY) headers["X-Api-Key"] = INTERNAL_API_KEY;
-    await fetch(`${FASTAPI_URL}/whatsapp/send`, {
+    await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify({ to: WHATSAPP_OWNER, text }),
+      body: JSON.stringify({ to, text }),
       signal: AbortSignal.timeout(5000),
     });
   } catch (err) {
-    console.error("[sendWhatsAppNotification] WhatsApp bildirimi gönderilemedi:", err);
+    console.error("[sendWhatsAppNotification] Bildirim gönderilemedi:", err);
   }
 }
 
@@ -1216,7 +1226,8 @@ app.listen(PORT, () => {
 // ── Crash koruma: işlenmeyen hatalar ─────────────────────────────────────────
 
 async function _notifyOwnerCrash(label, err) {
-  if (!WHATSAPP_OWNER || !INTERNAL_API_KEY) return;
+  const { url, to } = _notifyTarget();
+  if (!to || !INTERNAL_API_KEY) return;
   const msg = `🔴 Bridge ${label}: ${String(err).slice(0, 200)}\n!restart ile yeniden başlatabilirsin.`;
   try {
     // node-fetch package.json'da bulunmaz; Node 18+ globalThis.fetch kullanılır.
@@ -1224,10 +1235,10 @@ async function _notifyOwnerCrash(label, err) {
     const { default: fetch } = await import("node-fetch").catch(() => ({ default: null }));
     const fetchFn = fetch || globalThis.fetch;
     if (!fetchFn) return;
-    await fetchFn(`${FASTAPI_URL}/whatsapp/send`, {
+    await fetchFn(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Api-Key": INTERNAL_API_KEY },
-      body: JSON.stringify({ to: WHATSAPP_OWNER, text: msg }),
+      body: JSON.stringify({ to, text: msg }),
       signal: AbortSignal.timeout(5000),
     });
   } catch (_) { /* bildirim gönderilemese de process devam edebilir */ }

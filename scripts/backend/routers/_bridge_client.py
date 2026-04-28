@@ -184,6 +184,9 @@ async def forward(sender: str, text: str, session: dict) -> None:
             "Bridge hatası: sender=%s error_type=%s error=%s",
             _mask_phone(sender), type(exc).__name__, exc or repr(exc),
         )
+        _resp = getattr(exc, "response", None)
+        if _resp is not None:
+            logger.error("Bridge yanıt gövdesi: %s", _resp.text[:500])
         if settings.conv_history_enabled:
             # PERF-OPT-6: str(exc) bazı httpx exception'larında boş dönebilir →
             # type adını öne koy; repr(exc) son çare olarak tam detay sağlar.
