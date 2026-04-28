@@ -151,6 +151,7 @@ except: pass" 2>/dev/null || true)"
     ok "  $_S_TXT_TG_LLM_SELECTED: $llm"
     # shellcheck disable=SC2059
     _tg_notify "$tg_token" "$tg_chat_id" "$(printf "$_S_MSG_TG_LLM_CONFIRM" "$llm")" || true
+    _tg_notify "$tg_token" "$tg_chat_id" "$_S_MSG_TG_BACK_TO_TERMINAL" || true
 
     # LLM credentials — sensitive, collected via whiptail
     if [[ "$llm" == "anthropic" ]]; then
@@ -490,6 +491,7 @@ except: pass" 2>/dev/null || true)"
     ok "  $_S_TXT_TG_LLM_SELECTED: $llm"
     # shellcheck disable=SC2059
     _tg_notify "$tg_token" "$tg_chat_id" "$(printf "$_S_MSG_TG_LLM_CONFIRM" "$llm")" || true
+    _tg_notify "$tg_token" "$tg_chat_id" "$_S_MSG_TG_BACK_TO_TERMINAL" || true
 
     # LLM credentials — sensitive, stay in terminal
     _sep

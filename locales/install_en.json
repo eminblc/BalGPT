@@ -107,6 +107,7 @@
   "TXT_TG_TEST_MSG": "✅ Bot connected. Now enter your ngrok credentials in the terminal — we'll continue here once you're done.",
   "TXT_TG_TEST_MSG_READY": "🚀 Ready! Public URL: %s\n\nRemaining questions will be sent here as buttons.",
   "MSG_TG_LLM_CONFIRM": "✅ LLM selected: %s",
+  "MSG_TG_BACK_TO_TERMINAL": "💻 Switch back to the install machine — credentials are entered in the terminal.",
   "MSG_TG_TZ_CONFIRM": "🌍 Timezone selected: %s",
   "CAP_TG_INTRO": "🔧 *Capability Modules*\n\nAccept defaults or choose one by one.",
   "CAP_TG_DEFAULTS_BTN": "✅ Defaults",

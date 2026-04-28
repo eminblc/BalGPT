@@ -107,6 +107,7 @@
   "TXT_TG_TEST_MSG": "✅ Bot bağlandı. Şimdi terminalde ngrok bilgilerini gir — bittiğinde buradan devam edeceğiz.",
   "TXT_TG_TEST_MSG_READY": "🚀 Hazır! Public URL: %s\n\nKalan sorular burada buton olarak gelecek.",
   "MSG_TG_LLM_CONFIRM": "✅ LLM seçildi: %s",
+  "MSG_TG_BACK_TO_TERMINAL": "💻 Şimdi kurulum yaptığın bilgisayara dön — kimlik bilgilerini terminalden gireceksin.",
   "MSG_TG_TZ_CONFIRM": "🌍 Saat dilimi seçildi: %s",
   "CAP_TG_INTRO": "🔧 *Yetenek Modülleri*\n\nVarsayılanları kabul edebilir veya tek tek seçebilirsin.",
   "CAP_TG_DEFAULTS_BTN": "✅ Varsayılanlar",
