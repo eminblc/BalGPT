@@ -19,6 +19,9 @@ _wizard_whiptail() {
 
   local wa_token="" wa_phone_id="" wa_secret="" wa_verify="" wa_owner=""
   local tg_token="" tg_chat_id="" tg_webhook_secret=""
+  local llm="anthropic" proxy="none" tz_value="Europe/Istanbul"
+  local anthropic_key="" ollama_url="" ollama_model="" gemini_key="" gemini_model=""
+  local public_url="" ngrok_token="" ngrok_domain=""
 
   if [[ "$messenger" == "whatsapp" ]]; then
     _wt_msg "$_S_WIZ_WA_INFO_TITLE" "$_S_WIZ_WA_INFO_MSG" || return 1
@@ -70,25 +73,110 @@ except: pass" 2>/dev/null || true)"
       done
     fi
     tg_webhook_secret="$(_gen_api_key)"
+
+    # Connectivity test
+    _tg_notify "$tg_token" "$tg_chat_id" "$_S_TXT_TG_TEST_MSG" || true
+    ok "  $_S_TXT_TG_TEST_SENT"
+
+    # TG-WIZ-1: Force ngrok + collect creds inline (Telegram needs a public URL).
+    proxy="ngrok"
+    _wt_msg "$_S_WIZ_TG_INFO_TITLE" "$_S_TXT_TG_MINIMAL_NOTE" || return 1
+    _wt_msg "$_S_WIZ_NGROK_INFO_TITLE" "$_S_WIZ_NGROK_INFO_MSG" || return 1
+    while true; do
+      ngrok_token=$(_wt_password "$_S_WIZ_NGROK_INFO_TITLE" "$_S_WIZ_NGROK_TOKEN") || return 1
+      if [[ -z "$ngrok_token" ]]; then _wt_msg "$_S_ERROR" "$_S_REQUIRED"; continue; fi
+      if [[ ! "$ngrok_token" =~ ^[A-Za-z0-9_]{16,}$ ]]; then
+        _wt_msg "$_S_ERROR" "$_S_NGROK_TOKEN_INVALID"; continue
+      fi
+      break
+    done
+    while true; do
+      ngrok_domain=$(_wt_input "$_S_WIZ_NGROK_INFO_TITLE" "$_S_WIZ_NGROK_DOMAIN") || return 1
+      if [[ -z "$ngrok_domain" ]]; then _wt_msg "$_S_ERROR" "$_S_REQUIRED"; continue; fi
+      if [[ "$ngrok_domain" != *.* ]]; then
+        _wt_msg "$_S_ERROR" "$_S_NGROK_DOMAIN_INVALID"; continue
+      fi
+      break
+    done
+
+    # ── Telegram-driven Phase 2: LLM + timezone via inline buttons ────────────
+    local _tg_offset _cb _cb_uid _cb_id _cb_data
+    _tg_offset="$(_tg_get_offset "$tg_token")"
+
+    # LLM selection
+    log "  $_S_TXT_TG_WAIT"
+    _tg_send_buttons "$tg_token" "$tg_chat_id" "*$_S_WIZ_LLM_TITLE*" \
+      "Anthropic (Claude):anthropic" \
+      "Ollama (local):ollama" \
+      "Google Gemini:gemini" >/dev/null
+    _cb="$(_tg_poll_callback "$tg_token" "$tg_chat_id" "$_tg_offset" 120)" || _cb="0 0 anthropic"
+    _cb_uid="$(echo "$_cb" | cut -d' ' -f1)"
+    _cb_id="$(echo  "$_cb" | cut -d' ' -f2)"
+    _cb_data="$(echo "$_cb" | cut -d' ' -f3)"
+    _tg_answer_callback "$tg_token" "$_cb_id"
+    _tg_offset=$(( _cb_uid + 1 ))
+    llm="$_cb_data"
+    ok "  $_S_TXT_TG_LLM_SELECTED: $llm"
+
+    # LLM credentials — sensitive, collected via whiptail
+    if [[ "$llm" == "anthropic" ]]; then
+      local _an_method
+      _an_method=$(_wt_radio "$_S_WIZ_AN_INFO_TITLE" "$_S_WIZ_AN_CHOICE_MSG" \
+        "login"  "$_S_WIZ_AN_CHOICE_1" ON  \
+        "apikey" "$_S_WIZ_AN_CHOICE_2" OFF \
+      ) || { warn "$_S_CANCEL"; return 1; }
+      if [[ "$_an_method" == "apikey" ]]; then
+        while true; do
+          anthropic_key=$(_wt_password "$_S_WIZ_AN_INFO_TITLE" "$_S_WIZ_AN_KEY") || return 1
+          [[ -n "$anthropic_key" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+        done
+      else
+        _wt_msg "$_S_WIZ_AN_INFO_TITLE" "$_S_WIZ_AN_SKIP" || return 1
+      fi
+    elif [[ "$llm" == "ollama" ]]; then
+      _wt_msg "$_S_WIZ_OL_INFO_TITLE" "$_S_WIZ_OL_INFO_MSG" || return 1
+      ollama_url=$(_wt_input "$_S_WIZ_OL_INFO_TITLE"   "$_S_WIZ_OL_URL"   "http://localhost:11434") || return 1
+      ollama_model=$(_wt_input "$_S_WIZ_OL_INFO_TITLE" "$_S_WIZ_OL_MODEL" "llama3") || return 1
+    elif [[ "$llm" == "gemini" ]]; then
+      _wt_msg "$_S_WIZ_GE_INFO_TITLE" "$_S_WIZ_GE_INFO_MSG" || return 1
+      while true; do
+        gemini_key=$(_wt_password "$_S_WIZ_GE_INFO_TITLE" "$_S_WIZ_GE_KEY") || return 1
+        [[ -n "$gemini_key" ]] && break; _wt_msg "$_S_ERROR" "$_S_REQUIRED"
+      done
+      gemini_model=$(_wt_input "$_S_WIZ_GE_INFO_TITLE" "$_S_WIZ_GE_MODEL" "gemini-2.0-flash") || return 1
+    fi
+
+    # Timezone selection
+    log "  $_S_TXT_TG_WAIT"
+    _tg_send_buttons "$tg_token" "$tg_chat_id" "*$_S_WIZ_TZ_TITLE*" \
+      "🇹🇷 Istanbul:Europe/Istanbul"       "🇬🇧 London:Europe/London"      "|" \
+      "🇫🇷 Paris:Europe/Paris"             "🇺🇸 New York:America/New_York"  "|" \
+      "🇺🇸 Los Angeles:America/Los_Angeles" "🇯🇵 Tokyo:Asia/Tokyo"          "|" \
+      "UTC:UTC"                             "✏️ Other:__other__" >/dev/null
+    _cb="$(_tg_poll_callback "$tg_token" "$tg_chat_id" "$_tg_offset" 120)" || _cb="0 0 Europe/Istanbul"
+    _cb_uid="$(echo "$_cb" | cut -d' ' -f1)"
+    _cb_id="$(echo  "$_cb" | cut -d' ' -f2)"
+    _cb_data="$(echo "$_cb" | cut -d' ' -f3)"
+    _tg_answer_callback "$tg_token" "$_cb_id"
+    if [[ "$_cb_data" == "__other__" ]]; then
+      tz_value=$(_wt_input "$_S_WIZ_TZ_TITLE" "$_S_WIZ_TZ_CUSTOM" "Europe/Istanbul") || return 1
+      tz_value="${tz_value:-Europe/Istanbul}"
+    else
+      tz_value="$_cb_data"
+    fi
+    ok "  $_S_TXT_TG_TZ_SELECTED: $tz_value"
   fi
 
-  # ── Phase 2: LLM / Proxy / Timezone (WhatsApp/CLI only — Telegram uses messenger wizard later) ──
-  local llm="anthropic" proxy="none" tz_value="Europe/Istanbul"
-  local anthropic_key="" ollama_url="" ollama_model="" gemini_key="" gemini_model=""
-  local public_url="" ngrok_token="" ngrok_domain=""
+  # ── Phase 2: LLM / Proxy / Timezone ─────────────────────────────────────────
+  # WhatsApp/CLI: ask LLM + proxy + credentials + timezone.
+  # Telegram: already handled above via inline buttons.
 
   if [[ "$messenger" == "whatsapp" ]]; then
-    # WhatsApp: collect LLM/proxy/timezone in terminal (no interactive bot available)
     _wa_notify "$wa_token" "$wa_phone_id" "$wa_owner" "$_S_MSG_WIZ_WA_NOTIFY" || true
+  fi
 
-    local _tmp_llm _tmp_proxy
-    _tmp_llm=$(_wt_radio "$_S_WIZ_LLM_TITLE" "$_S_WIZ_LLM_MSG" \
-      "anthropic" "$_S_WIZ_LLM_AN" ON  \
-      "ollama"    "$_S_WIZ_LLM_OL" OFF \
-      "gemini"    "$_S_WIZ_LLM_GE" OFF \
-    ) || { warn "$_S_CANCEL"; return 1; }
-    llm="$_tmp_llm"
-
+  if [[ "$messenger" != "telegram" ]]; then
+    local _tmp_proxy
     _tmp_proxy=$(_wt_radio "$_S_WIZ_PRX_TITLE" "$_S_WIZ_PRX_MSG" \
       "none"        "$_S_WIZ_PRX_NONE"  ON  \
       "ngrok"       "$_S_WIZ_PRX_NGROK" OFF \
@@ -96,6 +184,14 @@ except: pass" 2>/dev/null || true)"
       "external"    "$_S_WIZ_PRX_EXT"   OFF \
     ) || { warn "$_S_CANCEL"; return 1; }
     proxy="$_tmp_proxy"
+
+    local _tmp_llm
+    _tmp_llm=$(_wt_radio "$_S_WIZ_LLM_TITLE" "$_S_WIZ_LLM_MSG" \
+      "anthropic" "$_S_WIZ_LLM_AN" ON  \
+      "ollama"    "$_S_WIZ_LLM_OL" OFF \
+      "gemini"    "$_S_WIZ_LLM_GE" OFF \
+    ) || { warn "$_S_CANCEL"; return 1; }
+    llm="$_tmp_llm"
 
     if [[ "$llm" == "anthropic" ]]; then
       local _an_method
@@ -156,7 +252,6 @@ except: pass" 2>/dev/null || true)"
       tz_value="$tz_choice"
     fi
   fi
-  # For Telegram: LLM/proxy/timezone will be collected via messenger wizard in main()
 
   # ── Security keys + summary ────────────────────────────────────────────────
   local api_key totp_secret totp_admin
@@ -164,13 +259,11 @@ except: pass" 2>/dev/null || true)"
   totp_secret="$(_gen_totp)"
   totp_admin="$(_gen_totp)"
 
-  if [[ "$messenger" != "telegram" ]]; then
-    local summary="Messenger  : $messenger\nLLM Backend: $llm\nProxy      : $proxy\nTimezone   : $tz_value"
-    [[ -n "$public_url" ]] && summary+="\nPublic URL : $public_url"
-    [[ -n "$wa_owner"   ]] && summary+="\nWA Owner   : $wa_owner"
-    summary+="\n\n$_S_WIZ_SUM_MSG_AUTO\n$_S_WIZ_SUM_MSG_CONF"
-    _wt_msg "$_S_WIZ_SUM_TITLE" "$summary" || return 1
-  fi
+  local summary="Messenger  : $messenger\nLLM Backend: $llm\nProxy      : $proxy\nTimezone   : $tz_value"
+  [[ -n "$public_url" ]] && summary+="\nPublic URL : $public_url"
+  [[ -n "$wa_owner"   ]] && summary+="\nWA Owner   : $wa_owner"
+  summary+="\n\n$_S_WIZ_SUM_MSG_AUTO\n$_S_WIZ_SUM_MSG_CONF"
+  _wt_msg "$_S_WIZ_SUM_TITLE" "$summary" || return 1
 
   _write_env "$env_dst" "$messenger" "$llm" "$proxy" \
     "$wa_token" "$wa_phone_id" "$wa_secret" "$wa_verify" "$wa_owner" \
@@ -213,6 +306,9 @@ _wizard_text() {
   _sep
   local wa_token="" wa_phone_id="" wa_secret="" wa_verify="" wa_owner=""
   local tg_token="" tg_chat_id="" tg_webhook_secret=""
+  local llm="anthropic" proxy="none" tz_value="Europe/Istanbul"
+  local anthropic_key="" ollama_url="" ollama_model="" gemini_key="" gemini_model=""
+  local public_url="" ngrok_token="" ngrok_domain=""
 
   # ── WhatsApp kimlik bilgileri ─────────────────────────────────────────────
   if [[ "$messenger" == "whatsapp" ]]; then
@@ -264,26 +360,125 @@ except: pass" 2>/dev/null || true)"
     fi
     tg_webhook_secret="$(_gen_api_key)"
     ok "  $_S_TXT_WSECRET_AUTO"
+
+    # Connectivity test — confirms bot can reach the user before continuing.
+    _tg_notify "$tg_token" "$tg_chat_id" "$_S_TXT_TG_TEST_MSG" || true
+    ok "  $_S_TXT_TG_TEST_SENT"
+
+    # TG-WIZ-1: Telegram requires a public URL — force ngrok and collect creds inline.
+    # Validation: token alphanumeric + min 16 chars, domain contains a dot.
+    proxy="ngrok"
+    _sep
+    echo ""
+    printf "  ℹ️  %b\n" "$_S_TXT_TG_MINIMAL_NOTE"
+    echo ""
+    echo "▶ $_S_WIZ_NGROK_INFO_TITLE"
+    echo ""
+    printf "  %b\n" "$_S_WIZ_NGROK_INFO_MSG"
+    echo ""
+    while true; do
+      _ask_inline "$_S_WIZ_NGROK_TOKEN" ngrok_token
+      if [[ -z "$ngrok_token" ]]; then
+        warn "    $_S_REQUIRED"; continue
+      fi
+      if [[ ! "$ngrok_token" =~ ^[A-Za-z0-9_]{16,}$ ]]; then
+        warn "    $_S_NGROK_TOKEN_INVALID"; continue
+      fi
+      break
+    done
+    while true; do
+      _ask_inline "$_S_WIZ_NGROK_DOMAIN" ngrok_domain
+      if [[ -z "$ngrok_domain" ]]; then
+        warn "    $_S_REQUIRED"; continue
+      fi
+      if [[ "$ngrok_domain" != *.* ]]; then
+        warn "    $_S_NGROK_DOMAIN_INVALID"; continue
+      fi
+      break
+    done
+
+    # ── Telegram-driven Phase 2: LLM + timezone via inline buttons ────────────
+    local _tg_offset _cb _cb_uid _cb_id _cb_data
+    _tg_offset="$(_tg_get_offset "$tg_token")"
+
+    # LLM selection
+    _sep
+    log "  $_S_TXT_TG_WAIT"
+    _tg_send_buttons "$tg_token" "$tg_chat_id" "*$_S_WIZ_LLM_TITLE*" \
+      "Anthropic (Claude):anthropic" \
+      "Ollama (local):ollama" \
+      "Google Gemini:gemini" >/dev/null
+    _cb="$(_tg_poll_callback "$tg_token" "$tg_chat_id" "$_tg_offset" 120)" || _cb="0 0 anthropic"
+    _cb_uid="$(echo "$_cb" | cut -d' ' -f1)"
+    _cb_id="$(echo  "$_cb" | cut -d' ' -f2)"
+    _cb_data="$(echo "$_cb" | cut -d' ' -f3)"
+    _tg_answer_callback "$tg_token" "$_cb_id"
+    _tg_offset=$(( _cb_uid + 1 ))
+    llm="$_cb_data"
+    ok "  $_S_TXT_TG_LLM_SELECTED: $llm"
+
+    # LLM credentials — sensitive, stay in terminal
+    _sep
+    if [[ "$llm" == "anthropic" ]]; then
+      echo ""
+      echo "$_S_TXT_AN"
+      echo ""
+      printf "  %b\n" "$_S_WIZ_AN_CHOICE_MSG"
+      echo ""
+      _ask_inline "[1/2]:" _an_method_txt
+      if [[ "${_an_method_txt:-1}" == "2" ]]; then
+        _ask_req "$_S_WIZ_AN_KEY" anthropic_key
+      else
+        ok "  $_S_WIZ_AN_SKIP"
+      fi
+    elif [[ "$llm" == "ollama" ]]; then
+      echo ""
+      echo "$_S_TXT_OL"
+      echo ""
+      _ask_inline "$_S_WIZ_OL_URL [http://localhost:11434]:" ollama_url
+      ollama_url="${ollama_url:-http://localhost:11434}"
+      _ask_inline "$_S_WIZ_OL_MODEL [llama3]:" ollama_model
+      ollama_model="${ollama_model:-llama3}"
+    elif [[ "$llm" == "gemini" ]]; then
+      echo ""
+      echo "$_S_TXT_GE"
+      echo ""
+      _ask_req "$_S_WIZ_GE_KEY" gemini_key
+      _ask_inline "$_S_WIZ_GE_MODEL [gemini-2.0-flash]:" gemini_model
+      gemini_model="${gemini_model:-gemini-2.0-flash}"
+    fi
+
+    # Timezone selection
+    _sep
+    log "  $_S_TXT_TG_WAIT"
+    _tg_send_buttons "$tg_token" "$tg_chat_id" "*$_S_WIZ_TZ_TITLE*" \
+      "🇹🇷 Istanbul:Europe/Istanbul"  "🇬🇧 London:Europe/London"    "|" \
+      "🇫🇷 Paris:Europe/Paris"        "🇺🇸 New York:America/New_York" "|" \
+      "🇺🇸 Los Angeles:America/Los_Angeles" "🇯🇵 Tokyo:Asia/Tokyo"  "|" \
+      "UTC:UTC"                        "✏️ Other:__other__" >/dev/null
+    _cb="$(_tg_poll_callback "$tg_token" "$tg_chat_id" "$_tg_offset" 120)" || _cb="0 0 Europe/Istanbul"
+    _cb_uid="$(echo "$_cb" | cut -d' ' -f1)"
+    _cb_id="$(echo  "$_cb" | cut -d' ' -f2)"
+    _cb_data="$(echo "$_cb" | cut -d' ' -f3)"
+    _tg_answer_callback "$tg_token" "$_cb_id"
+    if [[ "$_cb_data" == "__other__" ]]; then
+      _ask_inline "  $_S_TXT_TG_TZ_OTHER" tz_value
+      tz_value="${tz_value:-Europe/Istanbul}"
+    else
+      tz_value="$_cb_data"
+    fi
+    ok "  $_S_TXT_TG_TZ_SELECTED: $tz_value"
   fi
 
-  # ── Phase 2: LLM / Proxy / Timezone (WhatsApp/CLI only) ───────────────────
-  local llm="anthropic" proxy="none" tz_value="Europe/Istanbul"
-  local anthropic_key="" ollama_url="" ollama_model="" gemini_key="" gemini_model=""
-  local public_url="" ngrok_token="" ngrok_domain=""
+  # ── Phase 2: LLM / Proxy / Timezone ─────────────────────────────────────────
+  # WhatsApp/CLI: ask LLM + proxy + credentials + timezone.
+  # Telegram: already handled above via inline buttons.
 
   if [[ "$messenger" == "whatsapp" ]]; then
     _wa_notify "$wa_token" "$wa_phone_id" "$wa_owner" "$_S_MSG_WIZ_WA_NOTIFY" || true
+  fi
 
-    _sep
-    echo ""
-    echo "$_S_TXT_LLM"
-    echo "  $_S_TXT_L1"
-    echo "  $_S_TXT_L2"
-    echo "  $_S_TXT_L3"
-    echo ""
-    _ask_inline "[1/2/3]:" _l
-    case "${_l:-1}" in 2) llm="ollama";; 3) llm="gemini";; *) llm="anthropic";; esac
-
+  if [[ "$messenger" != "telegram" ]]; then
     _sep
     echo ""
     echo "$_S_TXT_PROXY"
@@ -294,6 +489,16 @@ except: pass" 2>/dev/null || true)"
     echo ""
     _ask_inline "[1/2/3/4]:" _p
     case "${_p:-1}" in 2) proxy="ngrok";; 3) proxy="cloudflared";; 4) proxy="external";; *) proxy="none";; esac
+
+    _sep
+    echo ""
+    echo "$_S_TXT_LLM"
+    echo "  $_S_TXT_L1"
+    echo "  $_S_TXT_L2"
+    echo "  $_S_TXT_L3"
+    echo ""
+    _ask_inline "[1/2/3]:" _l
+    case "${_l:-1}" in 2) llm="ollama";; 3) llm="gemini";; *) llm="anthropic";; esac
 
     _sep
     if [[ "$llm" == "anthropic" ]]; then

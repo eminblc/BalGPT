@@ -136,6 +136,14 @@ async def _route_text(sender: str, text: str, session: dict) -> None:
         await _forward_to_bridge(sender, text, session)
         return
 
+    # ── TG-WIZ-1: Install wizard text input (free-form: API key, custom TZ, ollama URL) ──
+    # Wizard awaiting_text aktifse ve mesaj `!` ile başlamıyorsa wizard yutar.
+    # `!` komutları (özellikle !cancel) wizard'ı bypass edebilir.
+    if not text.startswith("!"):
+        from ..features.install_wizard import handle_install_wizard_text
+        if await handle_install_wizard_text(sender, text, lang):
+            return
+
     # ── Ana mod: ! ile başlıyorsa yerel komut ──
     cmd = text.split()[0].lower() if text.startswith("!") else ""
     if cmd and session.get("wiz_name"):

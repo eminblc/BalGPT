@@ -180,6 +180,13 @@ async def _route_interactive(sender: str, reply_id: str, session: dict) -> None:
     # edilir; bu fonksiyona asla ulaşmaz — duplike kontrol kaldırıldı.
     from ..guards.commands import registry as cmd_registry
     from ..features.menu import handle_menu_reply, is_handled_locally
+    from ..features.install_wizard import handle_install_wizard_callback, is_wizard_callback
+
+    # TG-WIZ-1: Install wizard callback'leri menüden önce yakalanır (iw: prefix).
+    if is_wizard_callback(reply_id):
+        lang = session.get("lang", "tr")
+        await handle_install_wizard_callback(sender, reply_id, lang)
+        return
 
     # Komut kısayolları her zaman yerel olarak işlenir (beta modundan bağımsız).
     _CMD_SHORTCUTS = {

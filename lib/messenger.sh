@@ -4,20 +4,6 @@
 # Sourced by install.sh; do not execute directly.
 # shellcheck shell=bash
 
-_run_messenger_wizard() {
-  local _tg_token="$1" _tg_chat_id="$2"
-  local _script="$SCRIPTS_DIR/setup_wizard_messenger.py"
-  [ ! -f "$_script" ] && return 1
-  [[ -z "${PY:-}" ]] && return 1
-
-  WIZARD_MESSENGER="telegram" \
-  WIZARD_TG_TOKEN="$_tg_token" \
-  WIZARD_TG_CHAT_ID="$_tg_chat_id" \
-  INSTALL_LANG="$INSTALL_LANG" \
-  "$PY" "$_script" 2>/tmp/wizard_err.log
-}
-
-
 _wa_notify() {
   local _tok="$1" _pid="$2" _owner="${3#+}" _msg="$4"
   [ -z "$_tok" ] || [ -z "$_pid" ] || [ -z "$_owner" ] && return 0
@@ -50,77 +36,90 @@ _tg_notify() {
 }
 
 
-_apply_wiz_to_env() {
-  local _json="$1" _env="$2"
-  local _llm _proxy _tz _ak _ou _om _gk _gm _pu _nt _nd _caps
-
-  _llm="$(_parse_wiz "$_json" "llm"          "anthropic")"
-  _proxy="$(_parse_wiz "$_json" "proxy"       "none")"
-  _tz="$(_parse_wiz "$_json"   "timezone"     "Europe/Istanbul")"
-  _ak="$(_parse_wiz "$_json"   "anthropic_key" "")"
-  _ou="$(_parse_wiz "$_json"   "ollama_url"   "http://localhost:11434")"
-  _om="$(_parse_wiz "$_json"   "ollama_model" "llama3")"
-  _gk="$(_parse_wiz "$_json"   "gemini_key"   "")"
-  _gm="$(_parse_wiz "$_json"   "gemini_model" "gemini-2.0-flash")"
-  _pu="$(_parse_wiz "$_json"   "public_url"   "")"
-  _nt="$(_parse_wiz "$_json"   "ngrok_token"  "")"
-  _nd="$(_parse_wiz "$_json"   "ngrok_domain" "")"
-  _caps="$(_parse_wiz "$_json" "caps_selected" "")"
-
-  _env_set "LLM_BACKEND"   "$_llm"   "$_env"
-  _env_set "WEBHOOK_PROXY" "$_proxy" "$_env"
-  _env_set "TIMEZONE"      "$_tz"    "$_env"
-
-  if [[ -n "$_ak" ]]; then
-    _env_set "ANTHROPIC_API_KEY" "$_ak" "$_env"
-  else
-    _sed_i "$_env" '/^ANTHROPIC_API_KEY=/d'
-  fi
-  [[ -n "$_ou" ]] && _env_set "OLLAMA_BASE_URL" "$_ou" "$_env"
-  [[ -n "$_om" ]] && _env_set "OLLAMA_MODEL"    "$_om" "$_env"
-  [[ -n "$_gk" ]] && _env_set "GEMINI_API_KEY"  "$_gk" "$_env"
-  [[ -n "$_gm" ]] && _env_set "GEMINI_MODEL"    "$_gm" "$_env"
-  [[ -n "$_pu" ]] && _env_set "PUBLIC_URL"       "$_pu" "$_env"
-  [[ -n "$_nt" ]] && _env_set "NGROK_AUTHTOKEN"  "$_nt" "$_env"
-  [[ -n "$_nd" ]] && _env_set "NGROK_DOMAIN"     "$_nd" "$_env"
-
-  if [[ -n "$_caps" ]]; then
-    _write_capabilities "$_caps"
-    ok "  ↳ Capabilities written from Telegram wizard"
-  fi
+# Returns current max_update_id+1 so callers can ignore older updates.
+_tg_get_offset() {
+  local _tok="$1"
+  "$PY" -c "
+import sys, json, urllib.request
+try:
+    with urllib.request.urlopen(
+        f'https://api.telegram.org/bot{sys.argv[1]}/getUpdates?limit=100&timeout=0', timeout=5
+    ) as r:
+        d = json.load(r)
+    results = d.get('result', [])
+    print((results[-1]['update_id'] + 1) if results else 0)
+except Exception:
+    print(0)
+" "$_tok" 2>/dev/null || echo "0"
 }
 
 
-_collect_terminal_secrets() {
-  local _json="$1" _env="$2"
-  local _sentinel="__TERMINAL__"
-  local _ak _gk _nt
-  _ak="$(_parse_wiz "$_json" "anthropic_key" "")"
-  _gk="$(_parse_wiz "$_json" "gemini_key"    "")"
-  _nt="$(_parse_wiz "$_json" "ngrok_token"   "")"
-
-  if [[ "$_ak" == "$_sentinel" || "$_gk" == "$_sentinel" || "$_nt" == "$_sentinel" ]]; then
-    echo ""
-    echo "  ════════════════════════════════════════════════════"
-    echo "  $_S_TXT_WIZ_TERMINAL_SECRETS_TITLE"
-    echo "  ════════════════════════════════════════════════════"
-    echo ""
-    if [[ "$_ak" == "$_sentinel" ]]; then
-      local _val=""
-      _ask_secret "$_S_TXT_WIZ_ANTHROPIC_KEY" _val
-      [[ -n "$_val" ]] && _env_set "ANTHROPIC_API_KEY" "$_val" "$_env"
-    fi
-    if [[ "$_gk" == "$_sentinel" ]]; then
-      local _val=""
-      _ask_secret "$_S_TXT_WIZ_GEMINI_KEY" _val
-      [[ -n "$_val" ]] && _env_set "GEMINI_API_KEY" "$_val" "$_env"
-    fi
-    if [[ "$_nt" == "$_sentinel" ]]; then
-      local _val=""
-      _ask_secret "$_S_TXT_WIZ_NGROK_TOKEN" _val
-      [[ -n "$_val" ]] && _env_set "NGROK_AUTHTOKEN" "$_val" "$_env"
-    fi
-    echo ""
-  fi
+# Send a message with inline keyboard buttons.
+# Usage: _tg_send_buttons TOKEN CHAT_ID TEXT "Label:callback_data" ... ["|"] ...
+# Use "|" as an argument to start a new button row.
+_tg_send_buttons() {
+  local _tok="$1" _cid="$2" _txt="$3"
+  shift 3
+  "$PY" -c "
+import sys, json, urllib.request
+tok, cid, txt = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+rows, row = [], []
+for b in sys.argv[4:]:
+    if b == '|':
+        if row: rows.append(row); row = []
+    else:
+        label, _, data = b.partition(':')
+        row.append({'text': label, 'callback_data': data})
+if row:
+    rows.append(row)
+payload = {'chat_id': cid, 'text': txt, 'parse_mode': 'Markdown',
+           'reply_markup': {'inline_keyboard': rows}}
+req = urllib.request.Request(
+    f'https://api.telegram.org/bot{tok}/sendMessage',
+    data=json.dumps(payload).encode(),
+    headers={'Content-Type': 'application/json'})
+with urllib.request.urlopen(req, timeout=10) as r:
+    print(json.load(r)['result']['message_id'])
+" "$_tok" "$_cid" "$_txt" "$@" 2>/dev/null || true
 }
+
+
+# Answer a callback query to dismiss the loading spinner in Telegram.
+_tg_answer_callback() {
+  local _tok="$1" _cb_id="$2"
+  curl -s --max-time 5 \
+    -d "callback_query_id=${_cb_id}" \
+    "https://api.telegram.org/bot${_tok}/answerCallbackQuery" >/dev/null 2>&1 || true
+}
+
+
+# Poll for a callback_query from CHAT_ID starting at OFFSET, up to TIMEOUT seconds.
+# Prints "UPDATE_ID CALLBACK_ID CALLBACK_DATA" on success; exits 1 on timeout.
+_tg_poll_callback() {
+  local _tok="$1" _cid="$2" _offset="${3:-0}" _timeout="${4:-120}"
+  "$PY" -c "
+import sys, json, urllib.request, time
+tok, cid, offset, timeout = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4])
+deadline = time.time() + timeout
+while time.time() < deadline:
+    remaining = max(1, min(30, int(deadline - time.time())))
+    url = (f'https://api.telegram.org/bot{tok}/getUpdates'
+           f'?timeout={remaining}&limit=10&offset={offset}&allowed_updates=callback_query')
+    try:
+        with urllib.request.urlopen(url, timeout=remaining + 5) as r:
+            d = json.load(r)
+        for u in d.get('result', []):
+            uid = u['update_id']
+            if 'callback_query' in u:
+                cb = u['callback_query']
+                if cb['message']['chat']['id'] == cid:
+                    print(uid, cb['id'], cb['data'])
+                    sys.exit(0)
+            offset = uid + 1
+    except Exception:
+        time.sleep(2)
+sys.exit(1)
+" "$_tok" "$_cid" "$_offset" "$_timeout" 2>/dev/null
+}
+
 

@@ -471,6 +471,8 @@ Sihirbaz yalnızca dışarıdan alınması gereken kimlik bilgilerini sorar. Ger
 | `TELEGRAM_BOT_TOKEN` | @BotFather'dan alınan bot token'ı (`123456789:ABCdef...`) |
 | `TELEGRAM_CHAT_ID` | Kişisel Telegram chat ID'niz — [@userinfobot](https://t.me/userinfobot)'tan öğrenebilirsiniz |
 
+> **Telegram + cloudflared:** Sihirbaz Telegram seçildiğinde proxy olarak ngrok'u zorlar; cloudflared seçeneği gösterilmez. Cloudflared kullanmak istiyorsanız kurulumu tamamlayın, ardından `.env` dosyasında `WEBHOOK_PROXY=cloudflared` yapın, `cloudflared` binary'sinin yüklü olduğundan emin olun ve servisleri yeniden başlatın. `!wizard` komutu ve genel akış proxy-bağımsızdır — webhook public URL'den kayıtlı olduğu sürece çalışır.
+
 ### LLM
 
 | Değişken | Açıklama |

@@ -498,6 +498,8 @@ The wizard collects only the credentials you must obtain externally. Everything 
 | `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather (`123456789:ABCdef...`) |
 | `TELEGRAM_CHAT_ID` | Your personal Telegram chat ID — get it from [@userinfobot](https://t.me/userinfobot) |
 
+> **Telegram + cloudflared:** When you pick Telegram, the wizard forces `WEBHOOK_PROXY=ngrok` — cloudflared isn't offered as a choice. To use cloudflared instead, finish the install, then edit `.env` to set `WEBHOOK_PROXY=cloudflared`, ensure the `cloudflared` binary is installed, and restart services. The `!wizard` command and the rest of the flow are proxy-agnostic — they work as long as the webhook is registered with a public URL.
+
 ### LLM
 
 | Variable | Description |

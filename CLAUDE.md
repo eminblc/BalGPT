@@ -75,6 +75,8 @@ bash install.sh --reconfigure-capabilities  # re-run capability wizard only
 
 > **Note:** `.env` içinde `DESKTOP_ENABLED`, `BROWSER_ENABLED` veya herhangi bir `RESTRICT_*` flag'ini değiştirdikten sonra mutlaka `bash install.sh --reconfigure-capabilities` çalıştırın. Bu adım atlanırsa gerekli Python paketleri kurulmaz/kaldırılmaz ve servis başlamayabilir.
 
+> **Telegram + cloudflared (TG-WIZ-1):** Telegram seçildiğinde `install.sh` `WEBHOOK_PROXY=ngrok` zorlar; cloudflared'i sihirbazdan seçemezsiniz. Cloudflared kullanmak için kurulum sonrası `.env` dosyasında `WEBHOOK_PROXY=cloudflared` yapın, `cloudflared` binary'nin yüklü olduğundan emin olun, ardından servisleri yeniden başlatın. `!wizard` komutu ve genel akış proxy-bağımsızdır — webhook public URL'den kayıtlı olduğu sürece çalışır.
+
 Manual setup:
 
 ```bash
@@ -295,6 +297,7 @@ To add a new restriction: `capability_guard.register_capability_rule()` + bool f
 | `!terminal` | `terminal_cmd.py` | Run a shell command via WhatsApp (admin TOTP required for dangerous commands) |
 | `!timezone` | `timezone_cmd.py` | Show or change the active timezone at runtime; reconfigures APScheduler |
 | `!tokens` | `tokens_cmd.py` | Show LLM token usage statistics (`!tokens [24h|7d|30d]`) |
+| `!wizard` | `wizard_cmd.py` | Stage-2 install wizard — finishes setup (LLM, capabilities, timezone, TOTP QR) via inline buttons after `install.sh` |
 
 ## Adding a New Command (`!command` system)
 

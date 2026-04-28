@@ -207,6 +207,12 @@ EOF
           2>/dev/null || true)"
         if echo "$_wh_result" | grep -q '"ok":true'; then
           ok "$_S_WH_TG_REGISTERED: $_wh_url"
+          # TG-WIZ-1: Send Stage-2 wizard welcome ping.
+          local _tg_chat
+          _tg_chat="$(_read_env_var "TELEGRAM_CHAT_ID" "$_env_dst")"
+          if [[ -n "$_tg_chat" ]]; then
+            _tg_notify "$_tg_token" "$_tg_chat" "$_S_MSG_WIZ_TG_INSTALL_NOTICE"
+          fi
         else
           # Telegram API hatasını göster (örn. bad token, URL unreachable)
           local _wh_desc
@@ -217,9 +223,13 @@ EOF
       fi
     else
       warn "$_S_DOCKER_URL_TIMEOUT"
-      # Kullanıcıya ngrok başlatma hatasını görmesi için yönlendir
       echo "  $_S_DOCKER_URL_DEBUG"
       echo "    docker compose logs 99-api 2>&1 | grep -iE 'ngrok|tunnel|webhook_proxy'"
+      if [[ "$_messenger" == "telegram" ]]; then
+        echo ""
+        echo "  $_S_RW_HINT_CMD"
+        echo "    bash install.sh --register-webhook"
+      fi
     fi
   fi
 }
@@ -302,14 +312,8 @@ step_claude_auth() {
     ok "$_S_AUTH_APIKEY"; return
   fi
 
-  # Already authenticated? — empty {} (Docker pre-flight) doesn't count.
-  if [[ -f "$HOME/.claude/.credentials.json" ]]; then
-    local _cred_content
-    _cred_content="$(tr -d ' \n\r\t' < "$HOME/.claude/.credentials.json" 2>/dev/null || echo "{}")"
-    if [[ "$_cred_content" != "{}" && ${#_cred_content} -gt 5 ]]; then
-      ok "$_S_AUTH_ALREADY"; return
-    fi
-  fi
+  # Always run claude auth login — do not silently accept a cached token that
+  # may be expired. The CLI handles already-authenticated sessions gracefully.
 
   # Install claude CLI if missing — strict: hard fail so user fixes Node/npm.
   if ! command -v claude &>/dev/null; then
@@ -409,6 +413,12 @@ step_show_webhook_url() {
         2>/dev/null || true)"
       if echo "$_wh_result" | grep -q '"ok":true'; then
         ok "  $_S_WH_TG_REGISTERED: $_wh_url"
+        # TG-WIZ-1: Stage-2 wizard welcome ping (static-URL path).
+        local _tg_chat_static
+        _tg_chat_static="$(_read_env_var "TELEGRAM_CHAT_ID" "$env_dst")"
+        if [[ -n "$_tg_chat_static" ]]; then
+          _tg_notify "$tg_token" "$_tg_chat_static" "$_S_MSG_WIZ_TG_INSTALL_NOTICE"
+        fi
       else
         echo "  → $_wh_url"
         warn "  $_S_WH_TG_SETUP (manual): curl -s -X POST 'https://api.telegram.org/bot${tg_token}/setWebhook' -d 'url=${_wh_url}'"
@@ -416,6 +426,7 @@ step_show_webhook_url() {
     elif [[ "$proxy" == "ngrok" || "$proxy" == "cloudflared" ]]; then
       # Dynamic proxy — URL only known at runtime; Docker auto-registers on startup
       ok "  $_S_WH_TG_PROXY_RUNTIME"
+      echo "  $_S_WH_TG_REGISTER_HINT"
     else
       echo "  → $_S_WH_TG_NO_URL"
       echo "    $_S_WH_TG_SETWEBHOOK"
@@ -430,5 +441,65 @@ step_show_webhook_url() {
   echo "  → curl -s http://localhost:${port}/health"
   echo "  → curl -s http://localhost:${BRIDGE_PORT}/health"
   echo ""
+}
+
+
+# Webhook auto-registration for dynamic proxies (ngrok/cloudflared).
+# Can be called standalone via: bash install.sh --register-webhook
+step_register_webhook() {
+  local env_dst="$BACKEND_DIR/.env"
+  [ ! -f "$env_dst" ] && die "$_S_RW_NO_ENV"
+
+  local messenger proxy
+  messenger="$(_read_env_var "MESSENGER_TYPE" "$env_dst")"
+  messenger="${messenger:-whatsapp}"
+  proxy="$(_read_env_var "WEBHOOK_PROXY" "$env_dst")"
+
+  if [[ "$messenger" != "telegram" ]]; then
+    warn "$_S_RW_NOT_TG"; return 0
+  fi
+  if [[ "$proxy" != "ngrok" && "$proxy" != "cloudflared" ]]; then
+    warn "$_S_RW_STATIC_PROXY"; return 0
+  fi
+
+  local tg_token tg_secret tg_chat port
+  tg_token="$(_read_env_var "TELEGRAM_BOT_TOKEN"      "$env_dst")"
+  tg_secret="$(_read_env_var "TELEGRAM_WEBHOOK_SECRET" "$env_dst")"
+  tg_chat="$(  _read_env_var "TELEGRAM_CHAT_ID"        "$env_dst")"
+  port="$(     _read_env_var "FASTAPI_PORT"             "$env_dst")"
+  port="${port:-$API_PORT}"
+
+  log "$_S_RW_WAITING"
+  local pub_url="" retry=0 health
+  while [[ -z "$pub_url" && $retry -lt 150 ]]; do
+    sleep 2
+    retry=$(( retry + 1 ))
+    health="$(curl -s --max-time 4 "http://localhost:${port}/health" 2>/dev/null || true)"
+    [[ -n "$health" ]] && pub_url="$(_extract_json_field "$health" "public_url")"
+    (( retry % 15 == 0 )) && log "  ... ${retry}x / 150"
+  done
+
+  if [[ -z "$pub_url" ]]; then
+    die "$_S_RW_TIMEOUT"
+  fi
+
+  ok "$_S_DOCKER_URL_FOUND: $pub_url"
+
+  local wh_url="${pub_url}/telegram/webhook"
+  local wh_result
+  wh_result="$(curl -s --max-time 8 -X POST \
+    "https://api.telegram.org/bot${tg_token}/setWebhook" \
+    -H "Content-Type: application/json" \
+    -d "{\"url\":\"${wh_url}\",\"secret_token\":\"${tg_secret}\",\"allowed_updates\":[\"message\",\"callback_query\"]}" \
+    2>/dev/null || true)"
+
+  if echo "$wh_result" | grep -q '"ok":true'; then
+    ok "$_S_WH_TG_REGISTERED: $wh_url"
+    [[ -n "$tg_chat" ]] && _tg_notify "$tg_token" "$tg_chat" "$_S_MSG_WIZ_TG_INSTALL_NOTICE" || true
+  else
+    local desc
+    desc="$(_extract_json_field "$wh_result" "description")"
+    die "$_S_RW_FAILED: ${desc:-unknown error}"
+  fi
 }
 

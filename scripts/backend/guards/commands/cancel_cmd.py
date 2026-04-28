@@ -81,6 +81,16 @@ class CancelCommand:
             clear_wizard(session)
             had_pending = True
 
+        # TG-WIZ-1: Install wizard SQLite state (chat_id keyed, not session)
+        try:
+            from ...store.repositories import install_wizard_repo
+            iw_state = await install_wizard_repo.get_state(sender)
+            if iw_state is not None and iw_state.get("step") != "done":
+                await install_wizard_repo.delete_state(sender)
+                had_pending = True
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.warning("install_wizard cancel cleanup failed: %s", exc)
+
         lang = session.get("lang", "tr")
 
         if had_pending:

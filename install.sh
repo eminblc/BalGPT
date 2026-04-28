@@ -9,6 +9,7 @@
 #   ./install.sh --docker                # Docker: wizard + selective image build / Docker: sihirbaz + seçici image build
 #   ./install.sh --no-wizard             # Skip .env wizard (CI) / .env sihirbazını atla
 #   ./install.sh --reconfigure-capabilities  # Re-run capability wizard only / Yalnızca yetenek sihirbazı
+#   ./install.sh --register-webhook         # Register Telegram webhook (after services start) / Telegram webhook kaydı (servisler başladıktan sonra)
 #   INSTALL_LANG=en ./install.sh         # Force language / Dil seç (tr|en)
 #
 # Messengers:  whatsapp | telegram | cli
@@ -44,6 +45,7 @@ USE_PM2=false
 USE_DOCKER=false
 NO_WIZARD=false
 RECONFIGURE_CAPS=false
+REGISTER_WEBHOOK=false
 
 for arg in "$@"; do
   [[ "$arg" == "--no-systemd"              ]] && NO_SYSTEMD=true
@@ -51,6 +53,7 @@ for arg in "$@"; do
   [[ "$arg" == "--docker"                  ]] && USE_DOCKER=true && NO_SYSTEMD=true
   [[ "$arg" == "--no-wizard"               ]] && NO_WIZARD=true
   [[ "$arg" == "--reconfigure-capabilities" ]] && RECONFIGURE_CAPS=true
+  [[ "$arg" == "--register-webhook"        ]] && REGISTER_WEBHOOK=true
 done
 
 # ── Library modules ───────────────────────────────────────────────────────────
@@ -248,6 +251,13 @@ main() {
     echo ""
   fi
 
+  # Hızlı yol: --register-webhook — servislerin public URL'ini bekle, webhook'u kaydet
+  if $REGISTER_WEBHOOK; then
+    step_register_webhook
+    ok "$_S_DONE_TITLE"
+    return 0
+  fi
+
   # Hızlı yol: --reconfigure-capabilities — yalnızca yetenek sihirbazını çalıştır
   if $RECONFIGURE_CAPS && ! $NO_WIZARD; then
     echo "=================================================="
@@ -267,7 +277,7 @@ main() {
   fi
 
   echo "=================================================="
-  echo " BalGPT —$_S_BANNER_TITLE"
+  echo " $_S_BANNER_TITLE"
   echo " ROOT_DIR  : $ROOT_DIR"
   echo " USER      : $CURRENT_USER"
   echo " NODE      : $NODE_PATH"
@@ -277,96 +287,20 @@ main() {
   check_prereqs
   step_env  # .env oluştur / güncelle (Telegram için sadece creds; LLM/proxy/tz/caps sonra)
 
-  # ── Telegram: minimal install → messenger wizard → .env güncelle ──────────
-  # Trigger only when MESSENGER_TYPE=telegram AND LLM_BACKEND not yet written
-  # (otherwise re-running install.sh always re-triggers a 30s+ Telegram poll).
+  # ── Telegram: write sensible defaults; Stage-2 wizard finishes the rest ──
+  # Per TG-WIZ-1 design: install.sh asks only bot creds + ngrok in terminal;
+  # LLM/timezone/capabilities are configured from inside the bot via !wizard.
   local _env_file="$BACKEND_DIR/.env"
   if [[ "$(_env_get "MESSENGER_TYPE" "$_env_file")" == "telegram" ]] \
      && [[ -z "$(_env_get "LLM_BACKEND" "$_env_file")" ]] \
      && ! $NO_WIZARD; then
-    # 1. Minimal install (Node deps — hızlı, capabilities bağımsız)
-    step_npm
-
-    # 2. Terminal notice
-    echo ""
-    echo "  ════════════════════════════════════════════════════"
-    echo "  $_S_MSG_WIZ_TG_INSTALL_NOTICE"
-    echo "  ════════════════════════════════════════════════════"
-    log "  $_S_MSG_WIZ_TG_STARTING"
-    echo ""
-    echo "  ════════════════════════════════════════════════════"
-    echo "  $_S_MSG_WIZ_TG_WAIT"
-    echo "  ════════════════════════════════════════════════════"
-    echo ""
-
-    # 3. Run messenger wizard (Python in background; terminal monitors for secret requests)
-    local _tg_tok _tg_cid _wiz_result
-    _tg_tok="$(_env_get "TELEGRAM_BOT_TOKEN" "$_env_file")"
-    _tg_cid="$(_env_get "TELEGRAM_CHAT_ID"   "$_env_file")"
-    _wiz_result=""
-    if [[ -n "$_tg_tok" && -n "$_tg_cid" && -n "${PY:-}" ]]; then
-      local _wiz_tmp _req_dir _ans_dir _wiz_pid _wiz_exit
-      _wiz_tmp="$(mktemp /tmp/wiz_result.XXXXXX)"
-      _req_dir="$(mktemp -d /tmp/wiz_req.XXXXXX)"
-      _ans_dir="$(mktemp -d /tmp/wiz_ans.XXXXXX)"
-
-      # Fire heads-up so the user knows to switch to Telegram
-      _tg_notify "$_tg_tok" "$_tg_cid" "$_S_MSG_WIZ_TG_NOTIFY"
-
-      # Start Python wizard in the background; secrets come back through temp files
-      WIZARD_MESSENGER="telegram" \
-      WIZARD_TG_TOKEN="$_tg_tok" \
-      WIZARD_TG_CHAT_ID="$_tg_cid" \
-      WIZARD_REQ_DIR="$_req_dir" \
-      WIZARD_ANS_DIR="$_ans_dir" \
-      INSTALL_LANG="$INSTALL_LANG" \
-      "$PY" "$SCRIPTS_DIR/setup_wizard_messenger.py" > "$_wiz_tmp" 2>/tmp/wizard_err.log &
-      _wiz_pid=$!
-
-      # Terminal monitors for secret-request files left by Python wizard
-      local _rf _key _val
-      while kill -0 "$_wiz_pid" 2>/dev/null; do
-        for _rf in "$_req_dir"/*; do
-          [[ -f "$_rf" ]] || continue
-          _key="$(basename "$_rf")"
-          _val=""
-          echo ""
-          echo "  ════════════════════════════════════════════════════"
-          echo "  $_S_TXT_WIZ_TERMINAL_SECRETS_TITLE"
-          echo "  ════════════════════════════════════════════════════"
-          echo ""
-          case "$_key" in
-            anthropic_key) _ask_secret "$_S_TXT_WIZ_ANTHROPIC_KEY" _val ;;
-            gemini_key)    _ask_secret "$_S_TXT_WIZ_GEMINI_KEY"    _val ;;
-            ngrok_token)   _ask_secret "$_S_TXT_WIZ_NGROK_TOKEN"   _val ;;
-          esac
-          printf '%s' "$_val" > "$_ans_dir/$_key"
-          rm -f "$_rf"
-        done
-        sleep 0.3
-      done
-      wait "$_wiz_pid"; _wiz_exit=$?
-      rm -rf "$_req_dir" "$_ans_dir"
-
-      [[ -s "$_wiz_tmp" && "$_wiz_exit" -eq 0 ]] && _wiz_result="$(cat "$_wiz_tmp")"
-      rm -f "$_wiz_tmp"
-    fi
-
-    # 4. Apply results (or defaults on timeout)
-    if [[ -n "$_wiz_result" ]]; then
-      ok "  $_S_MSG_WIZ_TG_DONE"
-      _apply_wiz_to_env "$_wiz_result" "$_env_file"
-    else
-      warn "  $_S_MSG_WIZ_TG_TIMEOUT_DEFAULTS"
-      # Write defaults so capabilities step can proceed
-      _env_set "LLM_BACKEND"   "anthropic"        "$_env_file"
-      _env_set "WEBHOOK_PROXY" "none"              "$_env_file"
-      _env_set "TIMEZONE"      "Europe/Istanbul"   "$_env_file"
-      # Remove any stale ANTHROPIC_API_KEY placeholder so claude auth is triggered
-      _sed_i "$_env_file" '/^ANTHROPIC_API_KEY=YOUR_ANTHROPIC_API_KEY/d' 2>/dev/null || true
-      # Pre-write Basic caps so step_capabilities returns early (no non-interactive prompt)
-      _write_capabilities "$(_caps_basic_str)"
-    fi
+    log "  $_S_MSG_WIZ_TG_INSTALL_NOTICE"
+    _env_set "LLM_BACKEND"   "anthropic"        "$_env_file"
+    _env_set "WEBHOOK_PROXY" "ngrok"             "$_env_file"
+    _env_set "TIMEZONE"      "Europe/Istanbul"   "$_env_file"
+    _sed_i "$_env_file" '/^ANTHROPIC_API_KEY=YOUR_ANTHROPIC_API_KEY/d' 2>/dev/null || true
+    # Spec-defined defaults: core caps on, desktop+browser off.
+    _write_capabilities '"fs" "network" "shell" "service_mgmt" "media" "calendar" "project_wizard" "screenshot" "scheduler" "pdf_import" "conv_history" "plans" "intent_classifier" "wizard_llm_scaffold"'
   fi
 
   step_capabilities  # RESTRICT_* / *_ENABLED flag'lerini yaz (caps wizard'dan veya varsayılan)

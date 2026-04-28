@@ -159,6 +159,17 @@ def init_db() -> None:
 
         CREATE INDEX IF NOT EXISTS idx_token_usage_ts      ON token_usage(timestamp);
         CREATE INDEX IF NOT EXISTS idx_token_usage_backend ON token_usage(backend, timestamp);
+
+        -- ── Telegram install wizard state ─────────────────────────
+        -- Stage-2 wizard runs after install.sh; collects LLM/TZ/caps via inline buttons.
+        -- Single row per chat_id; deleted on completion or reset.
+        CREATE TABLE IF NOT EXISTS install_wizard_state (
+            chat_id        TEXT PRIMARY KEY,
+            step           TEXT NOT NULL,
+            data           TEXT NOT NULL DEFAULT '{}',
+            awaiting_text  TEXT,
+            updated_at     REAL NOT NULL
+        );
         """)
 
 

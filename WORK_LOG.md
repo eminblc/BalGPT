@@ -2,6 +2,32 @@
 
 Geliştirme geçmişi bu dosyada tutulur.
 
+---
+
+### TG-WIZ-1 — Telegram Stage-2 install wizard
+**Tarih:** 2026-04-27
+**Dosya(lar):** `install.sh`, `lib/wizard.sh`, `lib/steps.sh`, `lib/messenger.sh`, `locales/install_{tr,en}.json`, `scripts/backend/features/install_wizard/*`, `scripts/backend/store/repositories/install_wizard_repo.py`, `scripts/backend/store/sqlite_store.py`, `scripts/backend/guards/commands/{wizard_cmd,cancel_cmd}.py`, `scripts/backend/routers/{_dispatcher,_text_router}.py`, `scripts/backend/locales/{tr,en}.json`, `scripts/tests/test_install_wizard.py`
+
+**Sorun:** `install.sh` Telegram dalı 6+ terminal sorusuyla uzundu; eski "in-bot wizard" install ortasında Python alt-süreci ile soruları Telegram'a iletip secret'lar için terminal-Python köprüsü kullanan kırılgan bir akıştı.
+
+**Çözüm:** İki aşamalı tasarım:
+- *Stage-1 (terminal):* Sadece bot token + ngrok auth token + ngrok domain. Validation eklendi (token alfanümerik 16+, domain'de nokta). `WEBHOOK_PROXY=ngrok` zorlanıyor; LLM/TZ/capabilities için sensible default'lar yazılıyor (Anthropic, Europe/Istanbul, core caps açık + desktop/browser kapalı).
+- *Stage-2 (Telegram):* `install.sh` containerlar başladıktan sonra webhook kaydı başarılı olunca welcome mesajı atıyor. Kullanıcı `!wizard` ile inline-button akışını başlatıyor: LLM → (Anthropic auth | Ollama URL/model | Gemini key) → capabilities multi-select → timezone → finalize. Finalize: `.env`'i atomik yazıp TOTP QR PNG'lerini Telegram'a gönderiyor, "docker compose restart" diyor.
+
+**Mimari kararlar:**
+- State persistence: yeni `install_wizard_state` SQLite tablosu + `install_wizard_repo` (mevcut StoreProtocol/repositories desenine uyumlu — hiçbir modül `sqlite3`'ü doğrudan açmıyor).
+- Routing entegrasyonu: `_dispatcher._route_interactive`'e `iw:` callback prefix early-return eklendi (OCP), `_text_router._route_text`'e wizard awaiting_text intercept eklendi. Webhook handler/menu.py değişmedi.
+- env_writer: `lib/env.sh:_env_set` ile format-uyumlu (KEY=VAL satırları, comment/blank satır korunur, `os.replace` ile atomik).
+- Eski in-bot wizard tamamen silindi: `setup_wizard_messenger.py`, `_run_messenger_wizard`, `_apply_wiz_to_env`, `_collect_terminal_secrets` ve ilgili `MSG_WIZ_TG_NOTIFY/STARTING/WAIT/DONE/FAIL/TIMEOUT_DEFAULTS` + `TXT_WIZ_*` locale anahtarları. WhatsApp akışı dokunulmadı.
+
+**Test:** 20 yeni unit test (`test_install_wizard.py`), tüm 726 mevcut test geçti, locale parity OK, Python import + Node syntax OK. CI'da bats + shellcheck koşacak (TG-WIZ-3).
+
+**Not:** Backlog'a TG-WIZ-2 (uçtan uca manuel test), TG-WIZ-3 (CI doğrulama), TG-WIZ-4 (ngrok regex iyileştirme) eklendi.
+
+**Durum:** ✅ Tamamlandı
+
+---
+
 Format:
 ```
 ### [ID] — [Başlık]

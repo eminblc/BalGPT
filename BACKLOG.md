@@ -22,6 +22,9 @@
 |---|--------|-------|-----|
 | MSG-UI-1 | WhatsApp bildirim metni doğallaştır | `CLAUDE.md` | "⚙️ <ne yapıyorsun>" yerine "Yazıyor…", "Kontrol ediyorum…", "Düşünüyorum…" gibi daha samimi ifadeler kullan. |
 | DOC-MEM-1 | `MEMORY.md` + `WORK_LOG.md` güncellik denetimi | `MEMORY.md`, `WORK_LOG.md` | Son 30 günlük değişikliklerle karşılaştır; stale/eksik teknik karar kayıtlarını tespit et ve güncelle. |
+| TG-WIZ-2 | TG-WIZ-1 uçtan uca manuel test | — | `.env` sil → `bash install.sh` → Telegram + bot token + ngrok creds → welcome ping → `!wizard` → 5 adım butonla → QR'lar gelsin → TOTP `.env` ile eşleşsin → `docker compose restart` → bot normal cevap versin. |
+| TG-WIZ-3 | CI'da bats + shellcheck (TG-WIZ-1) | `.github/workflows/ci.yml` | Lokalde bats/shellcheck yoktu; CI çalıştırınca locale parity ve install.sh sözdizim doğrulanacak. İlk başarısız run'da düzeltme yap. |
+| TG-WIZ-4 | ngrok token regex iyileştir | `lib/wizard.sh` | Mevcut: `[A-Za-z0-9_]{16,}` (gevşek). Gerçek ngrok token formatı dokümante değil — kullanım sırasında tipik uzunluk/karakter set ölçülüp regex sıkılaştırılabilir. |
 
 ---
 
@@ -58,6 +61,7 @@
 
 | # | Başlık | Tarih |
 |---|--------|-------|
+| TG-WIZ-1 | Telegram Stage-2 install wizard (`!wizard`): install.sh minimal terminal akışı + bot içi inline-button konfigürasyon (LLM/yetenekler/TZ/TOTP QR) | 2026-04-27 |
 | TOKEN-STATS-1 | Session başına detaylı token takibi (`token_usage` tablosu, tüm provider'lar) | 2026-04-23 |
 | TOKEN-STATS-2 | `!tokens [24h\|7d\|30d]` komutu — model/backend istatistikleri | 2026-04-23 |
 | UX-MODEL-1 | `!model` komutu — butonlu model seçimi | 2026-04-22 |
