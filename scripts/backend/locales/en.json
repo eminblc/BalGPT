@@ -163,7 +163,20 @@
   },
   "root_check": {
     "not_found": "⚠️ root_actions.log not found.",
-    "error": "❌ Could not read data: {error}"
+    "error": "❌ Could not read data: {error}",
+    "idle_no_history": "⚫ Root is currently idle.",
+    "idle_with_history": "⚫ Root is currently idle.\nLast request: {time} ({ago} ago)",
+    "active_header": "🟢 Root active — running for {duration}",
+    "active_started": "⏰ Started: {time}",
+    "active_type": "📨 Type: {msg_type}",
+    "active_request_label": "💬 Active request:",
+    "active_no_content": "(no content)",
+    "duration_sec": "{n} seconds",
+    "duration_min": "{m}m {s}s",
+    "duration_hour": "{h}h {m}m"
+  },
+  "root_log": {
+    "header": "📋 **Root Action History (Last 5)**\n\n"
   },
   "menu": {
     "chat_mode": "💬 Chat mode. Send your message.",

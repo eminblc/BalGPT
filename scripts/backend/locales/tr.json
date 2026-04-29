@@ -163,7 +163,20 @@
   },
   "root_check": {
     "not_found": "⚠️ root_actions.log bulunamadı.",
-    "error": "❌ Veri okunamadı: {error}"
+    "error": "❌ Veri okunamadı: {error}",
+    "idle_no_history": "⚫ Root şu an çalışmıyor.",
+    "idle_with_history": "⚫ Root şu an çalışmıyor.\nSon istek: {time} ({ago} önce)",
+    "active_header": "🟢 Root aktif — {duration} süredir çalışıyor",
+    "active_started": "⏰ Başladı: {time}",
+    "active_type": "📨 Tür: {msg_type}",
+    "active_request_label": "💬 Aktif istek:",
+    "active_no_content": "(içerik yok)",
+    "duration_sec": "{n} saniye",
+    "duration_min": "{m}d {s}s",
+    "duration_hour": "{h}s {m}d"
+  },
+  "root_log": {
+    "header": "📋 **Root İşlem Geçmişi (Son 5)**\n\n"
   },
   "menu": {
     "chat_mode": "💬 Sohbet modunda. Mesajını yaz.",

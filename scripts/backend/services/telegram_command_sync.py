@@ -10,6 +10,7 @@ Her servis restart'ında çalışır → yeni komutlar otomatik menüye yansır.
 from __future__ import annotations
 
 import logging
+from functools import lru_cache
 
 import httpx
 
@@ -28,10 +29,12 @@ def _to_tg_name(cmd_id: str) -> str:
     return cmd_id.lstrip("/").replace("-", "_").lower()[:_MAX_CMD_LEN]
 
 
+@lru_cache(maxsize=None)
 def build_tg_command_map() -> dict[str, str]:
     """tg_name → cmd_id haritası döndürür. Router'ın ters çevirim için kullanır.
 
     Örnek: {'root_reset': '/root-reset', 'help': '/help', 'start': '/help'}
+    İlk çağrıda hesaplanır, sonraki çağrılarda önbellekten döner (lru_cache).
     """
     result: dict[str, str] = {}
     for cmd_id in registry.all_ids():

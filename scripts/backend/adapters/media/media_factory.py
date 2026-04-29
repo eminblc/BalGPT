@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _instance: MediaDownloaderProtocol | None = None
+_DOWNLOADERS: dict[str, type] = {}
 
 
 def register_downloader(name: str, cls: type) -> None:
@@ -23,13 +24,20 @@ def register_downloader(name: str, cls: type) -> None:
 
 
 def get_media_downloader() -> MediaDownloaderProtocol:
-    """Yapılandırılmış medya indiriciyi döndür (singleton)."""
+    """Yapılandırılmış medya indiriciyi döndür (singleton).
+
+    MESSENGER_TYPE'a göre kayıtlı indirici seçilir; bulunamazsa WhatsApp fallback.
+    """
     global _instance
     if _instance is None:
-        from .whatsapp_downloader import WhatsAppMediaDownloader
-        _instance = WhatsAppMediaDownloader()
-        logger.debug("MediaDownloader: %s", type(_instance).__name__)
+        from ...config import settings
+        key = settings.messenger_type.lower()
+        if key in _DOWNLOADERS:
+            _instance = _DOWNLOADERS[key]()
+            logger.debug("MediaDownloader: %s", type(_instance).__name__)
+        else:
+            raise ValueError(
+                f"Kayıtlı MediaDownloader bulunamadı: {key!r}. "
+                "adapters/media/__init__.py'e register_downloader() ekleyin."
+            )
     return _instance
-
-
-_DOWNLOADERS: dict[str, type] = {}

@@ -60,10 +60,8 @@ def _watch_popup_sync(
         xauth:              XAUTHORITY dosya yolu.
         watcher_id:         Log/izleme için benzersiz ID.
     """
-    if display_str:
-        os.environ["DISPLAY"] = display_str
     if xauth:
-        os.environ["XAUTHORITY"] = xauth
+        os.environ["XAUTHORITY"] = xauth  # XAUTHORITY python-xlib'e API ile geçirilemiyor
 
     try:
         from Xlib import display as xdisplay, X  # noqa: PLC0415
@@ -73,7 +71,7 @@ def _watch_popup_sync(
         return
 
     try:
-        d = xdisplay.Display()
+        d = xdisplay.Display(display_str or None)
     except Exception as exc:
         logger.error("watch_popup[%s]: Display() açılamadı: %s", watcher_id, exc)
         return

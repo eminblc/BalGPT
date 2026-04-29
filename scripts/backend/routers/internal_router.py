@@ -15,16 +15,15 @@ from ..guards import get_perm_mgr, get_session_mgr
 from ..config import settings
 from ..adapters.messenger.messenger_factory import get_messenger
 from ..i18n import t
+from ._localhost_guard import is_localhost
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/internal")
 
-_LOCALHOST = frozenset(("127.0.0.1", "::1", "::ffff:127.0.0.1"))
-
 
 def _require_localhost(request: Request) -> None:
-    host = request.client.host if request.client else ""
-    if host not in _LOCALHOST:
+    if not is_localhost(request):
+        host = request.client.host if request.client else "?"
         logger.warning("internal_router: localhost dışı erişim engellendi host=%s", host)
         raise HTTPException(status_code=403, detail="Localhost only")
 
