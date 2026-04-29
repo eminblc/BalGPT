@@ -303,7 +303,8 @@ main() {
     _write_capabilities '"fs" "network" "shell" "service_mgmt" "media" "calendar" "project_wizard" "screenshot" "scheduler" "pdf_import" "conv_history" "plans" "intent_classifier" "wizard_llm_scaffold"'
   fi
 
-  step_capabilities  # RESTRICT_* / *_ENABLED flag'lerini yaz (caps wizard'dan veya varsayılan)
+  step_capabilities    # RESTRICT_* / *_ENABLED flag'lerini yaz (caps wizard'dan veya varsayılan)
+  step_host_fs_access  # Docker host filesystem erişimi (none/ro/rw)
 
   if $USE_DOCKER; then
     # Docker modu: auth → data dirs → build & start
