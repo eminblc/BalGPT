@@ -153,7 +153,7 @@ async def test_non_owner_notification_sent_to_owner():
     mock_perm = MagicMock()
     mock_perm.is_owner.return_value = False
     mock_settings = MagicMock()
-    mock_settings.whatsapp_owner = "905550000001"
+    mock_settings.owner_id = "905550000001"
 
     mock_messenger = AsyncMock()
     guard = OwnerPermissionGuard(mock_perm, mock_settings, lambda: mock_messenger)
