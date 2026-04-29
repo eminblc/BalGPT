@@ -361,7 +361,7 @@ bash install.sh --docker
 
 Sihirbaz messenger, LLM backend, webhook proxy, kimlik bilgileri ve yetenekleri yapılandırır. Ardından `.env` dosyasını yazar, `CAPABILITIES` build-arg içeren bir `docker-compose.override.yml` oluşturur, yalnızca seçili paketlerin kurulu olduğu image'ı derler ve container'ları başlatır.
 
-Güvenlik anahtarları (`API_KEY`, `TOTP_SECRET`, `TOTP_SECRET_ADMIN`) ve webhook token'ları sihirbaz tarafından **otomatik üretilir**. TOTP QR kodları kurulum sonunda ekrana gösterilir; Google Authenticator ile taranabilir.
+Güvenlik anahtarları (`API_KEY`, `TOTP_SECRET`) ve webhook token'ları sihirbaz tarafından **otomatik üretilir**. TOTP QR kodu kurulum sonunda ekrana gösterilir; Google Authenticator ile taranabilir.
 
 Compose dosyası `./data` ve `./outputs/logs` dizinlerini volume olarak bağlar; veriler container dışında kalıcı olarak saklanır.
 
@@ -453,7 +453,7 @@ pm2 logs 99-bridge
 Sihirbaz yalnızca dışarıdan alınması gereken kimlik bilgilerini sorar. Geri kalanı otomatik üretilir.
 
 **Sihirbaz tarafından otomatik üretilir:**  
-`API_KEY`, `TOTP_SECRET`, `TOTP_SECRET_ADMIN`, `WHATSAPP_VERIFY_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`
+`API_KEY`, `TOTP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`
 
 ### WhatsApp
 
@@ -501,7 +501,7 @@ Saat dilimi ve yetenek flag'leri dahil tüm seçenekler için bkz. [`scripts/bac
 | `!root-check` | Bridge durumunu göster (aktif istek mi yoksa boşta mı) | Owner |
 | `!root-log` | root_actions.log'un son 5 girişini göster | Owner |
 | `!schedule` | Zamanlanmış görevleri listele / oluştur / durdur | Owner |
-| `!terminal [komut]` | Shell komutu çalıştır ve çıktıyı gönder (tehlikeli komutlar admin TOTP gerektirir) | Owner |
+| `!terminal [komut]` | Shell komutu çalıştır ve çıktıyı gönder (tehlikeli komutlar owner TOTP gerektirir) | Owner |
 | `!model [ad]` | Çalışma zamanında LLM modelini değiştir (yeniden başlatmaya kadar geçerli) | Owner |
 | `!tokens [24h\|7d\|30d]` | LLM token kullanım istatistiklerini göster | Owner |
 | `!lang <tr\|en>` | Arayüz dilini değiştir | Owner |
@@ -510,14 +510,14 @@ Saat dilimi ve yetenek flag'leri dahil tüm seçenekler için bkz. [`scripts/bac
 | `!lock` | Uygulamayı kilitle (açmak için TOTP gerekir) | Owner + TOTP |
 | `!unlock` | Uygulamanın kilidini aç | Owner + TOTP |
 | `!beta` | Proje beta modundan çık | Owner |
-| `!project-delete` | Projeyi veritabanından sil | Math + Admin TOTP |
-| `!restart` | Her iki servisi yeniden başlat | Math + Admin TOTP |
-| `!shutdown` | FastAPI servisini durdur | Math + Admin TOTP |
+| `!project-delete` | Projeyi veritabanından sil | Math + Owner TOTP |
+| `!restart` | Her iki servisi yeniden başlat | Math + Owner TOTP |
+| `!shutdown` | FastAPI servisini durdur | Math + Owner TOTP |
 
 **Yetki seviyeleri:**
 - **Owner** — mesaj, yapılandırılmış sahip telefon/sohbet kimliğinden gelmelidir
 - **Owner + TOTP** — sahip kimliği + kimlik doğrulayıcı uygulamadan 6 haneli kod (`TOTP_SECRET`)
-- **Math + Admin TOTP** — sahip kimliği + basit matematik sorusu + 6 haneli admin kodu (`TOTP_SECRET_ADMIN`)
+- **Math + Owner TOTP** — sahip kimliği + basit matematik sorusu + `TOTP_SECRET` ile 6 haneli kod
 
 Komut olmayan mesajlar serbest konuşma için Claude Code'a iletilir.
 

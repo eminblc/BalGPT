@@ -20,8 +20,7 @@ logger = logging.getLogger(__name__)
 class Perm(str, Enum):
     PUBLIC          = "public"       # Herkese açık (şu an sadece owner var, ilerisi için)
     OWNER           = "owner"        # Sadece owner
-    OWNER_TOTP      = "owner_totp"   # Owner + TOTP doğrulaması (rutin)
-    OWNER_ADMIN_TOTP = "owner_admin_totp"  # Owner + matematik + admin TOTP (yıkıcı komutlar)
+    OWNER_TOTP      = "owner_totp"   # Owner + TOTP doğrulaması
 
 
 class PermissionManager:
@@ -60,18 +59,3 @@ class PermissionManager:
         totp = pyotp.TOTP(secret)
         return totp.verify(code, valid_window=1)
 
-    def verify_admin_totp(self, code: str) -> bool:
-        """Yıkıcı komutlar için ayrı admin TOTP doğrulaması."""
-        if not settings.totp_secret_admin:
-            logger.warning("Admin TOTP secret (totp_secret_admin) tanımlı değil — yıkıcı komutlar devre dışı")
-            return False
-        if not code or len(code) < 6 or not code.isdigit():
-            return False
-        secret = settings.totp_secret_admin.get_secret_value().strip()
-        try:
-            secret.encode("ascii")
-        except UnicodeEncodeError:
-            logger.error("Admin TOTP secret ASCII olmayan karakter içeriyor — .env dosyasını kontrol et")
-            return False
-        totp = pyotp.TOTP(secret)
-        return totp.verify(code, valid_window=1)

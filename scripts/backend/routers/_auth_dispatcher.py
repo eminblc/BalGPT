@@ -50,24 +50,6 @@ async def _handle_math_auth(
             )
 
 
-async def _handle_admin_totp_auth(
-    sender: str, text: str, msg_type: str, msg_id: str, session: dict,
-    messenger: AbstractMessenger | None = None,
-) -> None:
-    m = _messenger(messenger)
-    lang = session.get("lang", "tr")
-    if msg_type == "text" and text.strip().lower() in _CANCEL_WORDS:
-        async with get_session_mgr().lock(sender):
-            session.clear_admin_totp()
-        await m.send_text(sender, t("cancel.generic", lang))
-        return
-    async with get_session_mgr().lock(sender):
-        if session.get("awaiting_admin_totp"):
-            await _auth_flows.handle_admin_totp(
-                sender, {"text": {"body": text}, "id": msg_id}, session
-            )
-
-
 async def _handle_totp_auth(
     sender: str, text: str, msg_type: str, msg_id: str, session: dict,
     messenger: AbstractMessenger | None = None,
@@ -132,9 +114,10 @@ async def _handle_guardrail_confirm(
         async with get_session_mgr().lock(sender):
             action = session.pop("pending_guardrail_action", "")
             session.clear_guardrail()
-            session.start_admin_totp(action=action)
-        await m.send_text(sender, t("auth.guardrail.admin_totp_prompt", lang))
-        log_outbound(sender, "text", "guardrail_admin_totp_prompt", context_id=context_id)
+            dict.__setitem__(session, "pending_bridge_message", action)
+            session.start_totp(cmd="")
+        await m.send_text(sender, t("auth.guardrail.totp_prompt", lang))
+        log_outbound(sender, "text", "guardrail_totp_prompt", context_id=context_id)
         return
 
     await m.send_text(sender, t("auth.guardrail.ask_yn", lang))
@@ -145,7 +128,6 @@ _HandlerFn = Callable[..., Coroutine[Any, Any, None]]
 
 _AUTH_FLOW_REGISTRY: dict[str, _HandlerFn] = {
     "awaiting_math_challenge":    _handle_math_auth,
-    "awaiting_admin_totp":        _handle_admin_totp_auth,
     "awaiting_totp":              _handle_totp_auth,
     "awaiting_guardrail_confirm": _handle_guardrail_confirm,
     # DESK-TOTP-2: Desktop gate TOTP — sunucu tarafı akış

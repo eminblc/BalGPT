@@ -1,13 +1,12 @@
-"""Desktop endpoint için admin TOTP kapısı (oturum bazlı unlock).
+"""Desktop endpoint için TOTP kapısı (oturum bazlı unlock).
 
-İlk çağrıda admin TOTP doğrulaması gerekir; başarılı doğrulamadan sonra
+İlk çağrıda owner TOTP doğrulaması gerekir; başarılı doğrulamadan sonra
 `desktop_totp_ttl_seconds` (varsayılan 900 sn) boyunca sonraki çağrılar
 TOTP istemeden geçer.
 
-Brute-force koruması: `/internal/verify-admin-totp` ile aynı mekanizma
-(`totp_get_lockout`, `totp_record_failure`, `totp_reset_lockout`). 3 başarısız
-deneme → 15 dk kilit. Kilit "internal_desktop" sender key'i ile
-`totp_lockouts` tablosuna yazılır; WhatsApp admin TOTP kilidinden bağımsızdır.
+Brute-force koruması: 3 başarısız deneme → 15 dk kilit.
+Kilit "internal_desktop" sender key'i ile `totp_lockouts` tablosuna yazılır;
+WhatsApp TOTP kilidinden bağımsızdır.
 
 OOP-DIP: Tüm mutable state (unlock zamanı, TOTP istek bayrağı) DesktopTotpGate
 sınıfında kapsüllenmiştir. Modül düzeyinde global değişken mutasyonu yoktur.
@@ -80,7 +79,7 @@ class DesktopTotpGate:
         )
 
         now = time.time()
-        _, lockout_until = await totp_get_lockout(_SENDER, "admin")
+        _, lockout_until = await totp_get_lockout(_SENDER, "owner")
         if lockout_until and now < lockout_until:
             remaining = int(lockout_until - now)
             logger.warning(
@@ -91,9 +90,9 @@ class DesktopTotpGate:
         if not code:
             return False, None
 
-        valid = get_perm_mgr().verify_admin_totp(code)
+        valid = get_perm_mgr().verify_totp(code)
         if valid:
-            await totp_reset_lockout(_SENDER, "admin")
+            await totp_reset_lockout(_SENDER, "owner")
             self._unlock_until = now + self._ttl
             self._totp_request_sent = False  # başarılı unlock → bayrağı sıfırla
             logger.info(
@@ -101,7 +100,7 @@ class DesktopTotpGate:
             )
             return True, None
 
-        fail_count, new_lockout = await totp_record_failure(_SENDER, "admin")
+        fail_count, new_lockout = await totp_record_failure(_SENDER, "owner")
         if new_lockout:
             remaining = int(new_lockout - now)
             logger.warning(
@@ -139,7 +138,7 @@ class DesktopTotpGate:
         await get_messenger().send_text(
             owner_id,
             (
-                "🔒 Desktop işlemi için admin TOTP gerekli.\n"
+                "🔒 Desktop işlemi için TOTP gerekli.\n"
                 f"Başarılı girişten sonra {ttl_min} dk geçerli olacak.\n"
                 "(/cancel ile iptal)"
             ),

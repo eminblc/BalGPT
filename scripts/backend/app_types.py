@@ -32,15 +32,14 @@ class SessionState(dict):
       active_context: str           # "main" | "project:{id}"
       beta_project_id: str | None   # Beta modundaki proje ID'si
       active_project_id: str | None # Ana modda odaklanılan proje ID'si
-      awaiting_totp: bool           # TOTP bekleniyor mu (rutin)
+      awaiting_totp: bool           # TOTP bekleniyor mu
       pending_command: str          # TOTP/math onayı bekleyen komut
       awaiting_math_challenge: bool  # Matematik sorusu yanıtı bekleniyor
       math_challenge_answer: int     # Beklenen cevap
       math_challenge_command: str    # Challenge geçince çalıştırılacak komut
-      awaiting_admin_totp: bool      # Admin TOTP bekleniyor
       awaiting_guardrail_confirm: bool  # Tehlikeli eylem onayı bekleniyor
       pending_guardrail_action: str  # Onay bekleyen eylem metni
-      pending_bridge_message: str    # Admin TOTP sonrası bridge'e gidecek mesaj
+      pending_bridge_message: str    # Onay sonrası bridge'e gidecek mesaj
       menu_page: int                # Proje listesi sayfa numarası
       last_activity: float          # Unix timestamp
       started_at: float             # Session başlangıç zamanı (özet için)
@@ -57,7 +56,6 @@ class SessionState(dict):
     _CONTROLLED_KEYS: frozenset[str] = frozenset({
         # Auth state machine
         "awaiting_totp",
-        "awaiting_admin_totp",
         "awaiting_math_challenge",
         "awaiting_guardrail_confirm",
         "pending_guardrail_action",
@@ -111,25 +109,6 @@ class SessionState(dict):
         """OWNER_TOTP akışını sonlandır."""
         dict.__setitem__(self, "awaiting_totp", False)
         self.pop("pending_command", None)
-
-    def start_admin_totp(self, action: str = "", cmd: str = "") -> None:
-        """Admin TOTP akışını başlat.
-
-        action: bridge'e iletilecek yıkıcı eylem (guardrail onayından gelir)
-        cmd:    çalıştırılacak yerel komut (math challenge'dan gelir)
-        """
-        dict.__setitem__(self, "awaiting_admin_totp", True)
-        if action:
-            dict.__setitem__(self, "pending_bridge_message", action)
-        if cmd:
-            dict.__setitem__(self, "pending_command", cmd)
-
-    def clear_admin_totp(self) -> None:
-        """Admin TOTP akışını sonlandır; bekleyen komut ve bridge mesajını temizle."""
-        dict.__setitem__(self, "awaiting_admin_totp", False)
-        self.pop("pending_command", None)
-        self.pop("pending_bridge_message", None)
-        self.pop("_terminal_pending_cmd", None)  # terminal tehlikeli komut onayı
 
     def start_math_challenge(self, answer: int, cmd: str) -> None:
         """Matematik challenge akışını başlat: üç anahtarı atomik olarak yaz."""

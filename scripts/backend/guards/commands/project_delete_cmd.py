@@ -1,6 +1,6 @@
 """/project-delete <id> — projeyi DB'den siler (yalnızca kayıt; dosya sistemi dokunulmaz).
 
-Yetki: OWNER_ADMIN_TOTP — matematik challenge + admin TOTP gerektirir.
+Yetki: OWNER_TOTP — matematik challenge + owner TOTP gerektirir.
 """
 import logging
 
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class ProjectDeleteCommand:
     cmd_id      = "/project-delete"
-    perm        = Perm.OWNER_ADMIN_TOTP
+    perm        = Perm.OWNER_TOTP
     label       = "Proje Sil"
     description = (
         "Projeyi veritabanından siler. "

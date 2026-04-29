@@ -302,10 +302,9 @@ except: pass" 2>/dev/null || true)"
   fi
 
   # ── Security keys + summary ────────────────────────────────────────────────
-  local api_key totp_secret totp_admin
+  local api_key totp_secret
   api_key="$(_gen_api_key)"
   totp_secret="$(_gen_totp)"
-  totp_admin="$(_gen_totp)"
 
   local summary="Messenger  : $messenger\nLLM Backend: $llm\nProxy      : $proxy\nTimezone   : $tz_value"
   [[ -n "$public_url" ]] && summary+="\nPublic URL : $public_url"
@@ -318,7 +317,7 @@ except: pass" 2>/dev/null || true)"
     "$tg_token" "$tg_chat_id" "$tg_webhook_secret" \
     "$anthropic_key" "$ollama_url" "$ollama_model" "$gemini_key" "$gemini_model" \
     "$public_url" "$ngrok_token" "$ngrok_domain" \
-    "$api_key" "$totp_secret" "$totp_admin" \
+    "$api_key" "$totp_secret" \
     "$tz_value"
 
   # For WhatsApp: send a setup-complete summary to the owner's number
@@ -665,10 +664,9 @@ except: pass" 2>/dev/null || true)"
   _sep
   echo ""
   echo "$_S_TXT_SEC"
-  local api_key totp_secret totp_admin
+  local api_key totp_secret
   api_key="$(_gen_api_key)"
   totp_secret="$(_gen_totp)"
-  totp_admin="$(_gen_totp)"
   ok "  $_S_TXT_SEC_DONE"
 
   _write_env "$env_dst" "$messenger" "$llm" "$proxy" \
@@ -676,7 +674,7 @@ except: pass" 2>/dev/null || true)"
     "$tg_token" "$tg_chat_id" "$tg_webhook_secret" \
     "$anthropic_key" "$ollama_url" "$ollama_model" "$gemini_key" "$gemini_model" \
     "$public_url" "$ngrok_token" "$ngrok_domain" \
-    "$api_key" "$totp_secret" "$totp_admin" \
+    "$api_key" "$totp_secret" \
     "$tz_value"
 
   # WhatsApp: setup-complete summary
@@ -698,8 +696,8 @@ _write_env() {
   local anthropic_key="${13}" ollama_url="${14}" ollama_model="${15}"
   local gemini_key="${16}" gemini_model="${17}"
   local public_url="${18}" ngrok_token="${19}" ngrok_domain="${20}"
-  local api_key="${21}" totp_secret="${22}" totp_admin="${23}"
-  local tz_value="${24:-Europe/Istanbul}"
+  local api_key="${21}" totp_secret="${22}"
+  local tz_value="${23:-Europe/Istanbul}"
 
   local env_src="$BACKEND_DIR/.env.example"
   if [ ! -f "$env_dst" ]; then
@@ -734,9 +732,8 @@ _write_env() {
   [[ -n "$ngrok_token"  ]] && _env_set "NGROK_AUTHTOKEN" "$ngrok_token"  "$env_dst"
   [[ -n "$ngrok_domain" ]] && _env_set "NGROK_DOMAIN"    "$ngrok_domain" "$env_dst"
 
-  _env_set "API_KEY"           "$api_key"     "$env_dst"
-  _env_set "TOTP_SECRET"       "$totp_secret" "$env_dst"
-  _env_set "TOTP_SECRET_ADMIN" "$totp_admin"  "$env_dst"
+  _env_set "API_KEY"     "$api_key"     "$env_dst"
+  _env_set "TOTP_SECRET" "$totp_secret" "$env_dst"
 
   _env_set "TIMEZONE" "$tz_value" "$env_dst"
 

@@ -7,12 +7,6 @@
       "lockout": "🔒 Çok fazla hatalı deneme. 15 dakika beklemelisin.",
       "prompt": "🔐 TOTP kodunu gir:\n(/cancel ile iptal)"
     },
-    "admin_totp": {
-      "ok": "✅ Admin doğrulandı.",
-      "invalid": "❌ Geçersiz admin TOTP. ({remaining} hak kaldı)",
-      "locked": "🔒 Çok fazla hatalı admin TOTP. {minutes} dk bekle.",
-      "lockout": "🔒 Çok fazla hatalı deneme. 15 dakika beklemelisin."
-    },
     "desktop_totp": {
       "ok": "✅ Desktop kilidi açıldı. {minutes} dk boyunca geçerli.\nŞimdi desktop işleminizi tekrar isteyin.",
       "invalid": "❌ Geçersiz TOTP kodu. Tekrar dene veya /cancel ile iptal et.",
@@ -20,7 +14,7 @@
     },
     "math": {
       "prompt": "⚠️ Yıkıcı komut: *{cmd}*\nDevam etmek için soruyu cevapla: {a} + {b} = ?\n(/cancel ile iptal)",
-      "ok": "✅ Doğru. Admin TOTP kodunu gir:\n(/cancel ile iptal)",
+      "ok": "✅ Doğru. TOTP kodunu gir:\n(/cancel ile iptal)",
       "wrong": "❌ Yanlış. ({remaining} hak kaldı)",
       "invalid_input": "❌ Sayı gir. ({remaining} hak kaldı)",
       "too_many": "❌ Çok fazla hatalı deneme. İşlem iptal edildi.",
@@ -29,7 +23,7 @@
     "guardrail": {
       "confirm": "⚠️ Bu istek yıkıcı veya tehlikeli bir işlem içeriyor.\nDevam etmek istiyor musunuz? (evet/hayır)\n(/cancel ile iptal)",
       "ask_yn": "⚠️ Lütfen *evet* veya *hayır* ile yanıtla. (/cancel ile iptal)",
-      "admin_totp_prompt": "🔐 Admin TOTP kodunu gir:\n(/cancel ile iptal)"
+      "totp_prompt": "🔐 TOTP kodunu gir:\n(/cancel ile iptal)"
     }
   },
   "cancel": {

@@ -33,6 +33,9 @@ from . import _intent_classifier
 
 logger = logging.getLogger(__name__)
 
+# Matematik challenge gerektiren yıkıcı komutlar (math challenge → owner TOTP)
+_MATH_CHALLENGE_CMDS: frozenset[str] = frozenset({"/shutdown", "/restart", "/project-delete"})
+
 # ── Wizard state handler registry ──────────────────────────────────────────
 # Key: session flag → async handler(sender, text, session) -> None
 # Yeni wizard adımı: handler fonksiyonu yaz + _WIZ_REGISTRY'ye ekle.
@@ -154,14 +157,13 @@ async def _route_text(sender: str, text: str, session: dict) -> None:
     if cmd:
         required = get_perm_mgr().required_perm(cmd)
 
-        if required == Perm.OWNER_ADMIN_TOTP:
-            a, b = random.randint(10, 99), random.randint(10, 99)
-            session.start_math_challenge(answer=a + b, cmd=text)
-            await messenger.send_text(sender, t("auth.math.prompt", lang, cmd=cmd, a=a, b=b))
-            log_outbound(sender, "text", f"math_challenge:{cmd}", context_id=context_id)
-            return
-
         if required == Perm.OWNER_TOTP:
+            if cmd in _MATH_CHALLENGE_CMDS:
+                a, b = random.randint(10, 99), random.randint(10, 99)
+                session.start_math_challenge(answer=a + b, cmd=text)
+                await messenger.send_text(sender, t("auth.math.prompt", lang, cmd=cmd, a=a, b=b))
+                log_outbound(sender, "text", f"math_challenge:{cmd}", context_id=context_id)
+                return
             session.start_totp(text)
             await messenger.send_text(sender, t("auth.totp.prompt", lang))
             log_outbound(sender, "text", "totp_prompt", context_id=context_id)

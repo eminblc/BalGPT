@@ -7,12 +7,6 @@
       "lockout": "🔒 Too many failed attempts. Please wait 15 minutes.",
       "prompt": "🔐 Enter TOTP code:\n(/cancel to abort)"
     },
-    "admin_totp": {
-      "ok": "✅ Admin verified.",
-      "invalid": "❌ Invalid admin TOTP. ({remaining} attempts left)",
-      "locked": "🔒 Too many failed admin TOTP attempts. Wait {minutes} min.",
-      "lockout": "🔒 Too many failed attempts. Please wait 15 minutes."
-    },
     "desktop_totp": {
       "ok": "✅ Desktop unlocked for {minutes} min.\nNow repeat your desktop request.",
       "invalid": "❌ Invalid TOTP code. Try again or /cancel to abort.",
@@ -20,7 +14,7 @@
     },
     "math": {
       "prompt": "⚠️ Destructive command: *{cmd}*\nAnswer to continue: {a} + {b} = ?\n(/cancel to abort)",
-      "ok": "✅ Correct. Enter Admin TOTP:\n(/cancel to abort)",
+      "ok": "✅ Correct. Enter TOTP:\n(/cancel to abort)",
       "wrong": "❌ Wrong. ({remaining} attempts left)",
       "invalid_input": "❌ Enter a number. ({remaining} attempts left)",
       "too_many": "❌ Too many failed attempts. Operation cancelled.",
@@ -29,7 +23,7 @@
     "guardrail": {
       "confirm": "⚠️ This request involves a destructive or dangerous operation.\nDo you want to continue? (yes/no)\n(/cancel to abort)",
       "ask_yn": "⚠️ Please reply with *yes* or *no*. (/cancel to abort)",
-      "admin_totp_prompt": "🔐 Enter Admin TOTP:\n(/cancel to abort)"
+      "totp_prompt": "🔐 Enter TOTP:\n(/cancel to abort)"
     }
   },
   "cancel": {

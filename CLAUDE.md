@@ -82,7 +82,7 @@ Manual setup:
 cp scripts/backend/.env.example scripts/backend/.env
 # Required fields: whatsapp_phone_id, whatsapp_token, whatsapp_verify_token,
 #                  whatsapp_app_secret, whatsapp_owner, api_key, totp_secret,
-#                  totp_secret_admin, anthropic_api_key
+#                  anthropic_api_key
 
 # Python dependencies
 cd scripts/backend && venv/bin/pip install -r requirements.txt
@@ -185,7 +185,7 @@ Reverse dependencies (e.g. Store → Features) are forbidden.
 - **`scripts/backend/routers/_text_router.py`** — Text message routing helpers
 - **`scripts/backend/routers/api/`** — REST endpoints for external consumers: `calendar_api.py`, `pdf_api.py`, `plans_api.py`, `projects_api.py`, `scheduler_api.py`; all require `X-Api-Key`
 - **`scripts/backend/routers/personal_agent_router.py`** — `/agent/*` endpoints; API key required; projects, calendar, plans
-- **`scripts/backend/routers/internal_router.py`** — `/internal/*` endpoints; localhost-only access (127.0.0.1/::1); no API key required; for Claude Code CLI admin TOTP verification (`/internal/verify-admin-totp`)
+- **`scripts/backend/routers/internal_router.py`** — `/internal/*` endpoints; localhost-only access (127.0.0.1/::1); no API key required; for Claude Code CLI TOTP verification (`/internal/verify-admin-totp`)
 - **`scripts/backend/routers/browser_router.py`** — `/internal/browser/*` endpoints; Playwright DOM-first actions (goto, click, fill, screenshot, get_credential, save_session, etc.)
 - **`scripts/backend/routers/terminal_router.py`** — `/internal/terminal` endpoint; runs shell commands, enforces GUARDRAILS check for dangerous commands
 - **`scripts/backend/routers/_schedule_router.py`** — `/internal/schedule*` internal scheduling endpoints (used by Claude Code CLI)
@@ -279,12 +279,12 @@ To add a new restriction: `capability_guard.register_capability_rule()` + bool f
 | `/history` | `history_cmd.py` | Recent message history |
 | `/project` | `project_focus_cmd.py` | Select / show active project |
 | `/root-reset` | `root_reset_cmd.py` | Reset Bridge session |
-| `/restart` | `restart_cmd.py` | Restart services (math + admin TOTP) |
-| `/shutdown` | `shutdown_cmd.py` | Stop services (math + admin TOTP) |
+| `/restart` | `restart_cmd.py` | Restart services (math + owner TOTP) |
+| `/shutdown` | `shutdown_cmd.py` | Stop services (math + owner TOTP) |
 | `/schedule` | `schedule_cmd.py` | Scheduled task management |
 | `/root-check` | `root_check_cmd.py` | Show last 5 lines of `root_actions.log` (raw log lines forwarded directly — intentional for single-user system) |
 | `/beta` | `beta_exit.py` | Exit beta mode |
-| `/project-delete` | `project_delete_cmd.py` | Delete project from DB (math + admin TOTP); filesystem not affected |
+| `/project-delete` | `project_delete_cmd.py` | Delete project from DB (math + owner TOTP); filesystem not affected |
 | `/root-project` | `root_project_cmd.py` | Assign active project context to root agent / show current context |
 | `/root-exit` | `root_exit_cmd.py` | Exit root project context, return to 99-root directory |
 | `/cancel` | `cancel_cmd.py` | Cancel active TOTP / verification flow or pending operation |
@@ -292,7 +292,7 @@ To add a new restriction: `capability_guard.register_capability_rule()` + bool f
 | `/model` | `model_cmd.py` | Change LLM model at runtime (global, persists until restart) |
 | `/lock` | `lock_cmd.py` | Lock the application (TOTP required); only `/unlock` works while locked |
 | `/unlock` | `unlock_cmd.py` | Unlock the application (TOTP required); automatically locked at service start |
-| `/terminal` | `terminal_cmd.py` | Run a shell command via WhatsApp (admin TOTP required for dangerous commands) |
+| `/terminal` | `terminal_cmd.py` | Run a shell command via WhatsApp (owner TOTP required for dangerous commands) |
 | `/timezone` | `timezone_cmd.py` | Show or change the active timezone at runtime; reconfigures APScheduler |
 | `/tokens` | `tokens_cmd.py` | Show LLM token usage statistics (`/tokens [24h|7d|30d]`) |
 
@@ -305,7 +305,7 @@ To add a new restriction: `capability_guard.register_capability_rule()` + bool f
 5. Define `perm = Perm.OWNER` (or appropriate level) as a class attribute in the command class — `required_perm()` reads this from the registry; if missing, the command returns a "no permission" error
 6. Do not touch `main.py` or any other existing file
 
-**SessionState auth flows:** Do not raw-manipulate the `session` dict; use `start_totp()`, `start_admin_totp()`, `start_math_challenge()`, `start_guardrail()` and the corresponding `clear_*` methods on `SessionState`.
+**SessionState auth flows:** Do not raw-manipulate the `session` dict; use `start_totp()`, `start_math_challenge()`, `start_guardrail()` and the corresponding `clear_*` methods on `SessionState`.
 
 ## Adding a New Feature
 
@@ -552,8 +552,8 @@ Before calling the Bash tool, apply these steps:
    - **Full command:** The exact command string to be executed (e.g. `` `rm -rf /home/emin/projects/40-claude-code-agents/99-root/data/` ``)
    - **Category and blast radius:** The relevant category name and blast radius description (read the relevant category heading from `GUARDRAILS.md`)
    - **Concrete risks:** List the "Why dangerous" text for that category and the possible consequences specific to this case (e.g. "API crash, loss of remote access, data loss")
-3. If the user says "yes" → request admin TOTP:
-   **"Enter admin TOTP code: (/cancel to abort)"**
+3. If the user says "yes" → request TOTP:
+   **"Enter TOTP code: (/cancel to abort)"**
 4. To verify TOTP:
    ```bash
    curl -s -X POST http://localhost:8010/internal/verify-admin-totp \
@@ -573,9 +573,9 @@ Example: `rm -rf data/` → first token "rm" → found in CATEGORY 2 → show fu
 Example: `pytest tests/` → first token "pytest" → not in any category → FREE
 ```
 
-### Additional Operations Requiring Admin TOTP (Soft Guardrails)
+### Additional Operations Requiring TOTP (Soft Guardrails)
 
-The following operations require admin TOTP even if not defined as bash blocks in GUARDRAILS.md:
+The following operations require owner TOTP even if not defined as bash blocks in GUARDRAILS.md:
 
 | Category | Examples |
 |----------|---------|
@@ -744,7 +744,7 @@ Content-Type: application/json
 ### Security notes
 - `SYSTEM_PSSWRD` — `SecretStr`; not written to logs; used with `.get_secret_value()`
 - `sudo_exec` — `shell=False`; command list format; no string injection risk
-- Destructive commands (`rm -rf`, format, etc.) are subject to GUARDRAILS check → admin TOTP required
+- Destructive commands (`rm -rf`, format, etc.) are subject to GUARDRAILS check → owner TOTP required
 - Required system packages: `sudo apt install scrot tesseract-ocr xdg-utils xdotool wmctrl`
 
 ### ⚠️ Desktop Automation Rules
@@ -880,7 +880,7 @@ Content-Type: application/json
 
 ### Security note
 - `"dangerous": true` → command was considered dangerous but still ran (internal is trusted)
-- WhatsApp `/terminal` command asks for admin TOTP for dangerous commands (user-facing)
+- WhatsApp `/terminal` command asks for owner TOTP for dangerous commands (user-facing)
 - This endpoint is used by bridge/Claude; not accessible from outside
 
 ---

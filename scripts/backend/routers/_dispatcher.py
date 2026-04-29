@@ -5,7 +5,7 @@ Sorumluluk (SRP):
   - Interactive (buton/liste) yönlendirme ve beta mod proje iletimi
 
 Alt modüller:
-  _auth_dispatcher.py — Auth state akışları (math_challenge, admin_totp, totp, guardrail)
+  _auth_dispatcher.py — Auth state akışları (math_challenge, totp, guardrail)
   _text_router.py     — Metin yönlendirme (!komutlar, wizard, niyet, Bridge)
 
 OCP-3: Auth state dispatch _AUTH_FLOW_REGISTRY dict ile yönetilir.

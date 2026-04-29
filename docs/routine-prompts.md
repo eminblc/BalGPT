@@ -250,7 +250,7 @@ Ne zaman: yeni operasyonel komut gerektiğinde.
 99-root projesine "<KOMUT_ADI>" adında yeni bir !komut ekle.
 
 Davranış: <KOMUTUN NE YAPACAĞINI AÇIKLA>
-Yetki: Owner  (veya: Admin TOTP — yıkıcı işlemlerde)
+Yetki: Owner  (veya: Owner TOTP — yıkıcı işlemlerde)
 Argüman: <VAR MI? varsa formatı>
 
 Adımlar:
@@ -262,7 +262,7 @@ Adımlar:
 2. guards/commands/__init__.py'ye import satırı ekle
    (mevcut satırların arasına alfabetik sıraya koy)
 3. CLAUDE.md'deki komut tablosunu güncelle
-4. Yetki Owner TOTP veya Admin TOTP gerektiriyorsa guards/permission.py CMD_PERMS'e ekle
+4. Yetki Owner TOTP gerektiriyorsa komut sınıfına `perm = Perm.OWNER_TOTP` ekle
 5. Syntax kontrolü:
    cd scripts && backend/venv/bin/python -c "from backend.main import app; print('OK')"
 
@@ -270,7 +270,7 @@ Kısıtlar:
 - main.py veya mevcut komut dosyalarına dokunma
 - .env dosyalarına dokunma
 - Yetki: Owner için is_owner() zaten guards'ta kontrol ediliyor;
-  Admin TOTP için Perm.OWNER_ADMIN_TOTP kullan (restart_cmd.py örnek al)
+  TOTP gerektiren yıkıcı komutlar için Perm.OWNER_TOTP kullan (restart_cmd.py örnek al)
 ```
 
 > `<KOMUT_ADI>` (örn. `status`) ve davranış açıklamasını doldur.

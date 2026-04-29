@@ -2,17 +2,17 @@
 
 Güvenlik:
   - Yalnızca owner kullanabilir (Perm.OWNER).
-  - Tehlikeli komutlar (is_dangerous → True) admin TOTP gerektirir.
+  - Tehlikeli komutlar (is_dangerous → True) owner TOTP gerektirir.
   - Güvenli komutlar doğrudan çalıştırılır.
 
 Tehlikeli komut akışı:
   1. /terminal <tehlikeli_cmd>
   2. Komut _terminal_pending_cmd session key'ine kaydedilir.
-  3. session.start_admin_totp(cmd="/terminal") ile onay istenir.
-  4. Admin TOTP onaylandıktan sonra handle_admin_totp execute("", session) çağırır.
+  3. session.start_totp(cmd="/terminal") ile onay istenir.
+  4. TOTP onaylandıktan sonra handle_totp execute("", session) çağırır.
   5. Boş arg → _terminal_pending_cmd okunur → komut çalıştırılır (is_dangerous yeniden kontrol edilmez).
 
-Not: _terminal_pending_cmd, app_types.clear_admin_totp() tarafından iptal/tamamlanmada temizlenir.
+Not: _terminal_pending_cmd, clear_totp() tarafından iptal/tamamlanmada temizlenir.
 """
 from __future__ import annotations
 
@@ -57,17 +57,17 @@ class TerminalCommand:
             await self._run(sender, arg, lang, messenger)
             return
 
-        # ── Case 3: Tehlikeli komut — admin TOTP iste ───────────────────────
+        # ── Case 3: Tehlikeli komut — owner TOTP iste ───────────────────────
         # Komutu session'a yaz; pending_command = "/terminal" (arg yok) ile
-        # admin TOTP onaylandığında execute(sender, "", session) çağrılır → Case 1.
+        # TOTP onaylandığında execute(sender, "", session) çağrılır → Case 1.
         session.set_terminal_pending(arg)
-        session.start_admin_totp(cmd="/terminal")
+        session.start_totp(cmd="/terminal")
         await messenger.send_text(
             sender,
             t("terminal.dangerous_prompt", lang, cmd=arg[:300]),
         )
         logger.warning(
-            "/terminal tehlikeli komut — admin TOTP istendi: sender=%s, cmd=%r",
+            "/terminal tehlikeli komut — owner TOTP istendi: sender=%s, cmd=%r",
             sender, arg[:80],
         )
 

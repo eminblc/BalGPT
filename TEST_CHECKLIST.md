@@ -101,7 +101,7 @@
 | # | Test | Durum | Not |
 |---|------|-------|-----|
 | RS-1 | `!restart` → matematik sorusu geliyor | [ ] | |
-| RS-2 | Matematik cevabı → admin TOTP isteniyor | [ ] | |
+| RS-2 | Matematik cevabı → owner TOTP isteniyor | [ ] | |
 | RS-3 | Geçerli TOTP → servis yeniden başlatıldı | [ ] | |
 | RS-4 | Restart sonrası servis ayakta (`/health` 200) | [ ] | |
 
@@ -117,7 +117,7 @@
 | # | Test | Durum | Not |
 |---|------|-------|-----|
 | TRM-1 | `!terminal ls -la` → güvenli komut, doğrudan çalışıyor | [ ] | |
-| TRM-2 | `!terminal rm -rf /tmp/test` → admin TOTP isteniyor | [ ] | |
+| TRM-2 | `!terminal rm -rf /tmp/test` → owner TOTP isteniyor | [ ] | |
 | TRM-3 | Geçerli TOTP → tehlikeli komut çalışıyor | [ ] | |
 
 ### !timezone

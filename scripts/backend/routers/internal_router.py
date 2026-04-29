@@ -173,13 +173,14 @@ async def internal_send_message(request: Request, body: _SendMessageRequest):
 
 
 @router.post("/verify-admin-totp")
-async def verify_admin_totp(request: Request, body: _VerifyRequest):
-    """Admin TOTP doğrulaması — Claude Code CLI guardrail override için.
+async def verify_totp_internal(request: Request, body: _VerifyRequest):
+    """Owner TOTP doğrulaması — Claude Code CLI guardrail override için.
 
+    Endpoint adı geriye dönük uyumluluk için korundu (bridge bu URL'yi kullanır).
     Dönüş: {"valid": true/false}
     SEC-H1: Brute-force koruması — 3 başarısız deneme → 15 dk kilit.
     Kilit "internal_cli" sender key'i ile totp_lockouts tablosuna yazılır;
-    WhatsApp admin TOTP lockout'undan bağımsızdır.
+    WhatsApp TOTP lockout'undan bağımsızdır.
     """
     import time as _time
     from ..store.sqlite_store import totp_get_lockout, totp_record_failure, totp_reset_lockout
@@ -187,19 +188,19 @@ async def verify_admin_totp(request: Request, body: _VerifyRequest):
     _require_localhost(request)
 
     _SENDER = "internal_cli"
-    _, lockout_until = await totp_get_lockout(_SENDER, "admin")
+    _, lockout_until = await totp_get_lockout(_SENDER, "owner")
     if lockout_until and _time.time() < lockout_until:
         remaining = int(lockout_until - _time.time())
         logger.warning("internal verify-admin-totp: kilit aktif, %d sn kaldı", remaining)
         return {"valid": False}
 
-    valid = get_perm_mgr().verify_admin_totp(body.code)
+    valid = get_perm_mgr().verify_totp(body.code)
 
     if valid:
-        await totp_reset_lockout(_SENDER, "admin")
+        await totp_reset_lockout(_SENDER, "owner")
         logger.info("internal verify-admin-totp: başarılı doğrulama")
     else:
-        fail_count, locked_until = await totp_record_failure(_SENDER, "admin")
+        fail_count, locked_until = await totp_record_failure(_SENDER, "owner")
         if locked_until:
             logger.warning(
                 "internal verify-admin-totp: brute-force kilidi uygulandı fail_count=%d",
