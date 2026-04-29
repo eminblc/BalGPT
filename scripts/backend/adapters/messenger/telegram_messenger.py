@@ -126,11 +126,15 @@ class TelegramMessenger:
         Section başlıkları tam genişlik, içerik satırları 2'li gruplarda
         gösterilir — uzun listelerde dikey yüksekliği yarıya indirir.
         """
-        keyboard: list[list[dict]] = []
+        lines = [text, ""]
         for section in sections:
             section_title = section.get("title", "")
             if section_title:
-                keyboard.append([{"text": f"── {section_title} ──", "callback_data": "noop"}])
+                lines.append(f"*{section_title}*")
+        message_text = "\n".join(lines).rstrip()
+
+        keyboard: list[list[dict]] = []
+        for section in sections:
             rows = section.get("rows", [])
             for i in range(0, len(rows), 2):
                 pair = rows[i : i + 2]
@@ -144,7 +148,7 @@ class TelegramMessenger:
                 f"{self._base}/sendMessage",
                 json={
                     "chat_id": to,
-                    "text": text,
+                    "text": message_text,
                     "parse_mode": "Markdown",
                     "reply_markup": {"inline_keyboard": keyboard},
                 },
