@@ -125,27 +125,27 @@ async def _route_text(sender: str, text: str, session: dict) -> None:
     lang       = session.get("lang", "tr")
     messenger  = get_messenger()
 
-    # ── Beta modu: sadece !beta yerel, geri kalan HER ŞEY projeye gider ──
+    # ── Beta modu: sadece /beta yerel, geri kalan HER ŞEY projeye gider ──
     if context_id != "main":
-        cmd = text.split()[0].lower() if text.startswith("!") else ""
-        if cmd == "!beta":
-            command = cmd_registry.get("!beta")
+        cmd = text.split()[0].lower() if text.startswith("/") else ""
+        if cmd == "/beta":
+            command = cmd_registry.get("/beta")
             if command:
-                await command.execute(sender, text[len("!beta"):].strip(), session)
+                await command.execute(sender, text[len("/beta"):].strip(), session)
             return
         await _forward_to_bridge(sender, text, session)
         return
 
     # ── TG-WIZ-1: Install wizard text input (free-form: API key, custom TZ, ollama URL) ──
-    # Wizard awaiting_text aktifse ve mesaj `!` ile başlamıyorsa wizard yutar.
-    # `!` komutları (özellikle !cancel) wizard'ı bypass edebilir.
-    if not text.startswith("!"):
+    # Wizard awaiting_text aktifse ve mesaj `/` ile başlamıyorsa wizard yutar.
+    # `/` komutları (özellikle /cancel) wizard'ı bypass edebilir.
+    if not text.startswith("/"):
         from ..features.install_wizard import handle_install_wizard_text
         if await handle_install_wizard_text(sender, text, lang):
             return
 
-    # ── Ana mod: ! ile başlıyorsa yerel komut ──
-    cmd = text.split()[0].lower() if text.startswith("!") else ""
+    # ── Ana mod: / ile başlıyorsa yerel komut ──
+    cmd = text.split()[0].lower() if text.startswith("/") else ""
     if cmd and session.get("wiz_name"):
         clear_wizard(session)
         await messenger.send_text(sender, t("cmd.wiz_auto_cancelled", lang))
@@ -187,15 +187,15 @@ async def _route_text(sender: str, text: str, session: dict) -> None:
     nl_cmd = await _intent_classifier.classify_admin_intent(text)
     if nl_cmd:
         logger.info("LLM niyet tespiti: '%s' → %s", text[:40], nl_cmd)
-        if nl_cmd == "!restart":
+        if nl_cmd == "/restart":
             await messenger.send_text(sender, t("cmd.use_restart_instead", lang))
-            log_outbound(sender, "text", "redirect:!restart", context_id=context_id)
+            log_outbound(sender, "text", "redirect:/restart", context_id=context_id)
             return
-        if nl_cmd == "!shutdown":
+        if nl_cmd == "/shutdown":
             await messenger.send_text(sender, t("cmd.use_shutdown_instead", lang))
-            log_outbound(sender, "text", "redirect:!shutdown", context_id=context_id)
+            log_outbound(sender, "text", "redirect:/shutdown", context_id=context_id)
             return
-        # !root-reset: güvenlik zinciri gerektirmiyor — doğrudan yönlendir
+        # /root-reset: güvenlik zinciri gerektirmiyor — doğrudan yönlendir
         await _route_text(sender, nl_cmd, session)
         return
 

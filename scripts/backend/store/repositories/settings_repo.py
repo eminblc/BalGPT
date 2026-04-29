@@ -1,6 +1,6 @@
 """Kullanıcı ayarları repository — user_settings tablosu (FEAT-6 SRP).
 
-Restart sonrası da korunan kullanıcı tercihleri (!lang, !model vb.)
+Restart sonrası da korunan kullanıcı tercihleri (/lang, /model vb.)
 buradan okunur ve yazılır. Session yüklenirken _sync_* versiyonu
 doğrudan çağrılır; çağıran kod async değildir.
 """

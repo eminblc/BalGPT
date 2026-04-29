@@ -1,11 +1,11 @@
-"""!model komutu — çalışma zamanında LLM modelini değiştir (FEAT-5).
+"""/model komutu — çalışma zamanında LLM modelini değiştir (FEAT-5).
 
 Desteklenen alias'lar (Anthropic backend):
     sonnet → claude-sonnet-4-6
     haiku  → claude-haiku-4-5-20251001
     opus   → claude-opus-4-6
 
-Tam model adı da kabul edilir (ör. !model claude-sonnet-4-6).
+Tam model adı da kabul edilir (ör. /model claude-sonnet-4-6).
 Ollama / Gemini backend'lerinde herhangi bir model adı kabul edilir.
 
 Model seçimi global ve servis yeniden başlatılana kadar kalıcıdır.
@@ -25,12 +25,12 @@ _ANTHROPIC_MODELS = list(_ANTHROPIC_ALIASES.values())
 
 
 class ModelCommand:
-    cmd_id      = "!model"
+    cmd_id      = "/model"
     button_id   = "cmd_model"
     perm        = Perm.OWNER
     label       = "Model Değiştir"
     description = "Çalışma zamanında LLM modelini değiştirir. Global etki, restart'a kadar kalıcı."
-    usage       = "!model [model_adı|alias]"
+    usage       = "/model [model_adı|alias]"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...adapters.messenger import get_messenger

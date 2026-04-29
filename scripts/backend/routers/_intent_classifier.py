@@ -33,11 +33,11 @@ def _build_admin_intent_system() -> str:
     cats   = guardrails_loader.load_category_summaries()
     prompt = (
         "Kullanıcı bir mesaj gönderdi. Bu mesaj aşağıdakilerden birini mi istiyor?\n"
-        "  - Servisi/sistemi kapatmak, durdurmak → !shutdown\n"
-        "  - Servisi/sistemi yeniden başlatmak → !restart\n"
-        "  - Bridge oturumunu veya session'ı sıfırlamak → !root-reset\n"
+        "  - Servisi/sistemi kapatmak, durdurmak → /shutdown\n"
+        "  - Servisi/sistemi yeniden başlatmak → /restart\n"
+        "  - Bridge oturumunu veya session'ı sıfırlamak → /root-reset\n"
         "  - Hiçbiri → none\n"
-        "Yalnızca tek kelimeyle yanıt ver: !shutdown, !restart, !root-reset veya none."
+        "Yalnızca tek kelimeyle yanıt ver: /shutdown, /restart, /root-reset veya none."
     )
     if cats:
         prompt += f"\n\nReferans — yasak operasyon kategorileri:\n{cats}"
@@ -68,7 +68,7 @@ def _has_api_key() -> bool:
 async def classify_admin_intent(text: str) -> str | None:
     """LLM ile niyet analizi — yönetim komutu tespit eder.
 
-    Dönüş: '!shutdown' | '!restart' | '!root-reset' | None
+    Dönüş: '/shutdown' | '/restart' | '/root-reset' | None
     """
     if not settings.intent_classifier_enabled:
         return None
@@ -101,7 +101,7 @@ async def classify_admin_intent(text: str) -> str | None:
         if not stripped:
             return None
         cmd = stripped.split()[0]
-        if cmd in ("!shutdown", "!restart", "!root-reset"):
+        if cmd in ("/shutdown", "/restart", "/root-reset"):
             return cmd
     except Exception as exc:
         logger.warning("Admin intent sınıflandırma hatası: %s", exc)

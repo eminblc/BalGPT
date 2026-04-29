@@ -56,11 +56,11 @@ _TG_COMMAND_MAP: dict[str, str] = {}
 
 
 def _resolve_tg_command(text: str) -> str:
-    """Telegram slash komutunu !komut formatına çevirir.
+    """Telegram slash komutunu /komut formatına çevirir.
 
-    '/root_reset arg' → '!root-reset arg'
-    '/help'           → '!help'
-    '/start'          → '!help'
+    '/root_reset arg' → '/root-reset arg'
+    '/help'           → '/help'
+    '/start'          → '/help'
     Slash ile başlamayan metinler değişmeden döner.
     """
     if not text.startswith("/"):
@@ -74,7 +74,7 @@ def _resolve_tg_command(text: str) -> str:
     remainder = (" " + parts[1]) if len(parts) > 1 else ""
     if cmd_id:
         return cmd_id + remainder
-    return "!" + tg_name + remainder
+    return "/" + tg_name.replace("_", "-") + remainder
 
 # OCP-1: guard'lar inject edilen örneklerden oluşan zincir — WhatsApp router ile simetrik.
 # Telegram'a özgü fark: notification_target olarak telegram_chat_id kullanılır.

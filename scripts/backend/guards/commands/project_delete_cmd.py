@@ -1,4 +1,4 @@
-"""!project-delete <id> — projeyi DB'den siler (yalnızca kayıt; dosya sistemi dokunulmaz).
+"""/project-delete <id> — projeyi DB'den siler (yalnızca kayıt; dosya sistemi dokunulmaz).
 
 Yetki: OWNER_ADMIN_TOTP — matematik challenge + admin TOTP gerektirir.
 """
@@ -11,14 +11,14 @@ logger = logging.getLogger(__name__)
 
 
 class ProjectDeleteCommand:
-    cmd_id      = "!project-delete"
+    cmd_id      = "/project-delete"
     perm        = Perm.OWNER_ADMIN_TOTP
     label       = "Proje Sil"
     description = (
         "Projeyi veritabanından siler. "
         "Dosya sistemi etkilenmez — dizini manuel silmen gerekir."
     )
-    usage = "!project-delete <id>"
+    usage       = "/project-delete <id>"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...store import sqlite_store as db

@@ -121,13 +121,38 @@ class TelegramMessenger:
             res.raise_for_status()
 
     async def send_list(self, to: str, text: str, sections: list[dict]) -> None:
-        """sections'ı Markdown formatında düz metin olarak gönder.
+        """sections'ı InlineKeyboard butonları olarak gönder.
 
-        Telegram'da native liste/menü yoktur; WhatsApp send_list'e karşılık
-        bölüm başlıkları ve satırlar okunabilir metin olarak iletilir.
+        Her bölüm başlığı ayrı bir satır butonu olarak gösterilir, ardından
+        o bölümün satır butonları gelir.
         """
-        formatted = _sections_to_text(text, sections)
-        await self.send_text(to, formatted)
+        keyboard: list[list[dict]] = []
+        for section in sections:
+            section_title = section.get("title", "")
+            if section_title:
+                keyboard.append([{"text": f"── {section_title} ──", "callback_data": "noop"}])
+            for row in section.get("rows", []):
+                btn_text = row.get("title", "")
+                callback = row.get("id", "noop")
+                keyboard.append([{"text": btn_text, "callback_data": callback}])
+
+        async with httpx.AsyncClient(timeout=15) as client:
+            res = await client.post(
+                f"{self._base}/sendMessage",
+                json={
+                    "chat_id": to,
+                    "text": text,
+                    "parse_mode": "Markdown",
+                    "reply_markup": {"inline_keyboard": keyboard},
+                },
+            )
+            if not res.is_success:
+                logger.warning(
+                    "Telegram send_list başarısız, düz metin fallback: status=%d body=%s",
+                    res.status_code, res.text[:200],
+                )
+                formatted = _sections_to_text(text, sections)
+                await self.send_text(to, formatted)
 
     async def send_typing(self, to: str) -> None:
         """Telegram 'yazıyor…' göstergesi — yaklaşık 5 saniye aktif kalır."""

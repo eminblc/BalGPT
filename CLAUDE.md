@@ -2,13 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## CRITICAL — !restart Protection
+## CRITICAL — /restart Protection
 
 **This rule cannot be violated. Physical PC access is unavailable during remote development.**
 
-- The `!restart` command (`guards/commands/restart_cmd.py`) is **the only recovery path** for Emin's remote access to the system.
+- The `/restart` command (`guards/commands/restart_cmd.py`) is **the only recovery path** for Emin's remote access to the system.
 - Do not make any change that would break this command: import error, syntax error, service name change, permission removal.
-- When modifying **any file** in the `!restart` call chain such as `whatsapp_router.py`, `cloud_api.py`, `guards/__init__.py`, always run a syntax check first:
+- When modifying **any file** in the `/restart` call chain such as `whatsapp_router.py`, `cloud_api.py`, `guards/__init__.py`, always run a syntax check first:
   ```bash
   # Python syntax + import check
   cd scripts && backend/venv/bin/python -c "from backend.main import app; print('OK')"
@@ -74,8 +74,6 @@ bash install.sh --reconfigure-capabilities  # re-run capability wizard only
 ```
 
 > **Note:** `.env` içinde `DESKTOP_ENABLED`, `BROWSER_ENABLED` veya herhangi bir `RESTRICT_*` flag'ini değiştirdikten sonra mutlaka `bash install.sh --reconfigure-capabilities` çalıştırın. Bu adım atlanırsa gerekli Python paketleri kurulmaz/kaldırılmaz ve servis başlamayabilir.
-
-> **Telegram + cloudflared (TG-WIZ-1):** Telegram seçildiğinde `install.sh` `WEBHOOK_PROXY=ngrok` zorlar; cloudflared'i sihirbazdan seçemezsiniz. Cloudflared kullanmak için kurulum sonrası `.env` dosyasında `WEBHOOK_PROXY=cloudflared` yapın, `cloudflared` binary'nin yüklü olduğundan emin olun, ardından servisleri yeniden başlatın. `!wizard` komutu ve genel akış proxy-bağımsızdır — webhook public URL'den kayıtlı olduğu sürece çalışır.
 
 Manual setup:
 
@@ -171,8 +169,8 @@ Reverse dependencies (e.g. Store → Features) are forbidden.
 - **`scripts/backend/app_types.py`** — Shared TypedDict definitions: `SessionState`, `ProjectMeta`, `WorkPlan`, `CalendarEvent`, `ScheduledTask`
 - **`scripts/backend/guards/`** — Security layer: `blacklist`, `rate_limiter`, `api_rate_limiter`, `session`, `permission`, `deduplication`, `runtime_state`, `output_filter`, `api_key`, `capability_guard` (FEAT-3: 8 capability categories restricted via `RESTRICT_*` env flags); `guardrails_loader.py` reads GUARDRAILS.md to produce the forbidden token list
 - **`scripts/backend/guards/guard_chain.py`** + **`guards/message_guards.py`** — `GuardChain` orchestrator and four concrete implementations with the `MessageGuard` Protocol. To add a new guard: implement the `MessageGuard` Protocol in `message_guards.py` + add to the chain in `guard_chain.py`
-- **`scripts/backend/guards/commands/`** — `!command` system; registry-based (OCP)
-- **`scripts/backend/features/`** — Business logic: `chat`, `plans`, `calendar`, `projects`, `history`, `scheduler`, `pdf_importer`, `media_handler`, `menu`; `project_wizard.py` — shim, actual wizard logic is in `wizard_steps.py` (8 steps: ask_description → confirm_create) + `wizard_core.py` (constants, helpers, session cleanup) + `wizard_validator.py` (input validation, SRP); `menu_project.py` — project_select_*, project_start_*, project_stop_* etc. prefix handlers (split from menu.py for SRP); `webhook_proxy.py` — ngrok/cloudflared/external webhook proxy management; `project_scaffold.py` — creates initial project directory structure; used by wizard and PDF importer; `project_crud.py` + `project_service.py` — CRUD operations and service-lifecycle management split from `projects.py` (SRP); `terminal.py` — shell command execution business logic (used by terminal router and `!terminal` command); `credential_store.py` — per-site credential storage used by browser automation
+- **`scripts/backend/guards/commands/`** — `/command` system; registry-based (OCP)
+- **`scripts/backend/features/`** — Business logic: `chat`, `plans`, `calendar`, `projects`, `history`, `scheduler`, `pdf_importer`, `media_handler`, `menu`; `project_wizard.py` — shim, actual wizard logic is in `wizard_steps.py` (8 steps: ask_description → confirm_create) + `wizard_core.py` (constants, helpers, session cleanup) + `wizard_validator.py` (input validation, SRP); `menu_project.py` — project_select_*, project_start_*, project_stop_* etc. prefix handlers (split from menu.py for SRP); `webhook_proxy.py` — ngrok/cloudflared/external webhook proxy management; `project_scaffold.py` — creates initial project directory structure; used by wizard and PDF importer; `project_crud.py` + `project_service.py` — CRUD operations and service-lifecycle management split from `projects.py` (SRP); `terminal.py` — shell command execution business logic (used by terminal router and `/terminal` command); `credential_store.py` — per-site credential storage used by browser automation
 - **`scripts/backend/features/desktop*.py`** — Desktop automation split into SRP modules: `desktop.py` (dispatch), `desktop_common.py` (shared helpers), `desktop_input.py` (xdotool/XTEST keyboard/mouse), `desktop_vision.py` (screenshot, OCR, Claude Vision), `desktop_capture.py` (screen capture, multi-monitor), `desktop_system.py` (unlock, DPMS, system actions), `desktop_popup.py` (X11 event-based popup detection), `desktop_atspi.py` (AT-SPI accessibility), `desktop_recording.py` (screen recording)
 - **`scripts/backend/features/browser/`** — Playwright DOM-first browser automation package: `_actions.py` (click, fill, eval, screenshot), `_lifecycle.py` (browser/page lifecycle), `_paths.py` (URL helpers), `_persistence.py` (session/cookie save-load), `_session_store.py` (session registry), `_validation.py` (action schema validation)
 - **`scripts/backend/store/sqlite_store.py`** — Single SQL entry point; other modules do not open sqlite3 directly
@@ -223,7 +221,7 @@ The Bridge (`server.js`) sends this `CLAUDE.md` file as `init_prompt` to Claude 
 
 **Task→File mapping (`.claude-routes.json`):** The Bridge matches keywords in user messages against the `.claude-routes.json` file at the project root. When a match is found, the relevant file list and hint are added to the init_prompt — this prevents Claude Code from making unnecessary `Glob`/`Read` calls, saving 2000–4000 tokens per query. Update `.claude-routes.json` when a new task category is added.
 
-In beta mode (`context_id = "project:X"`): messages are routed not to the Bridge but to the project's own FastAPI (`http://localhost:{port}/whatsapp/internal/message`). Only the `!beta` command is processed locally.
+In beta mode (`context_id = "project:X"`): messages are routed not to the Bridge but to the project's own FastAPI (`http://localhost:{port}/whatsapp/internal/message`). Only the `/beta` command is processed locally.
 
 Messenger and LLM backend selection is done via `.env`:
 
@@ -277,29 +275,28 @@ To add a new restriction: `capability_guard.register_capability_rule()` + bool f
 
 | Command | File | Description |
 |---------|------|-------------|
-| `!help` | `help_cmd.py` | Command list |
-| `!history` | `history_cmd.py` | Recent message history |
-| `!project` | `project_focus_cmd.py` | Select / show active project |
-| `!root-reset` | `root_reset_cmd.py` | Reset Bridge session |
-| `!restart` | `restart_cmd.py` | Restart services (math + admin TOTP) |
-| `!shutdown` | `shutdown_cmd.py` | Stop services (math + admin TOTP) |
-| `!schedule` | `schedule_cmd.py` | Scheduled task management |
-| `!root-check` | `root_check_cmd.py` | Show last 5 lines of `root_actions.log` (raw log lines forwarded directly — intentional for single-user system) |
-| `!beta` | `beta_exit.py` | Exit beta mode |
-| `!project-delete` | `project_delete_cmd.py` | Delete project from DB (math + admin TOTP); filesystem not affected |
-| `!root-project` | `root_project_cmd.py` | Assign active project context to root agent / show current context |
-| `!root-exit` | `root_exit_cmd.py` | Exit root project context, return to 99-root directory |
-| `!cancel` | `cancel_cmd.py` | Cancel active TOTP / verification flow or pending operation |
-| `!lang` | `lang_cmd.py` | Change UI language (tr / en) |
-| `!model` | `model_cmd.py` | Change LLM model at runtime (global, persists until restart) |
-| `!lock` | `lock_cmd.py` | Lock the application (TOTP required); only `!unlock` works while locked |
-| `!unlock` | `unlock_cmd.py` | Unlock the application (TOTP required); automatically locked at service start |
-| `!terminal` | `terminal_cmd.py` | Run a shell command via WhatsApp (admin TOTP required for dangerous commands) |
-| `!timezone` | `timezone_cmd.py` | Show or change the active timezone at runtime; reconfigures APScheduler |
-| `!tokens` | `tokens_cmd.py` | Show LLM token usage statistics (`!tokens [24h|7d|30d]`) |
-| `!wizard` | `wizard_cmd.py` | Stage-2 install wizard — finishes setup (LLM, capabilities, timezone, TOTP QR) via inline buttons after `install.sh` |
+| `/help` | `help_cmd.py` | Command list |
+| `/history` | `history_cmd.py` | Recent message history |
+| `/project` | `project_focus_cmd.py` | Select / show active project |
+| `/root-reset` | `root_reset_cmd.py` | Reset Bridge session |
+| `/restart` | `restart_cmd.py` | Restart services (math + admin TOTP) |
+| `/shutdown` | `shutdown_cmd.py` | Stop services (math + admin TOTP) |
+| `/schedule` | `schedule_cmd.py` | Scheduled task management |
+| `/root-check` | `root_check_cmd.py` | Show last 5 lines of `root_actions.log` (raw log lines forwarded directly — intentional for single-user system) |
+| `/beta` | `beta_exit.py` | Exit beta mode |
+| `/project-delete` | `project_delete_cmd.py` | Delete project from DB (math + admin TOTP); filesystem not affected |
+| `/root-project` | `root_project_cmd.py` | Assign active project context to root agent / show current context |
+| `/root-exit` | `root_exit_cmd.py` | Exit root project context, return to 99-root directory |
+| `/cancel` | `cancel_cmd.py` | Cancel active TOTP / verification flow or pending operation |
+| `/lang` | `lang_cmd.py` | Change UI language (tr / en) |
+| `/model` | `model_cmd.py` | Change LLM model at runtime (global, persists until restart) |
+| `/lock` | `lock_cmd.py` | Lock the application (TOTP required); only `/unlock` works while locked |
+| `/unlock` | `unlock_cmd.py` | Unlock the application (TOTP required); automatically locked at service start |
+| `/terminal` | `terminal_cmd.py` | Run a shell command via WhatsApp (admin TOTP required for dangerous commands) |
+| `/timezone` | `timezone_cmd.py` | Show or change the active timezone at runtime; reconfigures APScheduler |
+| `/tokens` | `tokens_cmd.py` | Show LLM token usage statistics (`/tokens [24h|7d|30d]`) |
 
-## Adding a New Command (`!command` system)
+## Adding a New Command (`/command` system)
 
 1. Create a new file under `scripts/backend/guards/commands/` (e.g. `my_cmd.py`)
 2. Implement the `Command` Protocol (`cmd_id: str`, `async def execute(sender, arg, session)`)
@@ -341,7 +338,7 @@ Most backend code changes do **not** require touching `install.sh` or `lib/*.sh`
 
 These can ship without touching `install.sh` / `lib/`:
 
-- New `!command` (`scripts/backend/guards/commands/`)
+- New `/command` (`scripts/backend/guards/commands/`)
 - New router or feature module (`scripts/backend/routers/`, `features/`)
 - Refactor / bug fix in existing endpoints
 - Bridge changes (`scripts/claude-code-bridge/server.js`)
@@ -529,7 +526,7 @@ Adding a new language = new `locales/xx.json` + add to `_SUPPORTED`.
 - Uvicorn must be started from the `scripts/` directory: `backend.main:app`
 - Create temporary scripts under `/tmp/`, delete them when done
 - Only start/stop the API when the user explicitly requests it
-- When modifying `whatsapp_router.py`, `cloud_api.py`, `guards/__init__.py`, or `restart_cmd.py`, verify that the `!restart` call chain is not affected (run syntax check).
+- When modifying `whatsapp_router.py`, `cloud_api.py`, `guards/__init__.py`, or `restart_cmd.py`, verify that the `/restart` call chain is not affected (run syntax check).
 
 ### ⚠️ Project Wizard — Service Command Restriction
 
@@ -551,12 +548,12 @@ Full list: `GUARDRAILS.md`. Summary of forbidden categories:
 Before calling the Bash tool, apply these steps:
 
 1. Search for the **first token** of the command you want to run in `GUARDRAILS.md` (Grep is sufficient).
-2. If found in a category → give the user **these three pieces of information**, then ask "Do you want to proceed? (!cancel to abort)":
+2. If found in a category → give the user **these three pieces of information**, then ask "Do you want to proceed? (/cancel to abort)":
    - **Full command:** The exact command string to be executed (e.g. `` `rm -rf /home/emin/projects/40-claude-code-agents/99-root/data/` ``)
    - **Category and blast radius:** The relevant category name and blast radius description (read the relevant category heading from `GUARDRAILS.md`)
    - **Concrete risks:** List the "Why dangerous" text for that category and the possible consequences specific to this case (e.g. "API crash, loss of remote access, data loss")
 3. If the user says "yes" → request admin TOTP:
-   **"Enter admin TOTP code: (!cancel to abort)"**
+   **"Enter admin TOTP code: (/cancel to abort)"**
 4. To verify TOTP:
    ```bash
    curl -s -X POST http://localhost:8010/internal/verify-admin-totp \
@@ -568,7 +565,7 @@ Before calling the Bash tool, apply these steps:
 5. If TOTP is valid → send a brief operation notice **before** running the command:
    **"⚠️ [Operation description] starting… (e.g. running `rm -rf /path/to/dir`)"**
    Then run the command.
-6. If the user says "no" or types `!cancel` → say **"❌ Operation cancelled."** and stop.
+6. If the user says "no" or types `/cancel` → say **"❌ Operation cancelled."** and stop.
 7. If not found → proceed directly.
 
 ```
@@ -605,9 +602,9 @@ When an out-of-scope feature request is detected, apply this sequence:
 
 1. Acknowledge the request politely; explain in one sentence why it is out of scope.
 2. Suggest these alternatives:
-   - **New project:** Start the project creation wizard with the `!project` command → open a separate project and apply it there.
+   - **New project:** Start the project creation wizard with the `/project` command → open a separate project and apply it there.
    - **Existing project:** Identify the most suitable existing project if one exists.
-   - **Context assignment:** Assign an active project context to 99-root with `!root-project <project-name>`; Claude works in that project's directory.
+   - **Context assignment:** Assign an active project context to 99-root with `/root-project <project-name>`; Claude works in that project's directory.
 3. **Do not block.** Ask the user (send as buttons):
 
    ```
@@ -618,7 +615,7 @@ When an out-of-scope feature request is detected, apply this sequence:
    Use the `send_buttons` endpoint or present `✅ yes / ❌ no` as a text response.
 
 4. If the user says **yes** → proceed, implement the feature.
-5. If the user says **no** → say "Understood. You can open a new project with `!project` or connect an existing one with `!root-project`." and stop.
+5. If the user says **no** → say "Understood. You can open a new project with `/project` or connect an existing one with `/root-project`." and stop.
 
 > **Note:** This rule only applies to *feature addition* requests. Questions, analysis, information retrieval, or any operation affecting 99-root infrastructure are not out of scope.
 
@@ -883,7 +880,7 @@ Content-Type: application/json
 
 ### Security note
 - `"dangerous": true` → command was considered dangerous but still ran (internal is trusted)
-- WhatsApp `!terminal` command asks for admin TOTP for dangerous commands (user-facing)
+- WhatsApp `/terminal` command asks for admin TOTP for dangerous commands (user-facing)
 - This endpoint is used by bridge/Claude; not accessible from outside
 
 ---

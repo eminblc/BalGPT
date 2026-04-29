@@ -22,7 +22,7 @@ from . import _auth_flows
 
 logger = logging.getLogger(__name__)
 
-_CANCEL_WORDS = frozenset(("iptal", "cancel", "vazgeç", "!cancel"))
+_CANCEL_WORDS = frozenset(("iptal", "cancel", "vazgeç", "/cancel"))
 
 
 def _messenger(injected: AbstractMessenger | None) -> AbstractMessenger:

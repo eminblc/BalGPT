@@ -1,12 +1,12 @@
-"""!schedule komutu — cron/loop/schedule yönetimi.
+"""/schedule komutu — cron/loop/schedule yönetimi.
 
 Alt komutlar:
-  !schedule                        → aktif job listesi
-  !schedule ekle <cron> <açıklama> → yeni cron job (Bridge'e prompt gönderir)
-  !schedule mesaj <cron> <metin>   → yeni cron job (sabit metin gönderir)
-  !schedule sil <id_prefix>        → job'ı kalıcı sil
-  !schedule durdur <id_prefix>     → job'ı duraklat
-  !schedule başlat <id_prefix>     → duraklatılmış job'ı devam ettir
+  /schedule                        → aktif job listesi
+  /schedule ekle <cron> <açıklama> → yeni cron job (Bridge'e prompt gönderir)
+  /schedule mesaj <cron> <metin>   → yeni cron job (sabit metin gönderir)
+  /schedule sil <id_prefix>        → job'ı kalıcı sil
+  /schedule durdur <id_prefix>     → job'ı duraklat
+  /schedule başlat <id_prefix>     → duraklatılmış job'ı devam ettir
 
 Cron formatı (5 alan):
   dakika saat gün ay haftanın-günü
@@ -26,12 +26,12 @@ from ..permission import Perm
 
 
 class ScheduleCommand:
-    cmd_id      = "!schedule"
+    cmd_id      = "/schedule"
     perm        = Perm.OWNER
     button_id   = "cmd_schedule_list"
     label       = "Zamanlama Yönetimi"
     description = "Tekrarlayan görevler oluşturur, listeler, durdurur veya siler."
-    usage       = "!schedule [ekle <cron> <açıklama> | sil | durdur | başlat <id>]"
+    usage       = "/schedule [ekle <cron> <açıklama> | sil | durdur | başlat <id>]"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...adapters.messenger import get_messenger

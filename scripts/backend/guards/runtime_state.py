@@ -8,7 +8,7 @@ from __future__ import annotations
 import time
 
 # ── Uygulama kilidi ──────────────────────────────────────────────────────────
-# Başlangıçta kilitli; !unlock + TOTP ile açılır, !lock + TOTP ile tekrar kilitlenir.
+# Başlangıçta kilitli; /unlock + TOTP ile açılır, /lock + TOTP ile tekrar kilitlenir.
 _locked: bool = True
 
 
@@ -25,7 +25,7 @@ def set_locked(value: bool) -> None:
 
 # ── Aktif LLM modeli ─────────────────────────────────────────────────────────
 # None = config.settings.default_model kullan (varsayılan)
-# Servis yeniden başlatılana kadar kalıcı; !model komutuyla değiştirilir.
+# Servis yeniden başlatılana kadar kalıcı; /model komutuyla değiştirilir.
 _active_model: str | None = None
 
 

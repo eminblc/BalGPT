@@ -1,14 +1,14 @@
-"""!lang komutu — arayüz dilini değiştir (tr / en)."""
+"""/lang komutu — arayüz dilini değiştir (tr / en)."""
 from .registry import registry
 from ..permission import Perm
 
 
 class LangCommand:
-    cmd_id      = "!lang"
+    cmd_id      = "/lang"
     perm        = Perm.OWNER
     label       = "Dil Değiştir"
     description = "Arayüz dilini değiştirir. Desteklenen: tr, en."
-    usage       = "!lang <tr|en>"
+    usage       = "/lang <tr|en>"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...adapters.messenger import get_messenger

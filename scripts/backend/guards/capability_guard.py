@@ -56,7 +56,7 @@ _SS_RE      = re.compile(r"ekran\s*g[oö]r[uü]nt[uü]s[uü]|screenshot|playwrig
 _PDF_RE     = re.compile(r"\bpdf\b.*(?:import|içe\s*aktar|yükle|upload)|(?:import|içe\s*aktar|yükle|upload).*\bpdf\b", re.IGNORECASE)
 # Sadece açık CRUD aksiyonlarını yakalar; genel "plan" kelimesini değil
 _PLANS_RE   = re.compile(
-    r"!plan\b"
+    r"/plan\b"
     r"|iş\s*plan[ıi]"
     r"|yeni\s*plan\s*(ekle|oluştur|yaz)"
     r"|plan\s*(ekle|sil|tamamla|listele|göster)"

@@ -1,7 +1,7 @@
-"""!help komutu — ana menü + bireysel komut açıklamaları.
+"""/help komutu — ana menü + bireysel komut açıklamaları.
 
-!help            → butonlar + tam komut listesi
-!help !shutdown  → yalnızca o komutun açıklaması
+/help            → butonlar + tam komut listesi
+/help /shutdown  → yalnızca o komutun açıklaması
 """
 from __future__ import annotations
 
@@ -10,11 +10,11 @@ from ..permission import Perm
 
 
 class HelpCommand:
-    cmd_id      = "!help"
+    cmd_id      = "/help"
     perm        = Perm.OWNER
     label       = "Yardım Menüsü"
     description = "Tüm komutları listeler. Komut adı verince o komutun açıklamasını gösterir."
-    usage       = "!help [!komut]"
+    usage       = "/help [/komut]"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...adapters.messenger import get_messenger
@@ -24,8 +24,8 @@ class HelpCommand:
         target    = arg.strip()
         messenger = get_messenger()
 
-        # ── Bireysel komut yardımı: !help !shutdown ──────────────────
-        if target.startswith("!"):
+        # ── Bireysel komut yardımı: /help /shutdown ──────────────────
+        if target.startswith("/"):
             await self._send_single_help(sender, target, lang, messenger.send_text)
             return
 
@@ -107,7 +107,7 @@ class HelpCommand:
 
 
 def _build_model_hint(lang: str = "tr") -> str:
-    """Backend'e özgü !model kullanım ipucu döndürür."""
+    """Backend'e özgü /model kullanım ipucu döndürür."""
     from ...config import settings
     from ...guards.runtime_state import get_active_model
     from ...i18n import t

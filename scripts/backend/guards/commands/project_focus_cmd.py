@@ -1,14 +1,14 @@
-"""!project komutu — aktif projeyi değiştir (ana mod bağlamı için)."""
+"""/project komutu — aktif projeyi değiştir (ana mod bağlamı için)."""
 from .registry import registry
 from ..permission import Perm
 
 
 class ProjectFocusCommand:
-    cmd_id      = "!project"
+    cmd_id      = "/project"
     perm        = Perm.OWNER
     label       = "Proje Odağı"
     description = "Aktif projeyi değiştirir. ID vermezsen mevcut projeyi ve seçenekleri gösterir. 'none' yazarsan aktif projeyi temizler."
-    usage       = "!project [id|none]"
+    usage       = "/project [id|none]"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...store import sqlite_store as db
@@ -37,7 +37,7 @@ class ProjectFocusCommand:
                 projects = await db.project_list()
                 lines = [t("project.none_active", lang)]
                 for p in projects[:8]:
-                    lines.append(f"  !project {p['id']}  → {p['name']}")
+                    lines.append(f"  /project {p['id']}  → {p['name']}")
                 await get_messenger().send_text(sender, "\n".join(lines))
             return
 

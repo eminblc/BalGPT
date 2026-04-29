@@ -141,7 +141,7 @@ class DesktopTotpGate:
             (
                 "🔒 Desktop işlemi için admin TOTP gerekli.\n"
                 f"Başarılı girişten sonra {ttl_min} dk geçerli olacak.\n"
-                "(!cancel ile iptal)"
+                "(/cancel ile iptal)"
             ),
         )
         self._totp_request_sent = True

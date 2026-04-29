@@ -1,4 +1,4 @@
-"""!terminal komutu — WhatsApp üzerinden shell komutu çalıştır (FEAT-12b).
+"""/terminal komutu — WhatsApp üzerinden shell komutu çalıştır (FEAT-12b).
 
 Güvenlik:
   - Yalnızca owner kullanabilir (Perm.OWNER).
@@ -6,9 +6,9 @@ Güvenlik:
   - Güvenli komutlar doğrudan çalıştırılır.
 
 Tehlikeli komut akışı:
-  1. !terminal <tehlikeli_cmd>
+  1. /terminal <tehlikeli_cmd>
   2. Komut _terminal_pending_cmd session key'ine kaydedilir.
-  3. session.start_admin_totp(cmd="!terminal") ile onay istenir.
+  3. session.start_admin_totp(cmd="/terminal") ile onay istenir.
   4. Admin TOTP onaylandıktan sonra handle_admin_totp execute("", session) çağırır.
   5. Boş arg → _terminal_pending_cmd okunur → komut çalıştırılır (is_dangerous yeniden kontrol edilmez).
 
@@ -28,11 +28,11 @@ _SESSION_PENDING_KEY = "_terminal_pending_cmd"
 
 
 class TerminalCommand:
-    cmd_id      = "!terminal"
+    cmd_id      = "/terminal"
     perm        = Perm.OWNER
     label       = "Terminal Komutu"
     description = "Shell komutu çalıştır ve çıktıyı WhatsApp'a gönder. Tehlikeli komutlar admin TOTP gerektirir."
-    usage       = "!terminal <komut>"
+    usage       = "/terminal <komut>"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...adapters.messenger import get_messenger
@@ -58,16 +58,16 @@ class TerminalCommand:
             return
 
         # ── Case 3: Tehlikeli komut — admin TOTP iste ───────────────────────
-        # Komutu session'a yaz; pending_command = "!terminal" (arg yok) ile
+        # Komutu session'a yaz; pending_command = "/terminal" (arg yok) ile
         # admin TOTP onaylandığında execute(sender, "", session) çağrılır → Case 1.
         session.set_terminal_pending(arg)
-        session.start_admin_totp(cmd="!terminal")
+        session.start_admin_totp(cmd="/terminal")
         await messenger.send_text(
             sender,
             t("terminal.dangerous_prompt", lang, cmd=arg[:300]),
         )
         logger.warning(
-            "!terminal tehlikeli komut — admin TOTP istendi: sender=%s, cmd=%r",
+            "/terminal tehlikeli komut — admin TOTP istendi: sender=%s, cmd=%r",
             sender, arg[:80],
         )
 
@@ -76,7 +76,7 @@ class TerminalCommand:
         from ...features.terminal import execute_command
         from ...i18n import t
 
-        logger.info("!terminal çalıştırılıyor: %r", cmd_str[:80])
+        logger.info("/terminal çalıştırılıyor: %r", cmd_str[:80])
         result = await execute_command(cmd_str)
 
         if result.timed_out:

@@ -83,7 +83,7 @@ async def handle_common_message(
     # ── Kilit kontrolü ────────────────────────────────────────────────
     if is_locked():
         has_auth_flow = has_active_auth_flow(session)
-        is_unlock_cmd = msg_type == "text" and ctx.text.strip().lower().startswith("!unlock")
+        is_unlock_cmd = msg_type == "text" and ctx.text.strip().lower().startswith("/unlock")
         if not has_auth_flow and not is_unlock_cmd:
             await get_messenger().send_text(sender, t("lock.locked_msg", ctx.lang))
             return

@@ -1,19 +1,19 @@
-"""!timezone komutu — çalışma zamanında saat dilimini değiştir (FEAT-10).
+"""/timezone komutu — çalışma zamanında saat dilimini değiştir (FEAT-10).
 
 Kullanım:
-  !timezone                → mevcut saat dilimini göster
-  !timezone Europe/London  → saat dilimini değiştir, APScheduler'ı yeniden yapılandır
+  /timezone                → mevcut saat dilimini göster
+  /timezone Europe/London  → saat dilimini değiştir, APScheduler'ı yeniden yapılandır
 """
 from .registry import registry
 from ..permission import Perm
 
 
 class TimezoneCommand:
-    cmd_id      = "!timezone"
+    cmd_id      = "/timezone"
     perm        = Perm.OWNER
     label       = "Saat Dilimi"
     description = "Çalışma zamanında saat dilimini değiştirir (APScheduler dahil)."
-    usage       = "!timezone [IANA/TZ]  — argümansız: mevcut ayarı göster"
+    usage       = "/timezone [IANA/TZ]  — argümansız: mevcut ayarı göster"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...adapters.messenger import get_messenger

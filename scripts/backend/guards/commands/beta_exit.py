@@ -1,18 +1,18 @@
-"""!beta komutu — beta moduna gir veya beta modundan ana ajana dön.
+"""/beta komutu — beta moduna gir veya beta modundan ana ajana dön.
 
-!beta               → beta modundan çık (ya da zaten ana modda bilgilendir)
-!beta <proje_adı>   → belirtilen projenin beta modunu başlat (id veya isimle eşleşir)
+/beta               → beta modundan çık (ya da zaten ana modda bilgilendir)
+/beta <proje_adı>   → belirtilen projenin beta modunu başlat (id veya isimle eşleşir)
 """
 from .registry import registry
 from ..permission import Perm
 
 
 class BetaExitCommand:
-    cmd_id      = "!beta"
+    cmd_id      = "/beta"
     perm        = Perm.OWNER
     label       = "Beta Modu"
-    description = "Beta modunu başlat (!beta <proje>) veya beta modundan çık (!beta)."
-    usage       = "!beta [proje_adı]"
+    description = "Beta modunu başlat (/beta <proje>) veya beta modundan çık (/beta)."
+    usage       = "/beta [proje_adı]"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...adapters.messenger import get_messenger

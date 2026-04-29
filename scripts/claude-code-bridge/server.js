@@ -1115,7 +1115,7 @@ app.post("/query", authenticate, async (req, res) => {
 
   // silent=true: scheduler gibi arka plan çağrıları "⚙️ İşleniyor..." bildirimi göndermez
   // (ardışık scheduler sorguları WA rate limit'ini tetikler — AUD-O24)
-  if (!silent) await sendWhatsAppNotification("Düşünüyorum…");
+  if (!silent && MESSENGER_TYPE !== "telegram") await sendWhatsAppNotification("Düşünüyorum…");
 
   // R8: sendWhatsAppNotification sonrasında session dosyasını yeniden kontrol et
   // (eşzamanlı istek veya ağ gecikmesi sırasında dosya yaratılmış olabilir)
@@ -1191,6 +1191,12 @@ app.post("/reset", authenticate, (req, res) => {
   // PERF-OPT-2: Session sıfırlanınca okuma sayaçlarını temizle
   sessionReadCounts.delete(session_id);
   res.json({ status: "reset", session_id });
+});
+
+/** POST /restart — Docker ortamında bridge container'ını yeniden başlat */
+app.post("/restart", authenticate, (req, res) => {
+  res.json({ ok: true, message: "Bridge yeniden başlatılıyor..." });
+  setTimeout(() => process.exit(0), 500);
 });
 
 /** GET /status — aktif session'ları listele */

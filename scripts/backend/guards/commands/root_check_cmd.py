@@ -1,4 +1,4 @@
-"""!root-check komutu — bridge aktif bir istek işliyorsa göster, değilse boşta bildir."""
+"""/root-check komutu — bridge aktif bir istek işliyorsa göster, değilse boşta bildir."""
 from __future__ import annotations
 
 import asyncio
@@ -49,11 +49,11 @@ def _sync_get_summary() -> dict:
 
 
 class RootCheckCommand:
-    cmd_id      = "!root-check"
+    cmd_id      = "/root-check"
     perm        = Perm.OWNER
     label       = "Root Durum Özeti"
     description = "Bridge aktif bir istek işliyorsa gösterir; boştaysa 'çalışmıyor' der."
-    usage       = "!root-check"
+    usage       = "/root-check"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...adapters.messenger import get_messenger

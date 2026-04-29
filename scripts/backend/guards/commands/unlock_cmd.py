@@ -1,14 +1,14 @@
-"""!unlock komutu — kilitli uygulamayı TOTP doğrulamasıyla açar."""
+"""/unlock komutu — kilitli uygulamayı TOTP doğrulamasıyla açar."""
 from .registry import registry
 from ..permission import Perm
 
 
 class UnlockCommand:
-    cmd_id      = "!unlock"
+    cmd_id      = "/unlock"
     perm        = Perm.OWNER_TOTP
     label       = "Kilidi Aç"
     description = "Kilitli uygulamayı açar."
-    usage       = "!unlock"
+    usage       = "/unlock"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...guards.runtime_state import set_locked

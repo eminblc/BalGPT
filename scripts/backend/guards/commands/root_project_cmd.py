@@ -1,8 +1,8 @@
-"""!root-project komutu — root ajana aktif proje bağlamı ata.
+"""/root-project komutu — root ajana aktif proje bağlamı ata.
 
 Kullanım:
-  !root-project <proje-id>  → Root proje olarak ayarla, bridge session sıfırla
-  !root-project             → Mevcut root proje bilgisini göster
+  /root-project <proje-id>  → Root proje olarak ayarla, bridge session sıfırla
+  /root-project             → Mevcut root proje bilgisini göster
 """
 from __future__ import annotations
 
@@ -37,11 +37,11 @@ def _set_active_root_project(project: dict) -> None:
 
 
 class RootProjectCommand:
-    cmd_id      = "!root-project"
+    cmd_id      = "/root-project"
     perm        = Perm.OWNER
     label       = "Root Proje Seç"
     description = "Root ajana proje bağlamı atar; cwd ve CLAUDE.md o projeye göre değişir."
-    usage       = "!root-project <proje-id>"
+    usage       = "/root-project <proje-id>"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...adapters.messenger import get_messenger

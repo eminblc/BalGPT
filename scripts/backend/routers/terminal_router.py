@@ -17,7 +17,7 @@ Yanıt (hata):
 Güvenlik notu:
     Tehlikeli komutlar (is_dangerous → true) BLOKLANMAZ; iç çağrı güvenilir kabul edilir.
     "dangerous" alanı true döner ve WARNING seviyesinde loglanır.
-    WhatsApp !terminal komutu ise ayrıca admin TOTP gerektirmektedir.
+    WhatsApp /terminal komutu ise ayrıca admin TOTP gerektirmektedir.
 """
 from __future__ import annotations
 

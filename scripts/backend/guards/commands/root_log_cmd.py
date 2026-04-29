@@ -1,4 +1,4 @@
-"""!root-log komutu — root_actions.log son 5 satırını insan okunur formatta göster."""
+"""/root-log komutu — root_actions.log son 5 satırını insan okunur formatta göster."""
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,11 +41,11 @@ def _fmt_log_entry(line: str) -> str | None:
 
 
 class RootLogCommand:
-    cmd_id      = "!root-log"
+    cmd_id      = "/root-log"
     perm        = Perm.OWNER
     label       = "Root İşlem Geçmişi"
     description = "root_actions.log dosyasının son 5 işlemini insan okunur formatta gösterir."
-    usage       = "!root-log"
+    usage       = "/root-log"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...adapters.messenger import get_messenger

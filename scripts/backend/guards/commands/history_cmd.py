@@ -1,4 +1,4 @@
-"""!history komutu — son mesajları ve session özetlerini göster."""
+"""/history komutu — son mesajları ve session özetlerini göster."""
 from __future__ import annotations
 
 from .registry import Command, registry
@@ -6,11 +6,11 @@ from ..permission import Perm
 
 
 class HistoryCommand:
-    cmd_id      = "!history"
+    cmd_id      = "/history"
     perm        = Perm.OWNER
     label       = "Mesaj Geçmişi"
     description = "Son mesajları gösterir. Sayı verilebilir. 'özet' yazılırsa session özetleri çıkar."
-    usage       = "!history [N|özet]"
+    usage       = "/history [N|özet]"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...features.history import (

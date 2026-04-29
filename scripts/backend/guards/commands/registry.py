@@ -4,8 +4,8 @@ Yeni komut = yeni dosya + register(). Bu dosyaya dokunulmaz.
 
 Her Command class'ı isteğe bağlı olarak şu class attribute'ları tanımlayabilir:
   label:       str  — İnsan okunabilir kısa ad  (ör. "Yeniden Başlat")
-  description: str  — !help menüsünde görünen açıklama satırı
-  usage:       str  — Kullanım örneği  (ör. "!restart")
+  description: str  — /help menüsünde görünen açıklama satırı
+  usage:       str  — Kullanım örneği  (ör. "/restart")
 """
 from __future__ import annotations
 

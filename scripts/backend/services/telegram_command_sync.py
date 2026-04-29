@@ -24,22 +24,22 @@ _MIN_DESC_LEN = 3
 
 
 def _to_tg_name(cmd_id: str) -> str:
-    """'!root-reset' → 'root_reset'"""
-    return cmd_id.lstrip("!").replace("-", "_").lower()[:_MAX_CMD_LEN]
+    """'/root-reset' → 'root_reset'"""
+    return cmd_id.lstrip("/").replace("-", "_").lower()[:_MAX_CMD_LEN]
 
 
 def build_tg_command_map() -> dict[str, str]:
     """tg_name → cmd_id haritası döndürür. Router'ın ters çevirim için kullanır.
 
-    Örnek: {'root_reset': '!root-reset', 'help': '!help', 'start': '!help'}
+    Örnek: {'root_reset': '/root-reset', 'help': '/help', 'start': '/help'}
     """
     result: dict[str, str] = {}
     for cmd_id in registry.all_ids():
-        if not cmd_id.startswith("!"):
+        if not cmd_id.startswith("/"):
             continue
         tg_name = _to_tg_name(cmd_id)
         result[tg_name] = cmd_id
-    result.setdefault("start", "!help")
+    result.setdefault("start", "/help")
     return result
 
 
@@ -62,7 +62,7 @@ class TelegramCommandSyncer:
     def _build_commands(self) -> list[dict]:
         commands = []
         for cmd_id in sorted(registry.all_ids()):
-            if not cmd_id.startswith("!"):
+            if not cmd_id.startswith("/"):
                 continue
             tg_name = _to_tg_name(cmd_id)
             desc = self._get_description(cmd_id)

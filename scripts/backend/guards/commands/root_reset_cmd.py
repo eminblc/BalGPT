@@ -1,15 +1,15 @@
-"""!root-reset komutu — ana Claude Code session'ını sıfırla."""
+"""/root-reset komutu — ana Claude Code session'ını sıfırla."""
 from .registry import registry
 from ..permission import Perm
 
 
 class RootResetCommand:
-    cmd_id      = "!root-reset"
+    cmd_id      = "/root-reset"
     perm        = Perm.OWNER
     button_id   = "cmd_root_reset"
     label       = "Session Sıfırla"
     description = "Ana Claude Code session'ını sıfırlar. Sohbet geçmişi silinir, servis ayakta kalır."
-    usage       = "!root-reset"
+    usage       = "/root-reset"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...features.chat import reset_bridge_session

@@ -1,4 +1,4 @@
-"""!root-exit komutu — root proje bağlamından çık, 99-root dizinine dön."""
+"""/root-exit komutu — root proje bağlamından çık, 99-root dizinine dön."""
 from __future__ import annotations
 
 import json
@@ -13,11 +13,11 @@ logger = logging.getLogger(__name__)
 
 
 class RootExitCommand:
-    cmd_id      = "!root-exit"
+    cmd_id      = "/root-exit"
     perm        = Perm.OWNER
     label       = "Root'tan Çık"
     description = "Root proje bağlamından çıkar; ana ajan 99-root diziniyle devam eder."
-    usage       = "!root-exit"
+    usage       = "/root-exit"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...adapters.messenger import get_messenger

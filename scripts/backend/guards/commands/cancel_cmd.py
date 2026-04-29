@@ -1,7 +1,7 @@
-"""!cancel — aktif TOTP / doğrulama akışını, bekleyen işlemi veya Bridge sorgusunu iptal et.
+"""/cancel — aktif TOTP / doğrulama akışını, bekleyen işlemi veya Bridge sorgusunu iptal et.
 
 TOTP bekleme durumları (awaiting_totp, awaiting_admin_totp, awaiting_math_challenge,
-awaiting_guardrail_confirm) whatsapp_router'da !cancel cancel-word olarak da
+awaiting_guardrail_confirm) whatsapp_router'da /cancel cancel-word olarak da
 yakalanır; bu komut ek güvence olarak residual state'leri de temizler.
 
 FEAT-18: Auth akışı yoksa Bridge'de çalışan aktif sorgu varsa onu da iptal eder.
@@ -39,7 +39,7 @@ async def _cancel_bridge_query(session: dict) -> bool:
 
 
 class CancelCommand:
-    cmd_id = "!cancel"
+    cmd_id      = "/cancel"
     perm   = Perm.OWNER
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
@@ -47,7 +47,7 @@ class CancelCommand:
         from ...i18n import t
 
         # Residual auth state temizliği (normalde router'da cancel-word dalı yakalar,
-        # ama !cancel bu koda ulaştıysa hâlâ kalan state olabilir)
+        # ama /cancel bu koda ulaştıysa hâlâ kalan state olabilir)
         auth_keys = (
             "awaiting_totp",
             "awaiting_admin_totp",

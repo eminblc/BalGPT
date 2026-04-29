@@ -53,7 +53,7 @@ def _is_owner(chat_id: str) -> bool:
 # ── Public entry points ───────────────────────────────────────────
 
 async def start_or_resume_wizard(chat_id: str, lang: str = "tr") -> None:
-    """Reset state and show the LLM step. Called from !wizard or `iw:start`."""
+    """Reset state and show the LLM step. Called from /wizard or `iw:start`."""
     if not _is_owner(chat_id):
         await get_messenger().send_text(chat_id, t("install_wizard.not_owner", lang))
         return

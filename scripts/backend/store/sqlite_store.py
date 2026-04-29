@@ -133,7 +133,7 @@ def init_db() -> None:
         );
 
         -- ── Kullanıcı ayarları — FEAT-6 ───────────────────────────
-        -- Restart sonrası da korunan kullanıcı tercihleri (!lang, !model vb.)
+        -- Restart sonrası da korunan kullanıcı tercihleri (/lang, /model vb.)
         CREATE TABLE IF NOT EXISTS user_settings (
             sender      TEXT NOT NULL,
             key         TEXT NOT NULL,

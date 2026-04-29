@@ -1,4 +1,4 @@
-"""!tokens komutu — LLM token kullanım istatistikleri (TOKEN-STATS-2)."""
+"""/tokens komutu — LLM token kullanım istatistikleri (TOKEN-STATS-2)."""
 from __future__ import annotations
 
 from .registry import registry
@@ -17,12 +17,12 @@ def _fmt(n: int) -> str:
 
 
 class TokensCommand:
-    cmd_id      = "!tokens"
+    cmd_id      = "/tokens"
     perm        = Perm.OWNER
     button_id   = "cmd_tokens"
     label       = "Token İstatistikleri"
     description = "LLM token kullanım istatistiklerini gösterir. Zaman aralığı: 24h (varsayılan), 7d, 30d."
-    usage       = "!tokens [24h|7d|30d]"
+    usage       = "/tokens [24h|7d|30d]"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...adapters.messenger import get_messenger

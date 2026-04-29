@@ -111,7 +111,7 @@ class Settings(BaseSettings):
     restrict_scheduler:         bool = False   # APScheduler alt sistemi — bkz. scheduler_enabled property
     restrict_pdf_import:        bool = False   # PDF içe aktarma ve proje dönüştürme hattı
     restrict_conv_history:      bool = False   # Konuşma geçmişi SQLite kaydı (gizlilik)
-    restrict_plans:             bool = False   # İş planı oluşturma ve yönetimi (!plan komutları)
+    restrict_plans:             bool = False   # İş planı oluşturma ve yönetimi (/plan komutları)
     restrict_intent_classifier: bool = False   # LLM tabanlı niyet tespiti (mesaj başına API çağrısı)
     restrict_wizard_llm_scaffold: bool = False # Wizard LLM scaffold (otomatik mimari önizlemesi)
 
