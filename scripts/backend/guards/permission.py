@@ -57,5 +57,14 @@ class PermissionManager:
             logger.error("TOTP secret ASCII olmayan karakter içeriyor — .env dosyasını kontrol et")
             return False
         totp = pyotp.TOTP(secret)
-        return totp.verify(code, valid_window=1)
+        result = totp.verify(code, valid_window=1)
+        if not result:
+            import time as _time
+            now = int(_time.time())
+            logger.warning(
+                "TOTP verify failed: code_len=%d secret_len=%d ts=%d window0=%s window-1=%s window+1=%s",
+                len(code), len(secret), now,
+                totp.at(now), totp.at(now - 30), totp.at(now + 30),
+            )
+        return result
 
