@@ -108,11 +108,11 @@ def test_known_commands_registered():
     from backend.guards.commands.registry import registry
 
     expected = {
-        "!help", "!history", "!lang", "!lock", "!unlock",
-        "!model", "!cancel", "!root-reset", "!project", "!schedule",
-        "!restart", "!shutdown", "!root-project", "!root-exit",
-        "!beta", "!root-check", "!root-log", "!project-delete",
-        "!terminal", "!timezone", "!tokens",
+        "/help", "/history", "/lang", "/lock", "/unlock",
+        "/model", "/cancel", "/root-reset", "/project", "/schedule",
+        "/restart", "/shutdown", "/root-project", "/root-exit",
+        "/beta", "/root-check", "/root-log", "/project-delete",
+        "/terminal", "/timezone", "/tokens",
     }
     registered = set(registry.all_ids())
     missing = expected - registered
@@ -266,7 +266,7 @@ async def test_cancel_clears_auth_state():
     mock_messenger = AsyncMock()
     session = {
         "awaiting_totp": True,
-        "pending_command": "!shutdown",
+        "pending_command": "/shutdown",
         "lang": "tr",
     }
 
@@ -605,7 +605,7 @@ async def test_help_single_cmd_known():
     with patch("backend.adapters.messenger.get_messenger",
                return_value=mock_messenger):
         from backend.guards.commands.help_cmd import HelpCommand
-        await HelpCommand().execute("905001234567", "!restart", session)
+        await HelpCommand().execute("905001234567", "/restart", session)
 
     mock_messenger.send_text.assert_awaited_once()
     msg = mock_messenger.send_text.call_args[0][1]
@@ -620,11 +620,11 @@ async def test_help_single_cmd_unknown():
     with patch("backend.adapters.messenger.get_messenger",
                return_value=mock_messenger):
         from backend.guards.commands.help_cmd import HelpCommand
-        await HelpCommand().execute("905001234567", "!nonexistent", session)
+        await HelpCommand().execute("905001234567", "/nonexistent", session)
 
     mock_messenger.send_text.assert_awaited_once()
     msg = mock_messenger.send_text.call_args[0][1]
-    assert "!nonexistent" in msg
+    assert "/nonexistent" in msg
 
 
 # ── !restart komutu ───────────────────────────────────────────────
@@ -956,7 +956,7 @@ async def test_terminal_dangerous_cmd_requests_totp():
         await TerminalCommand().execute("905001234567", "rm -rf /tmp/test", session_obj)
 
     session_obj.set_terminal_pending.assert_called_once_with("rm -rf /tmp/test")
-    session_obj.start_admin_totp.assert_called_once_with(cmd="!terminal")
+    session_obj.start_admin_totp.assert_called_once_with(cmd="/terminal")
     mock_messenger.send_text.assert_awaited_once()
 
 

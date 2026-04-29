@@ -106,7 +106,7 @@
   },
   "shutdown": {
     "ok": "🛑 Shutting down service... Goodbye!",
-    "docker_warning": "⚠️ In Docker, !shutdown restarts the API container (restart: unless-stopped). Use `docker compose stop` to fully stop services.\n\nRestarting API..."
+    "docker_warning": "⚠️ In Docker, /shutdown restarts the API container (restart: unless-stopped). Use `docker compose stop` to fully stop services.\n\nRestarting API..."
   },
   "root_reset": {
     "starting": "🔄 Resetting main agent session...",

@@ -71,7 +71,7 @@ def test_registry_values_are_callable():
 @pytest.mark.asyncio
 async def test_awaiting_totp_skips_text_routing():
     """awaiting_totp=True → _route_text çağrılmamalı (auth handler devralır)."""
-    session = _make_session(awaiting_totp=True, pending_command="!restart")
+    session = _make_session(awaiting_totp=True, pending_command="/restart")
 
     mock_route_text = AsyncMock()
     mock_handle_totp = AsyncMock()
@@ -213,7 +213,7 @@ async def test_no_auth_state_routes_to_text(monkeypatch):
 @pytest.mark.asyncio
 async def test_cancel_word_clears_totp_state():
     """!cancel geldiğinde TOTP akışı iptal edilmeli."""
-    session = _make_session(awaiting_totp=True, pending_command="!restart")
+    session = _make_session(awaiting_totp=True, pending_command="/restart")
 
     patcher_m, mock_msg = _patch_messenger()
     mock_lock = MagicMock()
@@ -228,7 +228,7 @@ async def test_cancel_word_clears_totp_state():
          patch("backend.routers._dispatcher.log_inbound"):
         from backend.routers import _dispatcher
         await _dispatcher.handle_common_message(
-            "905001234567", "msg-001", "text", session, InboundMessage(text="!cancel")
+            "905001234567", "msg-001", "text", session, InboundMessage(text="/cancel")
         )
 
     assert session.get("awaiting_totp") is False

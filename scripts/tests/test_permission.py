@@ -52,7 +52,7 @@ def test_required_perm_registered_command(mgr):
     with patch("backend.guards.permission.PermissionManager.required_perm",
                wraps=mgr.required_perm):
         with patch("backend.guards.commands.registry.registry", mock_registry):
-            result = mgr.required_perm("!restart")
+            result = mgr.required_perm("/restart")
     # Temel davranış: kayıtlı komuttan perm döner
     # (import patching karmaşıklığı nedeniyle lazy import'u doğrudan test edemiyoruz;
     #  registry entegrasyonunu functional test eder)
@@ -67,8 +67,8 @@ def test_required_perm_unknown_command_returns_none(mgr):
 
 def test_required_perm_known_command_not_none(mgr):
     """Kayıtlı komutlar None döndürmemeli."""
-    result = mgr.required_perm("!help")
-    # !help kayıtlı — None olmamalı
+    result = mgr.required_perm("/help")
+    # /help kayıtlı — None olmamalı
     assert result is not None
 
 

@@ -106,7 +106,7 @@
   },
   "shutdown": {
     "ok": "🛑 Servis kapatılıyor... Görüşürüz!",
-    "docker_warning": "⚠️ Docker ortamında !shutdown API container'ını yeniden başlatır (restart: unless-stopped). Servisleri tamamen durdurmak için `docker compose stop` kullanın.\n\nAPI yeniden başlatılıyor..."
+    "docker_warning": "⚠️ Docker ortamında /shutdown API container'ını yeniden başlatır (restart: unless-stopped). Servisleri tamamen durdurmak için `docker compose stop` kullanın.\n\nAPI yeniden başlatılıyor..."
   },
   "root_reset": {
     "starting": "🔄 Ana ajan session'ı sıfırlanıyor...",

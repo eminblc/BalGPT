@@ -141,6 +141,6 @@ def test_root_reset_ok():
 def test_help_fallback():
     tr_msg = t("help.fallback", "tr")
     en_msg = t("help.fallback", "en")
-    assert "!help" in tr_msg
-    assert "!help" in en_msg
+    assert "/help" in tr_msg
+    assert "/help" in en_msg
     assert "Claude" in tr_msg
