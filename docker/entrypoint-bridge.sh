@@ -28,6 +28,30 @@ for dir in \
 done
 echo "  $OK Dizinler hazır"
 
+# ── 1b. Yazma izinleri kontrolü ──────────────────────────────────
+# install.sh chown'ını atlayan ortamlarda (Docker Desktop on Mac/Windows,
+# hatalı UID eşlemesi) Claude CLI session ve conv_history yazamaz,
+# sorgular epoll_wait'te askıda kalır. Fail-fast ile erken uyar.
+echo ""
+echo "$INFO Yazma izinleri kontrol ediliyor..."
+WRITE_OK=true
+for dir in /app/data/claude_sessions /app/data/conv_history /home/claude/.claude; do
+  if ! touch "$dir/.writetest" 2>/dev/null; then
+    echo "  $ERR $dir yazılabilir değil — UID $(id -u) sahipliği yok"
+    echo "  $INFO Host'ta düzeltmek için:"
+    echo "    sudo chown -R 1001:1001 ./data/claude_sessions ./data/conv_history"
+    echo "    ~/.claude için: docker compose down && docker compose up -d (Dockerfile.bridge RUN chown ile)"
+    WRITE_OK=false
+  else
+    rm -f "$dir/.writetest"
+  fi
+done
+if [ "$WRITE_OK" = "false" ]; then
+  echo "  $ERR Bridge yazma izinleri eksik — Claude CLI session yazamayacak, sorgular askıda kalacak"
+  exit 1
+fi
+echo "  $OK Tüm yazma izinleri tamam"
+
 # ── 2. Claude CLI kimlik doğrulaması ─────────────────────────────
 echo ""
 echo "$INFO Claude kimlik bilgileri kontrol ediliyor..."

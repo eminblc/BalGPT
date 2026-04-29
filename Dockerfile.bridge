@@ -34,6 +34,12 @@ RUN chmod +x /entrypoint.sh
 # Tüm uygulama dosyalarının sahipliğini claude user'a ver
 RUN chown -R claude:claude /app
 
+# /home/claude/.claude/ dizinini önceden sahiplikle oluştur.
+# Docker bind-mount parent dizini yoksa root:root 755 olarak yaratır;
+# bu olduğunda Claude CLI ~/.claude/projects/ altına session dosyası
+# yazamaz ve epoll_wait'te askıda kalır.
+RUN mkdir -p /home/claude/.claude && chown -R claude:claude /home/claude
+
 USER claude
 
 EXPOSE 8013
