@@ -1,0 +1,12 @@
+# Tam kurulum — CI / geliştirme ortamı / manuel kurulum için
+# install.sh bu dosyayı kullanmaz; seçili yetenek dosyalarını yükler.
+# Bkz. requirements/ dizini (capability başına ayrılmış dosyalar).
+-r requirements/core.txt
+-r requirements/dev.txt
+-r requirements/scheduler.txt
+-r requirements/pdf_import.txt
+-r requirements/browser.txt
+-r requirements/calendar.txt
+-r requirements/desktop.txt
+-r requirements/screenshot.txt
+-r requirements/media.txt

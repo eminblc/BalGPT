@@ -1,0 +1,3 @@
+# Yetenek: scheduler (RESTRICT_SCHEDULER=false)
+apscheduler==3.11.2
+SQLAlchemy==2.0.49

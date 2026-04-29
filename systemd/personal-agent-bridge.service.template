@@ -1,0 +1,16 @@
+[Unit]
+Description=Personal Agent — Claude Code Bridge (port {{BRIDGE_PORT}})
+After=network.target personal-agent.service
+
+[Service]
+Type=simple
+User={{USER}}
+WorkingDirectory={{ROOT_DIR}}/scripts/claude-code-bridge
+EnvironmentFile={{ROOT_DIR}}/scripts/backend/.env
+ExecStart={{NODE_PATH}} server.js
+Restart=on-failure
+RestartSec=5
+Environment=BRIDGE_PORT={{BRIDGE_PORT}}
+
+[Install]
+WantedBy=multi-user.target

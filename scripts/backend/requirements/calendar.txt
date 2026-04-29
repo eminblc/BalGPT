@@ -1,0 +1,2 @@
+# Yetenek: calendar (RESTRICT_CALENDAR=false)
+dateparser==1.4.0

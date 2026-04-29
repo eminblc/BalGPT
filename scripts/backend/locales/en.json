@@ -1,0 +1,471 @@
+{
+  "auth": {
+    "totp": {
+      "ok": "✅ Verified.",
+      "invalid": "❌ Invalid TOTP code. ({remaining} attempts left)",
+      "locked": "🔒 Too many failed TOTP attempts. Wait {minutes} min.",
+      "lockout": "🔒 Too many failed attempts. Please wait 15 minutes.",
+      "prompt": "🔐 Enter TOTP code:\n(/cancel to abort)"
+    },
+    "desktop_totp": {
+      "ok": "✅ Desktop unlocked for {minutes} min.\nNow repeat your desktop request.",
+      "invalid": "❌ Invalid TOTP code. Try again or /cancel to abort.",
+      "lockout": "🔒 Too many failed attempts. Wait {minutes} min."
+    },
+    "math": {
+      "prompt": "⚠️ Destructive command: *{cmd}*\nAnswer to continue: {a} + {b} = ?\n(/cancel to abort)",
+      "ok": "✅ Correct. Enter TOTP:\n(/cancel to abort)",
+      "wrong": "❌ Wrong. ({remaining} attempts left)",
+      "invalid_input": "❌ Enter a number. ({remaining} attempts left)",
+      "too_many": "❌ Too many failed attempts. Operation cancelled.",
+      "too_many_wrong": "❌ Too many wrong answers. Operation cancelled."
+    },
+    "guardrail": {
+      "confirm": "⚠️ This request involves a destructive or dangerous operation.\nDo you want to continue? (yes/no)\n(/cancel to abort)",
+      "ask_yn": "⚠️ Please reply with *yes* or *no*. (/cancel to abort)",
+      "totp_prompt": "🔐 Enter TOTP:\n(/cancel to abort)"
+    }
+  },
+  "cancel": {
+    "ok": "❌ Active operation cancelled.",
+    "nothing": "ℹ️ No active operation to cancel.",
+    "generic": "❌ Operation cancelled.",
+    "bridge_ok": "⛔ Active Bridge query cancelled."
+  },
+  "cmd": {
+    "unknown": "❓ Unknown command: {cmd}\nType /help to see commands.",
+    "wiz_auto_cancelled": "ℹ️ Ongoing project creation wizard was cancelled.",
+    "wiz_empty_name": "⚠️ Project name cannot be empty. Try again:",
+    "pdf_cancelled": "❌ PDF operation cancelled. (Please select from buttons)",
+    "use_restart_instead": "ℹ️ To restart the service, you need to use the `/restart` command.\n\nThis command requires a math challenge + admin TOTP security chain.",
+    "use_shutdown_instead": "ℹ️ To shut down the service, you need to use the `/shutdown` command.\n\nThis command requires a math challenge + admin TOTP security chain."
+  },
+  "msg": {
+    "sticker_ack": "😄 Sticker received.",
+    "unsupported_type": "⚠️ Unsupported message type: {msg_type}",
+    "error": "⚠️ An unexpected error occurred while processing your message. Please try again."
+  },
+  "guard": {
+    "unauthorized": "⚠️ Unauthorized message\nNumber: {sender}\n{preview}",
+    "rate_limit": "⏳ Too many requests. Please wait a minute.",
+    "capability_restricted": "🚫 This capability is disabled: {capability}"
+  },
+  "capability": {
+    "filesystem": "Filesystem access",
+    "network": "Network / HTTP requests",
+    "shell": "Shell commands",
+    "service_mgmt": "Service management",
+    "media": "Media upload/download",
+    "calendar": "Calendar & scheduling",
+    "project_wizard": "Project creation wizard",
+    "screenshot": "Screenshot / headless browser",
+    "scheduler": "Scheduled task subsystem",
+    "pdf_import": "PDF import",
+    "conv_history": "Conversation history logging",
+    "plans": "Work plan management",
+    "intent_classifier": "Natural language intent classification",
+    "wizard_llm_scaffold": "Wizard AI architecture preview"
+  },
+  "help": {
+    "unknown_cmd": "❓ `{cmd}` is not a known command.\nType /help to see all commands.",
+    "menu_title": "🤖 BalGPT\n\nWhat would you like to do?",
+    "list_header": "Commands — for details: /help /command",
+    "section_planning": "Planning & Projects",
+    "section_system": "System & Tools",
+    "fallback": "Commands:\n/help [/cmd]     — This menu or command details\n/history [N|summary] — Recent messages\n/project [id]    — Set active project (TOTP)\n/lang <tr|en>    — Change language\n/model           — {model_hint}\n/beta       — Exit beta mode\n\nCreate project:\n  Menu → New Project → enter name → select type:\n  • Software Project  (CLAUDE.md, BACKLOG.md ...)\n  • Save Task         (README + outputs/)\n  • Folder Only       (empty folder)\n\nSystem commands:\n/root-reset  — Reset session\n/restart     — Restart services\n/terminal <cmd> — Run shell command (dangerous → admin TOTP)\n⚠️ Destructive (math + admin TOTP):\n/shutdown    — Stop service\n\nScheduling (TOTP):\n/schedule                        → list\n/schedule ekle 0 9 * * * <desc>  → 9am daily — Bridge prompt\n/schedule mesaj 0 9 * * * <text> → 9am daily — fixed message\n/schedule sil|durdur|başlat <id>\nNatural language: 'Write a brief every morning at 9' → Claude creates it\n\nNon-command messages go to Claude. 💬",
+    "btn_chat": "💬 Chat",
+    "btn_plans": "📋 My Plans",
+    "btn_projects": "📁 Projects",
+    "row_plans": "My Plans",
+    "row_calendar": "Calendar",
+    "row_projects": "Projects",
+    "row_new_project": "New Project",
+    "row_history": "History",
+    "row_schedule": "Schedule",
+    "row_session_reset": "Reset Session",
+    "row_shutdown": "Shutdown / Restart",
+    "row_lang": "Change Language",
+    "row_model": "Change Model",
+    "row_tokens": "Token Statistics",
+    "model_hint_anthropic": "/model sonnet|haiku|opus — active: {current}",
+    "model_hint_ollama": "/model <model_name> — active: {current}",
+    "model_hint_gemini": "/model gemini-2.0-flash etc. — active: {current}",
+    "model_hint_default": "/model <model_name> — active: {current}"
+  },
+  "restart": {
+    "starting": "♻️ Restarting services...",
+    "bridge_timeout": "❌ Bridge restart timed out ({svc}).\nManual check required.",
+    "bridge_failed": "❌ Bridge restart failed ({svc}).\n{error}\nPlease log in to the server and check the status.",
+    "pm2_failed": "❌ PM2 restart failed ({app}).\n{error}"
+  },
+  "shutdown": {
+    "ok": "🛑 Shutting down service... Goodbye!",
+    "docker_warning": "⚠️ In Docker, /shutdown restarts the API container (restart: unless-stopped). Use `docker compose stop` to fully stop services.\n\nRestarting API..."
+  },
+  "root_reset": {
+    "starting": "🔄 Resetting main agent session...",
+    "ok": "✅ Session reset. A new session will start with your next message.",
+    "failed": "❌ Session reset failed. Bridge may be unreachable — try /restart."
+  },
+  "schedule": {
+    "usage": "Usage:\n/schedule                       → list\n/schedule ekle <cron> <desc>    → bridge prompt\n/schedule mesaj <cron> <text>   → fixed message\n/schedule sil <id>\n/schedule durdur <id>\n/schedule başlat <id>",
+    "empty": "📭 No scheduled tasks found.\nCreate one with /schedule ekle.",
+    "list_header": "⏱ *Scheduled Tasks*",
+    "list_footer": "ℹ️ By ID prefix: /schedule sil <id> · /schedule durdur <id>",
+    "add_format_error": "❌ Format: /schedule ekle <m> <h> <d> <mo> <dw> <description>\nexample: /schedule ekle 0 9 * * * Daily brief",
+    "add_ok": "✅ Task created\nID: `{id}`\nCron: `{cron}`\nType: {tip}\nDescription: {desc}",
+    "tip_bridge": "Claude prompt",
+    "tip_message": "fixed message",
+    "remove_usage": "❌ Usage: /schedule sil <id_prefix>",
+    "not_found": "❌ No task found starting with `{prefix}`.",
+    "remove_ok": "🗑 Task deleted: `{id}` — {desc}",
+    "pause_usage": "❌ Usage: /schedule durdur <id_prefix>",
+    "pause_ok": "⏸ Paused: `{id}` — {desc}",
+    "resume_usage": "❌ Usage: /schedule başlat <id_prefix>",
+    "resume_ok": "▶️ Resumed: `{id}` — {desc}",
+    "one_time": "one-time",
+    "next_run_label": "Next",
+    "cron_error": "❌ {error}"
+  },
+  "project": {
+    "cleared": "✅ Active project cleared. Main mode active.",
+    "active": "📌 Active project: *{name}*\nTo change: /project <id>\nTo exit: /project none",
+    "none_active": "📌 No active project. To select:",
+    "not_found": "❌ Project not found: {id}",
+    "set_ok": "✅ Active project: *{name}*\nMessages like 'backlog', 'report' will now relate to this project.\nTo exit: /project none",
+    "beta_started": "🔀 Beta mode started: *{name}*\nMessages are being forwarded to the project.\nTo exit: /beta"
+  },
+  "root_project": {
+    "status": "🏠 Root project: *{name}* (`{id}`)\nPath: `{path}`\nTo exit: `/root-exit`",
+    "none": "ℹ️ No root project selected.\nUsage: `/root-project <project-id>`",
+    "read_error": "❌ Could not read status.",
+    "invalid_id": "❌ Invalid project ID.",
+    "not_found": "❌ Project not found: `{id}`",
+    "set_ok": "🏠 Root project set: *{name}*\nPath: `{path}`\nTo exit: `/root-exit`"
+  },
+  "root_exit": {
+    "not_set": "ℹ️ No root project is currently selected.",
+    "error": "❌ Could not update active_context.json: {error}",
+    "ok": "↩️ Exited root project context ({name}).\nReturned to 99-root directory."
+  },
+  "beta_exit": {
+    "already_main": "ℹ️ You are already in main agent mode.",
+    "ok": "↩️ Exited beta mode ({id}). Returned to main agent.",
+    "not_found": "❌ Project not found: {arg}"
+  },
+  "project_delete": {
+    "empty": "📋 No projects registered yet.",
+    "list_header": "📋 Existing projects:\n",
+    "list_footer": "\nTo delete: /project-delete <id>",
+    "not_found": "❌ Project not found: {id}",
+    "delete_failed": "❌ Could not delete project: {id}",
+    "ok": "🗑 Project deleted: *{name}* (`{id}`)\n📁 Directory not deleted: `{path}`\nYou can remove the files manually."
+  },
+  "root_check": {
+    "not_found": "⚠️ root_actions.log not found.",
+    "error": "❌ Could not read data: {error}",
+    "idle_no_history": "⚫ Root is currently idle.",
+    "idle_with_history": "⚫ Root is currently idle.\nLast request: {time} ({ago} ago)",
+    "active_header": "🟢 Root active — running for {duration}",
+    "active_started": "⏰ Started: {time}",
+    "active_type": "📨 Type: {msg_type}",
+    "active_request_label": "💬 Active request:",
+    "active_no_content": "(no content)",
+    "duration_sec": "{n} seconds",
+    "duration_min": "{m}m {s}s",
+    "duration_hour": "{h}h {m}m"
+  },
+  "root_log": {
+    "header": "📋 **Root Action History (Last 5)**\n\n"
+  },
+  "menu": {
+    "chat_mode": "💬 Chat mode. Send your message.",
+    "no_projects": "📁 No projects yet.\n\nWould you like to create a new project?",
+    "new_project_prompt": "Enter new project name:",
+    "new_project_btn": "➕ New Project",
+    "chat_btn": "💬 Chat",
+    "no_tasks": "📌 No pending tasks.",
+    "tasks_header": "📌 Active Tasks:",
+    "bridge_ok": "🔧 System Status\nBridge: ✅\nActive sessions: {sessions}",
+    "bridge_error": "🔧 Bridge: ❌ not responding",
+    "invalid_project_id": "❌ Invalid project ID.",
+    "project_not_found": "❌ Project not found: {id}",
+    "projects_title": "Projects",
+    "unknown_reply": "❓ Unknown option: {id}",
+    "lang_choose": "🌐 Choose interface language:",
+    "pdf_not_found": "❌ PDF not found, please send it again.",
+    "pdf_unknown_option": "❓ Unknown PDF scaffold option: {option}",
+    "project_delete_totp": "⚠️ Destructive operation: *{name}* will be deleted (DB record only).\nEnter Admin TOTP:\n(/cancel to abort)"
+  },
+  "plan": {
+    "empty": "📋 No active plans.",
+    "list_header": "📋 Active Plans ({count}):"
+  },
+  "calendar": {
+    "empty": "📅 No upcoming events.",
+    "list_header": "📅 Upcoming Events:",
+    "reminder": "⏰ Reminder: {title}\n🕐 {time}"
+  },
+  "lang": {
+    "changed": "🌐 Language changed: {code}",
+    "invalid": "Supported languages: tr, en",
+    "label_tr": "Turkish",
+    "label_en": "English"
+  },
+  "timezone": {
+    "current": "🕐 Current timezone: *{tz}*",
+    "changed": "✅ Timezone changed: *{tz}*\nAll scheduled tasks will run according to the new timezone.",
+    "invalid": "❌ Invalid timezone: `{tz}`\nExample: `/timezone Europe/Istanbul` or `/timezone UTC`"
+  },
+  "chat": {
+    "bridge_api_error": "⚠️ Agent encountered a temporary error. Please try again."
+  },
+  "wizard": {
+    "ask_description": "Describe the purpose of *{name}*:\n_(Will be added to file headers and CLAUDE.md — type '-' to skip)_",
+    "options_title": "*{name}* — Options\nChange any item, then confirm when ready:",
+    "path_confirm": "📁 Project path:\n`{path}`\n\nWould you like to change it?",
+    "path_keep_btn": "✅ No, continue",
+    "path_change_btn": "✏️ Yes, change",
+    "path_input_prompt": "Enter new project path:\n_(Current: `{current}` — type '-' to skip)_",
+    "path_absolute_required": "⚠️ An absolute path is required (must start with /).\n_(e.g. /home/user/projects/my-project)_",
+    "path_traversal_error": "⚠️ Path cannot contain '..'. Enter a valid path:",
+    "path_unsafe_prefix": "⚠️ This path points to a disallowed directory.\nAllowed roots: `/home/`, `/tmp/`, `/opt/`\n_(type '-' to skip)_",
+    "service_intro": "⚙️ *Service configuration*\n\nA service = a long-running process your project runs in the background (e.g. FastAPI server, Express app, worker). For each service I'll ask:\n\n1. *Name* — tmux window name (e.g. api, worker)\n2. *Command* — start command (e.g. uvicorn main:app)\n3. *Port* — listening port (if any)\n4. *Working directory* — which folder the command runs in\n\nYou can add/remove services later from the /project menu.",
+    "service_name_prompt": "⚙️ Service #{count} — *Name*\n_Tmux window name. Letters, digits, `-`, `_` only._\n_Example: api, web, worker (max 50 chars)_",
+    "service_name_invalid": "⚠️ Invalid service name. Only letters, digits, `-` and `_` are allowed; no spaces or special characters (max 50 chars).\nTry again:",
+    "service_cmd_prompt": "*{name}* — *Start command*\n_A single command to start the service. Do not use shell redirection (`>`, `&`, `|`)._\n_Example: `uvicorn main:app --host 0.0.0.0 --port 8020`_\n_Example (Node): `node server.js`_",
+    "service_cmd_unsafe": "⚠️ Command cannot contain `;`, `|`, `>`, `&`, `$` characters.\nUse a wrapper script instead of shell redirection.\nEnter the command again:",
+    "service_port_prompt": "*Port number*\n_TCP port the service listens on (1-65535). Metadata only; if the command already has --port it's auto-detected._\n_Example: 8020_\n_If no port: type `-`_",
+    "service_port_invalid": "⚠️ Invalid port. Enter a number between 1-65535 or '-' to skip:",
+    "service_cwd_prompt": "*Working directory*\n_Folder the command runs in. Empty = project root._\n_Example: src (run inside project/src/)_\n_To skip: `-`_",
+    "service_added": "✅ *{name}* added. Add another service?",
+    "add_service_btn": "➕ Add Service",
+    "summary_btn": "📋 View Summary",
+    "none_label": "none",
+    "no_services": "(no services)",
+    "ai_forced_mds": "⚠️ AI preview active — CLAUDE.md and README.md will be created automatically",
+    "summary": "📋 *Project Summary*\n\nName: *{name}*\nDescription: {desc}\nType: {level}\nMD files: {mds}\nPath: `{path}`\nServices:{services}",
+    "create_btn": "✅ Create",
+    "edit_btn": "✏️ Edit",
+    "cancel_btn": "❌ Cancel",
+    "overwrite_confirm": "⚠️ Directory already exists and contains files:\n`{path}`\n\nContinuing may overwrite existing files. Proceed?",
+    "overwrite_yes_btn": "✅ Yes, continue",
+    "creating": "⏳ Creating project...",
+    "duplicate_name": "❌ A project named *{name}* already exists.\nTry again with a different name: /project new",
+    "create_failed": "❌ Could not create project: {error}\nTry a different name: /project new",
+    "permission_error": "❌ Could not create project directory: `{path}`\nPath is not accessible. Try a different path: /project new",
+    "unexpected_error": "❌ An unexpected error occurred. Please try again: /project new",
+    "svc_count": "\nServices: {count}",
+    "created": "✅ *{name}* created.\nType: {level}\nPath: `{path}`{svc_note}",
+    "cancelled": "❌ Project creation cancelled.",
+    "level_full": "📁 Software Project",
+    "level_minimal": "📝 Minimal",
+    "level_none": "📂 Folder Only",
+    "opt_sec_level": "Project Type",
+    "opt_level_full": "Software Project",
+    "opt_level_full_desc": "Full structure",
+    "opt_level_minimal": "Minimal",
+    "opt_level_minimal_desc": "README only",
+    "opt_level_none": "Folder Only",
+    "opt_level_none_desc": "Empty directory",
+    "opt_sec_mds": "MD Files",
+    "opt_mds_none": "None",
+    "opt_mds_none_desc": "",
+    "opt_mds_all": "All Files",
+    "opt_mds_all_desc": "CLAUDE.md + AGENT.md + BACKLOG.md + README",
+    "opt_mds_claude_readme": "CLAUDE.md + README",
+    "opt_mds_claude_readme_desc": "Core project files",
+    "opt_mds_readme": "README only",
+    "opt_mds_readme_desc": "",
+    "opt_sec_svc": "Services",
+    "opt_svc_no": "No services",
+    "opt_svc_no_desc": "For static files, CLI tools, libraries etc.",
+    "opt_svc_yes": "Configure services",
+    "opt_svc_yes_desc": "Background servers (API, worker, bot)",
+    "opt_sec_continue": "Continue",
+    "opt_confirm": "✔ Confirm",
+    "opt_confirm_desc": "Continue with selections",
+    "ask_auto_arch": "🤖 Generate an AI architecture suggestion for *{name}*?\n\nBased on your description I'll propose a stack, folder layout and short architecture note. You can accept / edit / skip.",
+    "auto_arch_yes_btn": "✨ Yes, generate",
+    "auto_arch_no_btn": "⏭️ No, skip",
+    "arch_generating": "⏳ Generating AI architecture suggestion… (up to 60s)",
+    "arch_regenerating": "⏳ Regenerating with your feedback…",
+    "arch_preview": "🧩 *AI Architecture Preview*\n\n*Description:*\n{desc}\n\n*Stack:* {stack}\n\n*Folder Structure:*\n{directories}\n\n*Architecture Note:*\n{architecture}",
+    "arch_accept_btn": "✅ Accept",
+    "arch_edit_btn": "✏️ Edit",
+    "arch_skip_btn": "⏭️ Skip",
+    "arch_edit_prompt": "✏️ What should change? Write a short note (e.g. 'add PostgreSQL, remove Redis'):",
+    "arch_failed": "⚠️ Could not generate AI preview. You can continue or edit and retry."
+  },
+  "project_svc": {
+    "not_found": "❌ Project not found: {id}",
+    "invalid_config": "⚠️ {name}: invalid service configuration.",
+    "no_start_cmd": "⚠️ {name}: no start command defined.",
+    "started": "▶️ {name} started.",
+    "no_stop_cmd": "⚠️ {name}: no stop command defined.",
+    "stopped": "⏹ {name} stopped. ({services})"
+  },
+  "bridge": {
+    "timeout": "⏱️ Operation timed out (30 min). Try a shorter request.",
+    "project_offline": "⚠️ *{name}* services are offline.\nTo start: Projects → {name} → Start",
+    "connection_error": "⚠️ Could not connect to Bridge — service may be down.\nUse /restart to restart.",
+    "unavailable": "⚠️ Agent is not responding right now. Try again shortly.",
+    "doc_port_error": "⚠️ Project API port not found: {id}",
+    "doc_send_error": "⚠️ Could not send file. Try again shortly."
+  },
+  "media": {
+    "pdf_received": "📄 PDF received: *{filename}*\nHow would you like to create the project?",
+    "pdf_btn_full": "📁 Software Project",
+    "pdf_btn_minimal": "📝 Save Task",
+    "pdf_btn_none": "📂 Folder Only",
+    "pdf_wizard_active": "⚠️ Project creation is in progress. Finish or cancel the wizard first, then send the PDF."
+  },
+  "pdf": {
+    "downloading": "⚙️ Downloading PDF...",
+    "download_failed": "❌ Could not download PDF. Please try again.",
+    "parse_failed": "❌ Could not read PDF. Is it a valid PDF file?",
+    "analyzing": "⚙️ Analyzing PDF ({chars} characters)...",
+    "analyze_failed": "❌ Analysis failed. Please try again shortly.",
+    "created": "✅ Project created: *{name}*\n{desc}\n[Start in Beta Mode → /beta {id}]"
+  },
+  "project_menu": {
+    "sec_run": "Run / Stop",
+    "start_title": "▶️ Start",
+    "start_desc": "Start services",
+    "stop_title": "⏹ Stop",
+    "stop_desc": "Stop services",
+    "restart_title": "🔄 Restart",
+    "restart_desc": "Stop and restart",
+    "sec_mode": "Mode / Info",
+    "beta_title": "🔀 Beta Mode",
+    "beta_desc": "Switch to beta mode",
+    "root_set_title": "🏠 Set as Root",
+    "root_set_desc": "Use this project as root agent context",
+    "info_title": "ℹ️ Info",
+    "info_desc": "Project details",
+    "delete_title": "🗑️ Delete",
+    "delete_desc": "Remove project from DB",
+    "back_title": "↩️ Back",
+    "back_desc": "Return to project list",
+    "info_status": "Status",
+    "info_path": "Path",
+    "info_desc_label": "Description",
+    "info_svc": "Services",
+    "info_svc_undefined": "(not defined)",
+    "info_svc_unreadable": "(could not read)"
+  },
+  "project_list": {
+    "section_title": "Projects ({start}-{end})",
+    "next_page": "Next Page →",
+    "prev_page": "← Previous Page",
+    "new_project": "➕ New Project",
+    "nav_section": "Navigation",
+    "select_btn": "Select"
+  },
+  "scheduler": {
+    "task_reminder": "⏰ {message}",
+    "task_error": "⚠️ Scheduled task error: {error}"
+  },
+  "history": {
+    "empty": "📭 No message history found.",
+    "header": "📜 Last {count} Messages:",
+    "summaries_empty": "📭 No session summaries found.",
+    "summaries_header": "🗂 Past Session Summaries:"
+  },
+  "model": {
+    "current": "🤖 Active model: {model} (backend: {backend})\n\nSupported options:\n{options}",
+    "changed": "✅ Model changed to: {model}",
+    "already_active": "ℹ️ {model} is already the active model.",
+    "options_ollama": "Any model name installed in Ollama",
+    "options_gemini": "Any Gemini model name (e.g. gemini-2.0-flash)",
+    "options_other": "Any model name supported by the backend",
+    "select_prompt": "🤖 Active model: {model} (backend: {backend})\n\nSelect a model:",
+    "btn_sonnet": "Sonnet",
+    "btn_haiku": "Haiku",
+    "btn_opus": "Opus"
+  },
+  "lock": {
+    "locked": "🔒 Application locked.",
+    "unlocked": "🔓 Application unlocked.",
+    "locked_msg": "🔒 Application is locked. Use /unlock to open."
+  },
+  "permission": {
+    "prompt_body": "🔐 Tool approval required\n*{tool_name}*\n`{detail}`",
+    "allow_btn": "✅ Approve",
+    "deny_btn": "❌ Reject",
+    "allowed": "✅ Tool approved.",
+    "denied": "❌ Tool denied."
+  },
+  "terminal": {
+    "usage": "Usage: /terminal <command>\nExample: /terminal ls -la\n\n⚠️ Dangerous commands require Admin TOTP.\n📁 Default working dir: 99-root/\n💡 Tip: Relative paths like scripts/backend/venv/bin/pip are relative to 99-root/.",
+    "dangerous_prompt": "⚠️ Dangerous command detected:\n`{cmd}`\n\nEnter Admin TOTP:\n(/cancel to abort)",
+    "success": "✅ [{code}] 📁 {cwd}\n{output}",
+    "error": "❌ [Error {code}] 📁 {cwd}\n{output}",
+    "timeout": "⏱️ Command timed out and was stopped.",
+    "empty_output": "(no output)"
+  },
+  "dispatcher": {
+    "project_port_not_found": "❌ Project API port not found.",
+    "project_connect_error": "❌ Could not connect to project service."
+  },
+  "main": {
+    "started": "✅ BalGPT started.",
+    "started_with_url": "✅ BalGPT started.\n🌐 Webhook URL:\n{url}",
+    "stopping": "🛑 BalGPT shutting down."
+  },
+  "tokens": {
+    "invalid_span": "❌ Invalid time span: {span}\nUsage: /tokens [24h|7d|30d]",
+    "empty": "📭 No token usage recorded in the last {span}.",
+    "header": "📊 Token Statistics (last {span})",
+    "total": "🔢 Total: {input} input + {output} output ({calls} calls)",
+    "model_header": "🤖 Model Categories:",
+    "model_row": "  • {name}: {input} in + {output} out ({calls} calls)",
+    "backend_header": "⚙️ Backends:",
+    "backend_row": "  • {name}: {input} in + {output} out ({calls} calls)"
+  },
+  "bridge_monitor": {
+    "restart_timeout": "Bridge auto-restart timed out. Manual /restart required.",
+    "restart_success": "Bridge was automatically restarted.",
+    "restart_failed": "Bridge auto-restart failed.\n{detail}\nManual /restart required.",
+    "restart_error": "Bridge restart error: {error}\nManual /restart required.",
+    "bridge_up": "✅ Bridge is accessible again.",
+    "bridge_down": "⚠️ Bridge unreachable ({error}).\nI can't respond. Use /restart to restart.",
+    "auto_restart": "🔄 Automatically restarting Bridge...",
+    "auto_restart_failed": "❌ {msg}"
+  },
+  "install_wizard": {
+    "welcome": "👋 *Welcome to the BalGPT setup wizard!*\n\nTerminal setup is complete. Let's finish the rest (LLM, capabilities, timezone, TOTP) here.\n\nTap the button below to begin.",
+    "welcome_start": "🚀 Start setup",
+    "not_owner": "🔒 This wizard is private to the owner.",
+    "already_done": "ℹ️ Wizard already completed. To re-run: `bash install.sh --reconfigure-capabilities` or `/wizard`.",
+    "llm_prompt": "*Step 1/5 — LLM provider*\n\n🤖 Which LLM do you want to use?\n\nYou can change it later with `/model`. Type `/cancel` anytime to exit the wizard (saved values are kept).",
+    "llm_anthropic": "Anthropic Claude",
+    "llm_ollama": "Ollama (local)",
+    "llm_gemini": "Google Gemini",
+    "anthropic_prompt": "*Step 2/5 — Anthropic authentication*\n\n🔑 Pick a method:\n\n• *Claude Login* — use your claude.ai subscription (recommended)\n• *API Key* — pay-per-use key from Anthropic Console",
+    "auth_login": "🔐 Claude Login (subscription)",
+    "auth_apikey": "🔑 Send API Key",
+    "anthropic_key_prompt": "*Step 2/5 — Anthropic API key*\n\n🔑 Send the key (starts with `sk-ant-api03-...`).\nConsole: console.anthropic.com → Settings → API Keys → Create Key",
+    "claude_login_note": "✅ After the wizard finishes, run this on the **host machine** (not inside the container):\n\n```\nclaude auth login\n```\n\nThe Bridge won't work without it. Anthropic credentials are bind-mounted into the container.",
+    "bad_anthropic_key": "⚠️ Key format looks wrong.\n\nExpected: starts with `sk-ant-api03-`, at least 24 alphanumeric characters.\nSend again or `/cancel` to exit.",
+    "ollama_url_prompt": "*Step 2/5 — Ollama URL*\n\n🌐 Send the Ollama server base URL.\nDefault: `http://localhost:11434`\n(Use the default if Ollama runs on the same machine.)",
+    "ollama_model_prompt": "*Step 2/5 — Ollama model*\n\n📦 Which model should we use?\nExamples: `llama3`, `qwen2.5`, `mistral`\n(The model must already be pulled via `ollama pull <name>`.)",
+    "gemini_key_prompt": "*Step 2/5 — Gemini API key*\n\n🔑 Send the key (starts with `AIza...`).\nGet one at: aistudio.google.com → API Keys → Create API Key",
+    "bad_gemini_key": "⚠️ Key format looks wrong.\n\nExpected: starts with `AIza`, at least 24 alphanumeric characters.\nSend again or `/cancel` to exit.",
+    "bad_url": "⚠️ Expected a valid URL.\n\nExpected format: `http://...` or `https://...`\nExample: `http://localhost:11434`\nSend again.",
+    "required": "⚠️ Cannot be empty. Send again.",
+    "cap_prompt": "*Step 3/5 — Capabilities*\n\n🛠️ Uncheck anything you don't want:\n\n✓ = enabled, ☐ = disabled\n\nDefaults are sensible — if unsure, just tap *Done* and continue. You can change them later with `bash install.sh --reconfigure-capabilities`.",
+    "cap_done": "✅ Done",
+    "cap_fs": "Filesystem access",
+    "cap_desktop": "Desktop automation",
+    "cap_browser": "Browser (Playwright)",
+    "tz_prompt": "*Step 4/5 — Timezone*\n\n🕒 Scheduled tasks and reminders use this timezone.",
+    "tz_other": "🌍 Other (manual)",
+    "tz_custom_prompt": "*Step 4/5 — Custom timezone*\n\nSend an IANA timezone name.\nExamples: `Europe/Berlin`, `America/Chicago`, `Asia/Dubai`\nFull list: en.wikipedia.org/wiki/List_of_tz_database_time_zones",
+    "bad_tz": "⚠️ Expected a valid IANA timezone.\n\nFormat: `Region/City` (e.g. `Europe/Istanbul`, `America/Chicago`).\nFull list: en.wikipedia.org/wiki/List_of_tz_database_time_zones\nSend again.",
+    "totp_caption": "*Step 5/5 — TOTP ({label})*\n\n🔐 Scan this QR with Google Authenticator / Authy.\n\nManual secret:\n`{secret}`",
+    "totp_missing": "⚠️ TOTP secret ({label}) not found — check your `.env` file.",
+    "done": "🎉 *Setup complete!*\n\nRestart services for the changes to take effect:\n\n• If you're on Docker:\n```\ndocker compose restart\n```\n• If you're on systemd:\n```\nsudo systemctl restart personal-agent.service personal-agent-bridge.service\n```\n• If you're on PM2:\n```\npm2 restart 99-api 99-bridge\n```\n\nGet started with: `/help` — all commands.",
+    "env_write_failed": "❌ Failed to write `.env`. Check server logs."
+  }
+}

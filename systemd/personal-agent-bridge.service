@@ -1,0 +1,15 @@
+[Unit]
+Description=Personal Agent — Claude Code Bridge (port 8013)
+After=network.target
+
+[Service]
+Type=simple
+User=emin
+WorkingDirectory=/home/emin/projects/40-claude-code-agents/99-root/scripts/claude-code-bridge
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=5
+Environment=BRIDGE_PORT=8013
+
+[Install]
+WantedBy=multi-user.target

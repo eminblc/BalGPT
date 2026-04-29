@@ -1,0 +1,471 @@
+{
+  "auth": {
+    "totp": {
+      "ok": "✅ Doğrulandı.",
+      "invalid": "❌ Geçersiz TOTP kodu. ({remaining} hak kaldı)",
+      "locked": "🔒 Çok fazla hatalı TOTP. {minutes} dk bekle.",
+      "lockout": "🔒 Çok fazla hatalı deneme. 15 dakika beklemelisin.",
+      "prompt": "🔐 TOTP kodunu gir:\n(/cancel ile iptal)"
+    },
+    "desktop_totp": {
+      "ok": "✅ Desktop kilidi açıldı. {minutes} dk boyunca geçerli.\nŞimdi desktop işleminizi tekrar isteyin.",
+      "invalid": "❌ Geçersiz TOTP kodu. Tekrar dene veya /cancel ile iptal et.",
+      "lockout": "🔒 Çok fazla hatalı deneme. {minutes} dk bekle."
+    },
+    "math": {
+      "prompt": "⚠️ Yıkıcı komut: *{cmd}*\nDevam etmek için soruyu cevapla: {a} + {b} = ?\n(/cancel ile iptal)",
+      "ok": "✅ Doğru. TOTP kodunu gir:\n(/cancel ile iptal)",
+      "wrong": "❌ Yanlış. ({remaining} hak kaldı)",
+      "invalid_input": "❌ Sayı gir. ({remaining} hak kaldı)",
+      "too_many": "❌ Çok fazla hatalı deneme. İşlem iptal edildi.",
+      "too_many_wrong": "❌ Çok fazla hatalı yanıt. İşlem iptal edildi."
+    },
+    "guardrail": {
+      "confirm": "⚠️ Bu istek yıkıcı veya tehlikeli bir işlem içeriyor.\nDevam etmek istiyor musunuz? (evet/hayır)\n(/cancel ile iptal)",
+      "ask_yn": "⚠️ Lütfen *evet* veya *hayır* ile yanıtla. (/cancel ile iptal)",
+      "totp_prompt": "🔐 TOTP kodunu gir:\n(/cancel ile iptal)"
+    }
+  },
+  "cancel": {
+    "ok": "❌ Aktif işlem iptal edildi.",
+    "nothing": "ℹ️ İptal edilecek aktif işlem yok.",
+    "generic": "❌ İşlem iptal edildi.",
+    "bridge_ok": "⛔ Devam eden Bridge sorgusu iptal edildi."
+  },
+  "cmd": {
+    "unknown": "❓ Bilinmeyen komut: {cmd}\n/help ile komutları gör.",
+    "wiz_auto_cancelled": "ℹ️ Devam eden proje oluşturma wizard'ı iptal edildi.",
+    "wiz_empty_name": "⚠️ Proje adı boş olamaz. Tekrar yaz:",
+    "pdf_cancelled": "❌ PDF işlemi iptal edildi. (Butonlardan seçim yapınız)",
+    "use_restart_instead": "ℹ️ Servisi yeniden başlatmak istiyorsan `/restart` komutunu kullanman gerekiyor.\n\nBu komut matematik sorusu + admin TOTP güvenlik zinciri gerektirir.",
+    "use_shutdown_instead": "ℹ️ Servisi kapatmak istiyorsan `/shutdown` komutunu kullanman gerekiyor.\n\nBu komut matematik sorusu + admin TOTP güvenlik zinciri gerektirir."
+  },
+  "msg": {
+    "sticker_ack": "😄 Sticker alındı.",
+    "unsupported_type": "⚠️ Desteklenmeyen mesaj tipi: {msg_type}",
+    "error": "⚠️ Mesaj işlenirken beklenmedik bir hata oluştu. Lütfen tekrar dene."
+  },
+  "guard": {
+    "unauthorized": "⚠️ Yetkisiz mesaj\nNumara: {sender}\n{preview}",
+    "rate_limit": "⏳ Çok fazla istek. Bir dakika bekle.",
+    "capability_restricted": "🚫 Bu yetenek devre dışı: {capability}"
+  },
+  "capability": {
+    "filesystem": "Dosya sistemi erişimi",
+    "network": "Ağ / HTTP istekleri",
+    "shell": "Kabuk komutları",
+    "service_mgmt": "Servis yönetimi",
+    "media": "Medya",
+    "calendar": "Takvim ve zamanlama",
+    "project_wizard": "Proje oluşturma wizard'ı",
+    "screenshot": "Ekran görüntüsü",
+    "scheduler": "Zamanlanmış görev alt sistemi",
+    "pdf_import": "PDF içe aktarma",
+    "conv_history": "Konuşma geçmişi kaydı",
+    "plans": "İş planı yönetimi",
+    "intent_classifier": "Doğal dil niyet tespiti",
+    "wizard_llm_scaffold": "Wizard AI mimari önerisi"
+  },
+  "help": {
+    "unknown_cmd": "❓ `{cmd}` tanımlı bir komut değil.\n/help yazarak tüm komutları görebilirsin.",
+    "menu_title": "🤖 BalGPT\n\nNe yapmak istersin?",
+    "list_header": "Komutlar — detay için: /help /komut",
+    "section_planning": "Planlama & Projeler",
+    "section_system": "Sistem & Araçlar",
+    "fallback": "Komutlar:\n/help [/komut]   — Bu menü veya komut açıklaması\n/history [N|özet] — Son mesajlar\n/project [id]    — Aktif projeyi seç (TOTP)\n/lang <tr|en>    — Dil değiştir\n/model           — {model_hint}\n/beta        — Beta'dan çık\n\nProje oluşturma:\n  Menü → Yeni Proje → ad yaz → tür seç:\n  • Yazılım Projesi  (CLAUDE.md, BACKLOG.md ...)\n  • Görev Kaydet     (README + outputs/)\n  • Sadece Klasör    (boş klasör)\n\nSistem komutları:\n/root-reset  — Session sıfırla\n/restart     — Servisleri yeniden başlat\n/terminal <komut> — Shell komutu çalıştır (tehlikeli → admin TOTP)\n⚠️ Yıkıcı (matematik + admin TOTP):\n/shutdown    — Servisi kapat\n\nZamanlama (TOTP):\n/schedule                        → listele\n/schedule ekle 0 9 * * * <açık>  → her sabah 9 — Bridge'e prompt\n/schedule mesaj 0 9 * * * <metin> → her sabah 9 — sabit mesaj\n/schedule sil|durdur|başlat <id>\nDoğal dil: 'Her sabah 9'da brief yaz' → Claude otomatik oluşturur\n\nKomut olmayan mesajlar Claude'a gider. 💬",
+    "btn_chat": "💬 Sohbet",
+    "btn_plans": "📋 Planlarım",
+    "btn_projects": "📁 Projeler",
+    "row_plans": "Planlarım",
+    "row_calendar": "Takvim",
+    "row_projects": "Projeler",
+    "row_new_project": "Yeni Proje",
+    "row_history": "Geçmiş",
+    "row_schedule": "Zamanlama",
+    "row_session_reset": "Session Sıfırla",
+    "row_shutdown": "Kapat / Restart",
+    "row_lang": "Dil Değiştir",
+    "row_model": "Model Değiştir",
+    "row_tokens": "Token İstatistikleri",
+    "model_hint_anthropic": "/model sonnet|haiku|opus — aktif: {current}",
+    "model_hint_ollama": "/model <model_adı> — aktif: {current}",
+    "model_hint_gemini": "/model gemini-2.0-flash vb. — aktif: {current}",
+    "model_hint_default": "/model <model_adı> — aktif: {current}"
+  },
+  "restart": {
+    "starting": "♻️ Servisler yeniden başlatılıyor...",
+    "bridge_timeout": "❌ Bridge restart zaman aşımına uğradı ({svc}).\nManuel kontrol gerekiyor.",
+    "bridge_failed": "❌ Bridge restart başarısız ({svc}).\n{error}\nSunucuya giriş yapıp durumu kontrol et.",
+    "pm2_failed": "❌ PM2 restart başarısız ({app}).\n{error}"
+  },
+  "shutdown": {
+    "ok": "🛑 Servis kapatılıyor... Görüşürüz!",
+    "docker_warning": "⚠️ Docker ortamında /shutdown API container'ını yeniden başlatır (restart: unless-stopped). Servisleri tamamen durdurmak için `docker compose stop` kullanın.\n\nAPI yeniden başlatılıyor..."
+  },
+  "root_reset": {
+    "starting": "🔄 Ana ajan session'ı sıfırlanıyor...",
+    "ok": "✅ Session sıfırlandı. Bir sonraki mesajda yeni oturum başlar.",
+    "failed": "❌ Session sıfırlama başarısız. Bridge erişilemiyor olabilir — /restart dene."
+  },
+  "schedule": {
+    "usage": "Kullanım:\n/schedule                       → listele\n/schedule ekle <cron> <açıklama> → bridge'e prompt\n/schedule mesaj <cron> <metin>   → sabit mesaj\n/schedule sil <id>\n/schedule durdur <id>\n/schedule başlat <id>",
+    "empty": "📭 Kayıtlı zamanlanmış görev yok.\n/schedule ekle ile oluştur.",
+    "list_header": "⏱ *Zamanlanmış Görevler*",
+    "list_footer": "ℹ️ ID prefix ile: /schedule sil <id> · /schedule durdur <id>",
+    "add_format_error": "❌ Format: /schedule ekle <d> <s> <g> <a> <hg> <açıklama>\nör: /schedule ekle 0 9 * * * Günlük brief hazırla",
+    "add_ok": "✅ Görev oluşturuldu\nID: `{id}`\nCron: `{cron}`\nTip: {tip}\nAçıklama: {desc}",
+    "tip_bridge": "Claude'a prompt",
+    "tip_message": "sabit mesaj",
+    "remove_usage": "❌ Kullanım: /schedule sil <id_prefix>",
+    "not_found": "❌ `{prefix}` ile başlayan görev bulunamadı.",
+    "remove_ok": "🗑 Görev silindi: `{id}` — {desc}",
+    "pause_usage": "❌ Kullanım: /schedule durdur <id_prefix>",
+    "pause_ok": "⏸ Durduruldu: `{id}` — {desc}",
+    "resume_usage": "❌ Kullanım: /schedule başlat <id_prefix>",
+    "resume_ok": "▶️ Yeniden başlatıldı: `{id}` — {desc}",
+    "one_time": "tek seferlik",
+    "next_run_label": "Sonraki",
+    "cron_error": "❌ {error}"
+  },
+  "project": {
+    "cleared": "✅ Aktif proje temizlendi. Ana mod aktif.",
+    "active": "📌 Aktif proje: *{name}*\nDeğiştirmek için: /project <id>\nÇıkmak için: /project none",
+    "none_active": "📌 Aktif proje yok. Seçmek için:",
+    "not_found": "❌ Proje bulunamadı: {id}",
+    "set_ok": "✅ Aktif proje: *{name}*\nBundan sonra 'backlog', 'rapor' gibi ifadeler bu projeye ait.\nÇıkmak için: /project none",
+    "beta_started": "🔀 Beta modu başladı: *{name}*\nMesajların projeye iletiliyor.\nÇıkmak için: /beta"
+  },
+  "root_project": {
+    "status": "🏠 Root proje: *{name}* (`{id}`)\nYol: `{path}`\nÇıkmak için: `/root-exit`",
+    "none": "ℹ️ Root proje seçili değil.\nKullanım: `/root-project <proje-id>`",
+    "read_error": "❌ Durum okunamadı.",
+    "invalid_id": "❌ Geçersiz proje kimliği.",
+    "not_found": "❌ Proje bulunamadı: `{id}`",
+    "set_ok": "🏠 Root proje ayarlandı: *{name}*\nYol: `{path}`\nÇıkmak için: `/root-exit`"
+  },
+  "root_exit": {
+    "not_set": "ℹ️ Root proje zaten seçili değil.",
+    "error": "❌ active_context.json güncellenemedi: {error}",
+    "ok": "↩️ Root proje bağlamından çıkıldı ({name}).\n99-root dizinine dönüldü."
+  },
+  "beta_exit": {
+    "already_main": "ℹ️ Zaten ana ajan modundasın.",
+    "ok": "↩️ Beta modundan çıkıldı ({id}). Ana ajana dönüldü.",
+    "not_found": "❌ Proje bulunamadı: {arg}"
+  },
+  "project_delete": {
+    "empty": "📋 Henüz kayıtlı proje yok.",
+    "list_header": "📋 Mevcut projeler:\n",
+    "list_footer": "\nSilmek için: /project-delete <id>",
+    "not_found": "❌ Proje bulunamadı: {id}",
+    "delete_failed": "❌ Proje silinemedi: {id}",
+    "ok": "🗑 Proje silindi: *{name}* (`{id}`)\n📁 Dizin silinmedi: `{path}`\nDosyaları manuel olarak kaldırabilirsin."
+  },
+  "root_check": {
+    "not_found": "⚠️ root_actions.log bulunamadı.",
+    "error": "❌ Veri okunamadı: {error}",
+    "idle_no_history": "⚫ Root şu an çalışmıyor.",
+    "idle_with_history": "⚫ Root şu an çalışmıyor.\nSon istek: {time} ({ago} önce)",
+    "active_header": "🟢 Root aktif — {duration} süredir çalışıyor",
+    "active_started": "⏰ Başladı: {time}",
+    "active_type": "📨 Tür: {msg_type}",
+    "active_request_label": "💬 Aktif istek:",
+    "active_no_content": "(içerik yok)",
+    "duration_sec": "{n} saniye",
+    "duration_min": "{m}d {s}s",
+    "duration_hour": "{h}s {m}d"
+  },
+  "root_log": {
+    "header": "📋 **Root İşlem Geçmişi (Son 5)**\n\n"
+  },
+  "menu": {
+    "chat_mode": "💬 Sohbet modunda. Mesajını yaz.",
+    "no_projects": "📁 Henüz proje yok.\n\nYeni bir proje oluşturmak ister misin?",
+    "new_project_prompt": "Yeni proje adını yaz:",
+    "new_project_btn": "➕ Yeni Proje",
+    "chat_btn": "💬 Sohbet",
+    "no_tasks": "📌 Bekleyen görev yok.",
+    "tasks_header": "📌 Aktif Görevler:",
+    "bridge_ok": "🔧 Sistem Durumu\nBridge: ✅\nAktif oturum: {sessions}",
+    "bridge_error": "🔧 Bridge: ❌ yanıt vermiyor",
+    "invalid_project_id": "❌ Geçersiz proje kimliği.",
+    "project_not_found": "❌ Proje bulunamadı: {id}",
+    "projects_title": "Projeler",
+    "unknown_reply": "❓ Bilinmeyen seçenek: {id}",
+    "lang_choose": "🌐 Arayüz dilini seç:",
+    "pdf_not_found": "❌ PDF bulunamadı, tekrar gönderin.",
+    "pdf_unknown_option": "❓ Bilinmeyen PDF scaffold seçeneği: {option}",
+    "project_delete_totp": "⚠️ Yıkıcı işlem: *{name}* silinecek (yalnızca DB kaydı).\nAdmin TOTP kodunu gir:\n(/cancel ile iptal)"
+  },
+  "plan": {
+    "empty": "📋 Aktif plan yok.",
+    "list_header": "📋 Aktif Planlar ({count}):"
+  },
+  "calendar": {
+    "empty": "📅 Yaklaşan etkinlik yok.",
+    "list_header": "📅 Yaklaşan Etkinlikler:",
+    "reminder": "⏰ Hatırlatıcı: {title}\n🕐 {time}"
+  },
+  "lang": {
+    "changed": "🌐 Dil değiştirildi: {code}",
+    "invalid": "Desteklenen diller: tr, en",
+    "label_tr": "Türkçe",
+    "label_en": "İngilizce"
+  },
+  "timezone": {
+    "current": "🕐 Mevcut saat dilimi: *{tz}*",
+    "changed": "✅ Saat dilimi değiştirildi: *{tz}*\nTüm zamanlanmış görevler yeni saat dilimine göre çalışacak.",
+    "invalid": "❌ Geçersiz saat dilimi: `{tz}`\nÖrnek: `/timezone Europe/Istanbul` veya `/timezone UTC`"
+  },
+  "chat": {
+    "bridge_api_error": "⚠️ Ajan geçici bir hatayla karşılaştı. Lütfen tekrar dene."
+  },
+  "wizard": {
+    "ask_description": "*{name}* projesinin genel amacını açıkla:\n_(Dosya başlıklarına ve CLAUDE.md'ye eklenecek — atlamak için '-')_",
+    "options_title": "*{name}* — Seçenekler\nİstediğin maddeyi değiştir, hazır olunca Onayla:",
+    "path_confirm": "📁 Proje yolu:\n`{path}`\n\nDeğiştirmek ister misiniz?",
+    "path_keep_btn": "✅ Hayır, devam et",
+    "path_change_btn": "✏️ Evet, değiştir",
+    "path_input_prompt": "Yeni proje yolunu gir:\n_(Mevcut: `{current}` — atlamak için '-')_",
+    "path_absolute_required": "⚠️ Mutlak yol girilmeli (/ ile başlamalı).\n_(örn: /home/kullanici/projeler/yeni-proje)_",
+    "path_traversal_error": "⚠️ Yol '..' içeremez. Geçerli bir yol gir:",
+    "path_unsafe_prefix": "⚠️ Bu yol izin verilmeyen bir dizini işaret ediyor.\nİzin verilen kökler: `/home/`, `/tmp/`, `/opt/`\n_(atlamak için '-' yaz)_",
+    "service_intro": "⚙️ *Servis yapılandırma*\n\nServis = projenin arka planda çalışacak çalışan süreci (ör. FastAPI sunucusu, Express app, worker). Her servis için şunları soracağım:\n\n1. *Ad* — tmux penceresi adı (örn: api, worker)\n2. *Komut* — başlatma komutu (örn: uvicorn main:app)\n3. *Port* — dinlenen port (varsa)\n4. *Çalışma dizini* — komutun hangi klasörden çalışacağı\n\nSonradan /project menüsünden ekleme/silme yapabilirsin.",
+    "service_name_prompt": "⚙️ Servis #{count} — *Ad*\n_Tmux pencere adı. Yalnızca harf/rakam/`-`/`_`._\n_Örnek: api, web, worker (max 50 karakter)_",
+    "service_name_invalid": "⚠️ Geçersiz servis adı. Yalnızca harf, rakam, `-` ve `_` kullanılabilir; boşluk ve özel karakter yasak (max 50 karakter).\nTekrar gir:",
+    "service_cmd_prompt": "*{name}* — *Başlatma komutu*\n_Servisi başlatacak tek komut. Shell yönlendirmesi (`>`, `&`, `|`) kullanma._\n_Örnek: `uvicorn main:app --host 0.0.0.0 --port 8020`_\n_Örnek (Node): `node server.js`_",
+    "service_cmd_unsafe": "⚠️ Komut `;`, `|`, `>`, `&`, `$` gibi karakterler içeremez.\nShell yönlendirmesi yerine bir sarmalayıcı script kullan.\nKomutu tekrar gir:",
+    "service_port_prompt": "*Port numarası*\n_Servisin dinleyeceği TCP port (1-65535). Sadece metadata için; komut zaten --port ile verilmişse otomatik algılanır._\n_Örnek: 8020_\n_Port yoksa: `-` yaz_",
+    "service_port_invalid": "⚠️ Geçersiz port. 1-65535 arasında bir sayı yaz ya da '-' ile atla:",
+    "service_cwd_prompt": "*Çalışma dizini*\n_Komutun hangi klasörden çalışacağı. Boş = proje kökü._\n_Örnek: src (proje/src/ içinde çalıştır)_\n_Atlamak için: `-`_",
+    "service_added": "✅ *{name}* eklendi. Başka servis var mı?",
+    "add_service_btn": "➕ Servis Ekle",
+    "summary_btn": "📋 Özete Geç",
+    "none_label": "hiçbiri",
+    "no_services": "(servis yok)",
+    "ai_forced_mds": "⚠️ AI önizlemesi aktif — CLAUDE.md ve README.md zorunlu oluşturulur",
+    "summary": "📋 *Proje Özeti*\n\nAd: *{name}*\nAçıklama: {desc}\nTür: {level}\nMD dosyaları: {mds}\nYol: `{path}`\nServisler:{services}",
+    "create_btn": "✅ Oluştur",
+    "edit_btn": "✏️ Düzenle",
+    "cancel_btn": "❌ İptal",
+    "overwrite_confirm": "⚠️ Dizin zaten mevcut ve içerik barındırıyor:\n`{path}`\n\nDevam edilirse mevcut dosyaların üzerine yazılabilir. Devam et?",
+    "overwrite_yes_btn": "✅ Evet, devam et",
+    "creating": "⏳ Proje oluşturuluyor...",
+    "duplicate_name": "❌ *{name}* adında proje zaten mevcut.\nFarklı bir ad ile tekrar dene: /project new",
+    "create_failed": "❌ Proje oluşturulamadı: {error}\nFarklı bir ad dene: /project new",
+    "permission_error": "❌ Proje dizini oluşturulamadı: `{path}`\nYol erişilebilir değil. Farklı bir yol ile tekrar dene: /project new",
+    "unexpected_error": "❌ Beklenmeyen hata oluştu. Lütfen tekrar dene: /project new",
+    "svc_count": "\nServis: {count} adet",
+    "created": "✅ *{name}* oluşturuldu.\nTür: {level}\nYol: `{path}`{svc_note}",
+    "cancelled": "❌ Proje oluşturma iptal edildi.",
+    "level_full": "📁 Yazılım Projesi",
+    "level_minimal": "📝 Minimal",
+    "level_none": "📂 Sadece Klasör",
+    "opt_sec_level": "Proje Türü",
+    "opt_level_full": "Yazılım Projesi",
+    "opt_level_full_desc": "Tam yapı",
+    "opt_level_minimal": "Minimal",
+    "opt_level_minimal_desc": "Sadece README",
+    "opt_level_none": "Sadece Klasör",
+    "opt_level_none_desc": "Boş dizin",
+    "opt_sec_mds": "MD Dosyaları",
+    "opt_mds_none": "Hiçbiri",
+    "opt_mds_none_desc": "",
+    "opt_mds_all": "Tüm Dosyalar",
+    "opt_mds_all_desc": "CLAUDE.md + AGENT.md + BACKLOG.md + README",
+    "opt_mds_claude_readme": "CLAUDE.md + README",
+    "opt_mds_claude_readme_desc": "Temel proje dosyaları",
+    "opt_mds_readme": "Sadece README",
+    "opt_mds_readme_desc": "",
+    "opt_sec_svc": "Servis",
+    "opt_svc_no": "Servis yok",
+    "opt_svc_no_desc": "Statik dosya, CLI aracı, kütüphane vb. için",
+    "opt_svc_yes": "Servis yapılandır",
+    "opt_svc_yes_desc": "Arka planda çalışan sunucu (API, worker, bot)",
+    "opt_sec_continue": "Devam",
+    "opt_confirm": "✔ Onayla",
+    "opt_confirm_desc": "Seçimlerle devam et",
+    "ask_auto_arch": "🤖 *{name}* için AI mimari önerisi üreteyim mi?\n\nAçıklamana göre stack, klasör yapısı ve kısa mimari notu çıkarırım. Önizler, kabul/düzenle/atla seçeneği sunarım.",
+    "auto_arch_yes_btn": "✨ Evet, üret",
+    "auto_arch_no_btn": "⏭️ Hayır, atla",
+    "arch_generating": "⏳ AI mimari önerisi üretiliyor… (en fazla 60 sn)",
+    "arch_regenerating": "⏳ Geri bildiriminle yeniden üretiliyor…",
+    "arch_preview": "🧩 *AI Mimari Önizlemesi*\n\n*Açıklama:*\n{desc}\n\n*Stack:* {stack}\n\n*Klasör Yapısı:*\n{directories}\n\n*Mimari Notu:*\n{architecture}",
+    "arch_accept_btn": "✅ Kabul et",
+    "arch_edit_btn": "✏️ Düzenle",
+    "arch_skip_btn": "⏭️ Atla",
+    "arch_edit_prompt": "✏️ Ne değişmeli? Kısa bir not yaz (örn: 'PostgreSQL ekle, Redis kaldır'):",
+    "arch_failed": "⚠️ AI önizlemesi üretilemedi. Devam edebilir veya düzenleyip tekrar deneyebilirsin."
+  },
+  "project_svc": {
+    "not_found": "❌ Proje bulunamadı: {id}",
+    "invalid_config": "⚠️ {name}: geçersiz servis yapılandırması.",
+    "no_start_cmd": "⚠️ {name}: start komutu tanımlı değil.",
+    "started": "▶️ {name} başlatıldı.",
+    "no_stop_cmd": "⚠️ {name}: stop komutu tanımlı değil.",
+    "stopped": "⏹ {name} durduruldu. ({services})"
+  },
+  "bridge": {
+    "timeout": "⏱️ İşlem zaman aşımına uğradı (30 dk). Daha kısa bir istek dene.",
+    "project_offline": "⚠️ *{name}* servisleri kapalı.\nBaşlatmak için: Projeler → {name} → Başlat",
+    "connection_error": "⚠️ Bridge'e bağlanılamadı — servis çökmüş olabilir.\n/restart ile yeniden başlatabilirsin.",
+    "unavailable": "⚠️ Ajan şu an yanıt vermiyor. Birazdan tekrar dene.",
+    "doc_port_error": "⚠️ Proje API portu bulunamadı: {id}",
+    "doc_send_error": "⚠️ Dosya iletilemedi. Birazdan tekrar dene."
+  },
+  "media": {
+    "pdf_received": "📄 PDF alındı: *{filename}*\nNasıl bir proje oluşturalım?",
+    "pdf_btn_full": "📁 Yazılım Projesi",
+    "pdf_btn_minimal": "📝 Görev Kaydet",
+    "pdf_btn_none": "📂 Sadece Klasör",
+    "pdf_wizard_active": "⚠️ Proje oluşturma devam ediyor. Önce sihirbazı tamamla veya iptal et, sonra PDF gönder."
+  },
+  "pdf": {
+    "downloading": "⚙️ PDF indiriliyor...",
+    "download_failed": "❌ PDF indirilemedi. Lütfen tekrar dene.",
+    "parse_failed": "❌ PDF okunamadı. Dosya geçerli bir PDF mi?",
+    "analyzing": "⚙️ PDF analiz ediliyor ({chars} karakter)...",
+    "analyze_failed": "❌ Analiz başarısız. Birazdan tekrar dene.",
+    "created": "✅ Proje oluşturuldu: *{name}*\n{desc}\n[Beta Modda Başlat → /beta {id}]"
+  },
+  "project_menu": {
+    "sec_run": "Çalıştır / Durdur",
+    "start_title": "▶️ Başlat",
+    "start_desc": "Servisleri başlat",
+    "stop_title": "⏹ Durdur",
+    "stop_desc": "Servisleri durdur",
+    "restart_title": "🔄 Restart",
+    "restart_desc": "Durdur ve yeniden başlat",
+    "sec_mode": "Mod / Bilgi",
+    "beta_title": "🔀 Beta Modu",
+    "beta_desc": "Beta moduna geç",
+    "root_set_title": "🏠 Root Proje Yap",
+    "root_set_desc": "Root ajan bu projeyle çalışsın",
+    "info_title": "ℹ️ Bilgi",
+    "info_desc": "Proje detayları",
+    "delete_title": "🗑️ Sil",
+    "delete_desc": "Projeyi DB'den sil",
+    "back_title": "↩️ Geri",
+    "back_desc": "Proje listesine dön",
+    "info_status": "Durum",
+    "info_path": "Yol",
+    "info_desc_label": "Açıklama",
+    "info_svc": "Servisler",
+    "info_svc_undefined": "(tanımlı değil)",
+    "info_svc_unreadable": "(okunamadı)"
+  },
+  "project_list": {
+    "section_title": "Projeler ({start}-{end})",
+    "next_page": "Sonraki Sayfa →",
+    "prev_page": "← Önceki Sayfa",
+    "new_project": "➕ Yeni Proje",
+    "nav_section": "Navigasyon",
+    "select_btn": "Seç"
+  },
+  "scheduler": {
+    "task_reminder": "⏰ {message}",
+    "task_error": "⚠️ Zamanlanmış görev hatası: {error}"
+  },
+  "history": {
+    "empty": "📭 Geçmiş mesaj bulunamadı.",
+    "header": "📜 Son {count} Mesaj:",
+    "summaries_empty": "📭 Geçmiş session özeti bulunamadı.",
+    "summaries_header": "🗂 Geçmiş Session Özetleri:"
+  },
+  "model": {
+    "current": "🤖 Aktif model: {model} (backend: {backend})\n\nDesteklenen seçenekler:\n{options}",
+    "changed": "✅ Model değiştirildi: {model}",
+    "already_active": "ℹ️ {model} zaten aktif model.",
+    "options_ollama": "Ollama'da yüklü herhangi bir model adı",
+    "options_gemini": "Herhangi bir Gemini model adı (ör. gemini-2.0-flash)",
+    "options_other": "Backend desteklenen herhangi bir model adı",
+    "select_prompt": "🤖 Aktif model: {model} (backend: {backend})\n\nBir model seç:",
+    "btn_sonnet": "Sonnet",
+    "btn_haiku": "Haiku",
+    "btn_opus": "Opus"
+  },
+  "lock": {
+    "locked": "🔒 Uygulama kilitlendi.",
+    "unlocked": "🔓 Uygulama kilidi açıldı.",
+    "locked_msg": "🔒 Uygulama kilitli. Açmak için /unlock komutunu kullan."
+  },
+  "permission": {
+    "prompt_body": "🔐 Araç onayı bekleniyor\n*{tool_name}*\n`{detail}`",
+    "allow_btn": "✅ Onayla",
+    "deny_btn": "❌ Reddet",
+    "allowed": "✅ Araç onaylandı.",
+    "denied": "❌ Araç reddedildi."
+  },
+  "terminal": {
+    "usage": "Kullanım: /terminal <komut>\nÖrnek: /terminal ls -la\n\n⚠️ Tehlikeli komutlar Admin TOTP gerektirir.\n📁 Varsayılan çalışma dizini: 99-root/\n💡 İpucu: scripts/backend/venv/bin/pip gibi görece yollar 99-root/ baz alır.",
+    "dangerous_prompt": "⚠️ Tehlikeli komut tespit edildi:\n`{cmd}`\n\nAdmin TOTP kodunu gir:\n(/cancel ile iptal)",
+    "success": "✅ [{code}] 📁 {cwd}\n{output}",
+    "error": "❌ [Hata {code}] 📁 {cwd}\n{output}",
+    "timeout": "⏱️ Komut zaman aşımına uğradı ve durduruldu.",
+    "empty_output": "(çıktı yok)"
+  },
+  "dispatcher": {
+    "project_port_not_found": "❌ Proje API portu bulunamadı.",
+    "project_connect_error": "❌ Proje servisine bağlanılamadı."
+  },
+  "main": {
+    "started": "✅ BalGPT başlatıldı.",
+    "started_with_url": "✅ BalGPT başlatıldı.\n🌐 Webhook URL:\n{url}",
+    "stopping": "🛑 BalGPT kapatılıyor."
+  },
+  "tokens": {
+    "invalid_span": "❌ Geçersiz zaman aralığı: {span}\nKullanım: /tokens [24h|7d|30d]",
+    "empty": "📭 Son {span} içinde kayıtlı token kullanımı bulunamadı.",
+    "header": "📊 Token İstatistikleri (son {span})",
+    "total": "🔢 Toplam: {input} input + {output} output ({calls} çağrı)",
+    "model_header": "🤖 Model Kategorileri:",
+    "model_row": "  • {name}: {input} in + {output} out ({calls} çağrı)",
+    "backend_header": "⚙️ Backend'ler:",
+    "backend_row": "  • {name}: {input} in + {output} out ({calls} çağrı)"
+  },
+  "bridge_monitor": {
+    "restart_timeout": "Bridge otomatik restart zaman aşımına uğradı. Manuel /restart gerekiyor.",
+    "restart_success": "Bridge otomatik olarak yeniden başlatıldı.",
+    "restart_failed": "Bridge otomatik restart başarısız.\n{detail}\nManuel /restart gerekiyor.",
+    "restart_error": "Bridge restart hatası: {error}\nManuel /restart gerekiyor.",
+    "bridge_up": "✅ Bridge yeniden erişilebilir oldu.",
+    "bridge_down": "⚠️ Bridge erişilemiyor ({error}).\nYanıt veremiyorum. /restart ile yeniden başlatabilirsin.",
+    "auto_restart": "🔄 Bridge otomatik olarak yeniden başlatılıyor...",
+    "auto_restart_failed": "❌ {msg}"
+  },
+  "install_wizard": {
+    "welcome": "👋 *BalGPT kurulum sihirbazına hoş geldin!*\n\nTerminal kurulumu tamamlandı. Geri kalan ayarları (LLM, yetenekler, zaman dilimi, TOTP) buradan yapacağız.\n\nBaşlamak için aşağıdaki butona dokun.",
+    "welcome_start": "🚀 Kuruluma başla",
+    "not_owner": "🔒 Bu sihirbaz yalnızca yöneticiye özeldir.",
+    "already_done": "ℹ️ Sihirbaz zaten tamamlandı. Yeniden çalıştırmak için: `bash install.sh --reconfigure-capabilities` veya `/wizard`.",
+    "llm_prompt": "*Adım 1/5 — LLM sağlayıcısı*\n\n🤖 Hangi LLM'i kullanmak istiyorsun?\n\nDaha sonra `/model` ile değiştirebilirsin. İstediğin an `/cancel` ile sihirbazdan çıkabilirsin (başlangıç ayarları kaybolmaz).",
+    "llm_anthropic": "Anthropic Claude",
+    "llm_ollama": "Ollama (yerel)",
+    "llm_gemini": "Google Gemini",
+    "anthropic_prompt": "*Adım 2/5 — Anthropic kimlik doğrulama*\n\n🔑 Yöntem seç:\n\n• *Claude Login* — claude.ai aboneliğini kullan (önerilen)\n• *API Key* — Anthropic Console'dan alınan anahtar (ücretli kullanım)",
+    "auth_login": "🔐 Claude Login (abonelik)",
+    "auth_apikey": "🔑 API Key gönder",
+    "anthropic_key_prompt": "*Adım 2/5 — Anthropic API anahtarı*\n\n🔑 `sk-ant-api03-...` ile başlayan anahtarı gönder.\nKonsol: console.anthropic.com → Settings → API Keys → Create Key",
+    "claude_login_note": "✅ Sihirbaz tamamlandıktan sonra **host makinede** (container'da değil) şu komutu çalıştır:\n\n```\nclaude auth login\n```\n\nBu giriş olmadan Bridge çalışmaz. Anthropic credentials'ı bind-mount ile container'a aktarılır.",
+    "bad_anthropic_key": "⚠️ Anahtar formatı hatalı.\n\nBeklenen format: `sk-ant-api03-` ile başlayan, en az 24 karakter alfanümerik anahtar.\nTekrar gönder ya da `/cancel` ile çık.",
+    "ollama_url_prompt": "*Adım 2/5 — Ollama URL*\n\n🌐 Ollama sunucusunun base URL'sini gönder.\nVarsayılan: `http://localhost:11434`\n(Aynı makinede çalışıyorsa varsayılanı kullanabilirsin.)",
+    "ollama_model_prompt": "*Adım 2/5 — Ollama modeli*\n\n📦 Hangi modeli kullanalım?\nÖrnekler: `llama3`, `qwen2.5`, `mistral`\n(Modelin önceden `ollama pull <ad>` ile indirilmiş olması gerek.)",
+    "gemini_key_prompt": "*Adım 2/5 — Gemini API anahtarı*\n\n🔑 `AIza...` ile başlayan anahtarı gönder.\nAlmak için: aistudio.google.com → API Keys → Create API Key",
+    "bad_gemini_key": "⚠️ Anahtar formatı hatalı.\n\nBeklenen: `AIza` ile başlayan, en az 24 karakter alfanümerik anahtar.\nTekrar gönder ya da `/cancel` ile çık.",
+    "bad_url": "⚠️ Geçerli bir URL bekleniyordu.\n\nBeklenen format: `http://...` veya `https://...`\nÖrnek: `http://localhost:11434`\nTekrar gönder.",
+    "required": "⚠️ Boş olamaz. Tekrar gönder.",
+    "cap_prompt": "*Adım 3/5 — Yetenekler*\n\n🛠️ İstemediklerinin işaretini kaldır:\n\n✓ = aktif, ☐ = devre dışı\n\nVarsayılanlar mantıklı — emin değilsen aynen *Bitti* deyip geçebilirsin. Sonradan `bash install.sh --reconfigure-capabilities` ile değiştirilebilir.",
+    "cap_done": "✅ Bitti",
+    "cap_fs": "Dosya sistemi erişimi",
+    "cap_desktop": "Masaüstü otomasyonu",
+    "cap_browser": "Tarayıcı (Playwright)",
+    "tz_prompt": "*Adım 4/5 — Zaman dilimi*\n\n🕒 Zamanlanmış görevler ve hatırlatmalar bu saat dilimine göre çalışır.",
+    "tz_other": "🌍 Diğer (manuel)",
+    "tz_custom_prompt": "*Adım 4/5 — Özel zaman dilimi*\n\nIANA zaman dilimi adı gönder.\nÖrnekler: `Europe/Berlin`, `America/Chicago`, `Asia/Dubai`\nTüm liste: en.wikipedia.org/wiki/List_of_tz_database_time_zones",
+    "bad_tz": "⚠️ Geçerli bir IANA zaman dilimi bekleniyordu.\n\nFormat: `Bölge/Şehir` (örn: `Europe/Istanbul`, `America/Chicago`).\nTüm liste: en.wikipedia.org/wiki/List_of_tz_database_time_zones\nTekrar gönder.",
+    "totp_caption": "*Adım 5/5 — TOTP ({label})*\n\n🔐 QR kodu Google Authenticator / Authy gibi bir uygulamayla tara.\n\nManuel giriş için secret:\n`{secret}`",
+    "totp_missing": "⚠️ TOTP secret ({label}) bulunamadı — `.env` dosyasını kontrol et.",
+    "done": "🎉 *Kurulum tamamlandı!*\n\nDeğişikliklerin etkinleşmesi için servisleri yeniden başlat:\n\n• Docker kullanıyorsan:\n```\ndocker compose restart\n```\n• systemd kullanıyorsan:\n```\nsudo systemctl restart personal-agent.service personal-agent-bridge.service\n```\n• PM2 kullanıyorsan:\n```\npm2 restart 99-api 99-bridge\n```\n\nBaşlangıç için: `/help` — tüm komutlar.",
+    "env_write_failed": "❌ `.env` dosyasına yazılamadı. Sunucu loglarını kontrol et."
+  }
+}

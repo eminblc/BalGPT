@@ -1,0 +1,15 @@
+# Core — her kurulumda yüklenir / always installed
+# pip-tools: venv atomik senkronizasyonu için (pip-sync)
+pip-tools
+fastapi==0.136.0
+uvicorn[standard]==0.44.0
+pydantic>=2.0
+pydantic-settings==2.13.1
+python-dotenv==1.2.2
+httpx==0.28.1
+tenacity==9.1.4
+pyotp==2.9.0
+cryptography==46.0.7
+python-json-logger==3.3.0
+pyngrok==7.2.12
+qrcode==8.1

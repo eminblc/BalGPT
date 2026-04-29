@@ -1,0 +1,136 @@
+# Render Infrastructure-as-Code — 99-root Kişisel AI Ajan
+#
+# Kullanım:
+#   1. https://dashboard.render.com → New → Blueprint → bu repo
+#   2. Aşağıdaki env değişkenlerini Render Dashboard'da ayarla
+#      (sync: false olanlar şifreli alanlar — elle girilmeli)
+#   3. Deploy et
+#
+# NOT: Claude Code Bridge, Anthropic Claude Code CLI'yi (`@anthropic-ai/claude-code`)
+#      çalıştırır. Bu CLI yalnızca lisanslı hesaplarda çalışır. ANTHROPIC_API_KEY
+#      olmadan Bridge işlev görmez.
+
+services:
+  # ── FastAPI — Kişisel Ajan API ──────────────────────────────────────────────
+  - type: web
+    name: personal-agent-api
+    runtime: docker
+    dockerfilePath: Dockerfile.api
+    dockerContext: .
+    plan: starter
+    region: frankfurt
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "8010"
+      - key: WEBHOOK_PROXY
+        value: "external"
+      - key: PUBLIC_URL
+        sync: false         # Render otomatik URL: https://<service>.onrender.com
+
+      # WhatsApp Cloud API
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_OWNER
+        sync: false         # +90XXXXXXXXXX
+
+      # Güvenlik
+      - key: API_KEY
+        sync: false
+      - key: TOTP_SECRET
+        sync: false
+      - key: TOTP_SECRET_ADMIN
+        sync: false
+
+      # Anthropic / Claude
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+      # Bridge bağlantısı (aşağıdaki Bridge servisinin URL'si)
+      - key: CLAUDE_BRIDGE_URL
+        fromService:
+          name: personal-agent-bridge
+          type: web
+          property: host
+          envVarKey: CLAUDE_BRIDGE_URL
+
+      # Opsiyonel LLM
+      - key: LLM_BACKEND
+        value: "anthropic"
+      - key: GEMINI_API_KEY
+        sync: false
+
+      # Veri yolları (Docker içi)
+      - key: ROOT_DIR
+        value: "/app"
+      - key: PROJECTS_DIR
+        value: "/app/data/projects"
+      - key: SESSIONS_DIR
+        value: "/app/data/claude_sessions"
+      - key: CONV_HISTORY_DIR
+        value: "/app/data/conv_history"
+      - key: ACTIVE_CONTEXT_PATH
+        value: "/app/data/active_context.json"
+
+    disk:
+      name: agent-data
+      mountPath: /app/data
+      sizeGB: 5
+
+  # ── Node.js — Claude Code Bridge ───────────────────────────────────────────
+  - type: web
+    name: personal-agent-bridge
+    runtime: docker
+    dockerfilePath: Dockerfile.bridge
+    dockerContext: .
+    plan: starter
+    region: frankfurt
+    healthCheckPath: /health
+    envVars:
+      - key: BRIDGE_PORT
+        value: "8013"
+      - key: PORT
+        value: "8013"
+
+      # Anthropic Claude Code CLI için zorunlu
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+      # FastAPI'nin Render URL'si
+      - key: FASTAPI_URL
+        fromService:
+          name: personal-agent-api
+          type: web
+          property: host
+          envVarKey: FASTAPI_URL
+
+      # Veri yolları (Docker içi)
+      - key: ROOT_DIR
+        value: "/app"
+      - key: PROJECTS_DIR
+        value: "/app/data/projects"
+      - key: SESSIONS_DIR
+        value: "/app/data/claude_sessions"
+      - key: CONV_HISTORY_DIR
+        value: "/app/data/conv_history"
+      - key: ACTIVE_CONTEXT_PATH
+        value: "/app/data/active_context.json"
+
+      # Opsiyonel tuning
+      - key: CLAUDE_CODE_MAX_TURNS
+        value: "1000"
+      - key: CLAUDE_CODE_TIMEOUT_MS
+        value: "300000"
+      - key: CLAUDE_CODE_PERMISSIONS
+        value: "bypassPermissions"
+
+    disk:
+      name: bridge-data
+      mountPath: /app/data
+      sizeGB: 5

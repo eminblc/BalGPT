@@ -1,0 +1,307 @@
+{
+  "routes": {
+    "new_command": {
+      "keywords": ["komut ekle", "yeni komut", "add command", "!komut", "new command", "cmd ekle", "command ekle", "komut sistemi"],
+      "files": [
+        "scripts/backend/guards/commands/__init__.py",
+        "scripts/backend/guards/commands/registry.py",
+        "scripts/backend/guards/commands/help_cmd.py",
+        "scripts/backend/guards/permission.py"
+      ],
+      "hint": "Yeni dosya guards/commands/xxx_cmd.py olarak oluştur; pattern için help_cmd.py örnek al. guards/commands/__init__.py'ye import ekle. CMD_PERMS'e de eklemeyi unutma."
+    },
+    "new_feature": {
+      "keywords": ["feature ekle", "yeni özellik", "add feature", "yeni modül", "new feature", "özellik ekle", "modül ekle"],
+      "files": [
+        "scripts/backend/features/chat.py",
+        "scripts/backend/routers/personal_agent_router.py",
+        "scripts/backend/main.py",
+        "scripts/backend/app_types.py"
+      ],
+      "hint": "features/ altında yeni modül oluştur (mevcut dosyaları değiştirme); gerekirse personal_agent_router.py'ye endpoint ekle; main.py'de router kaydını kontrol et. app_types.py'de TypedDict tanımları var."
+    },
+    "guard_fix": {
+      "keywords": ["guard", "rate limit", "blacklist", "permission", "izin", "dedup", "deduplication", "guardrail", "guard chain", "zincir"],
+      "files": [
+        "scripts/backend/guards/__init__.py",
+        "scripts/backend/guards/guard_chain.py",
+        "scripts/backend/guards/message_guards.py",
+        "scripts/backend/routers/whatsapp_router.py"
+      ],
+      "hint": "Guard zinciri: dedup → blacklist → rate_limit → permission. guard_chain.py orkestratör, message_guards.py somut implementasyonlar. Bağımlılık yönü: Router → Guards → Features → Store."
+    },
+    "database": {
+      "keywords": ["db", "sqlite", "tablo", "schema", "veri tabanı", "database", "store", "sql", "repository", "repo"],
+      "files": [
+        "scripts/backend/store/sqlite_store.py",
+        "scripts/backend/store/protocol.py",
+        "scripts/backend/app_types.py"
+      ],
+      "hint": "Tüm SQL erişimi sqlite_store.py üzerinden geçer. Başka modüller doğrudan sqlite3 açmaz. Yeni entity için store/repositories/ altına repo ekle."
+    },
+    "bridge": {
+      "keywords": ["bridge", "session", "init_prompt", "claude code cli", "oturum", "conv_history", "bridge sorgu", "query bridge"],
+      "files": [
+        "scripts/claude-code-bridge/server.js",
+        "scripts/backend/features/chat.py",
+        "scripts/backend/routers/_bridge_client.py",
+        "scripts/backend/routers/_bridge_helpers.py"
+      ],
+      "hint": "Bridge her /query'de CLAUDE.md + active_context.json'u init_prompt'a ekler. Session UUID --resume ile devam eder. _bridge_client.py HTTP istemcisi, _bridge_helpers.py yardımcılar."
+    },
+    "adapter_llm": {
+      "keywords": ["llm", "provider", "anthropic", "ollama", "gemini", "model değiştir", "llm backend", "llm ekle", "yeni provider"],
+      "files": [
+        "scripts/backend/adapters/llm/llm_factory.py",
+        "scripts/backend/adapters/llm/anthropic_provider.py",
+        "scripts/backend/config.py"
+      ],
+      "hint": "Yeni provider = yeni dosya + llm_factory.py'ye 1 elif. LLM_BACKEND env değişkeni ile seçilir. anthropic_provider.py pattern için örnek al."
+    },
+    "adapter_messenger": {
+      "keywords": ["messenger", "telegram messenger", "whatsapp messenger", "cli messenger", "platform ekle", "mesaj adapter"],
+      "files": [
+        "scripts/backend/adapters/messenger/messenger_factory.py",
+        "scripts/backend/adapters/messenger/cli_messenger.py",
+        "scripts/backend/config.py"
+      ],
+      "hint": "Yeni messenger = yeni dosya + messenger_factory.py'ye 1 elif. MESSENGER_TYPE env değişkeni ile seçilir. cli_messenger.py pattern için örnek al."
+    },
+    "webhook": {
+      "keywords": ["webhook", "meta api", "mesaj işleme", "whatsapp webhook", "cloud api", "hmac", "webhook fix", "webhook hata"],
+      "files": [
+        "scripts/backend/routers/whatsapp_router.py",
+        "scripts/backend/routers/_auth_flows.py",
+        "scripts/backend/routers/_media_handlers.py",
+        "scripts/backend/routers/_intent_classifier.py",
+        "scripts/backend/routers/_dispatcher.py"
+      ],
+      "hint": "Guard zinciri burada çalışır. Context routing (main vs project:X) burada yapılır. HMAC doğrulama cloud_api.py'de. _dispatcher.py platform-agnostik yönlendirme."
+    },
+    "config": {
+      "keywords": ["env", "ayar", "config", "settings", "secret", "totp secret", "api key ayar", "env değişkeni", "ortam değişkeni"],
+      "files": [
+        "scripts/backend/config.py"
+      ],
+      "hint": "Tüm env ayarları Settings sınıfında. SecretStr alanlar .get_secret_value() gerektirir. os.environ doğrudan kullanılmaz."
+    },
+    "scheduler": {
+      "keywords": ["scheduler", "zamanla", "schedule", "zamanlanmış görev", "cron", "job", "hatırlatıcı", "reminder", "tekrarlayan"],
+      "files": [
+        "scripts/backend/features/scheduler.py",
+        "scripts/backend/guards/commands/schedule_cmd.py",
+        "scripts/backend/routers/api/scheduler_api.py"
+      ],
+      "hint": "APScheduler kalıcı job store: data/scheduler.db. Görev yönetimi !schedule komutu veya /agent/scheduler endpoint ile. TR→UTC: saat - 3."
+    },
+    "project_wizard": {
+      "keywords": ["proje oluştur", "project wizard", "yeni proje", "proje ekle", "wizard", "wizard adım", "wizard step"],
+      "files": [
+        "scripts/backend/features/wizard_steps.py",
+        "scripts/backend/features/wizard_core.py",
+        "scripts/backend/features/project_wizard.py",
+        "scripts/backend/features/project_scaffold.py"
+      ],
+      "hint": "8 adımlı form akışı: wizard_steps.py adımlar, wizard_core.py sabitler+yardımcılar. _UNSAFE_CMD_RE güvenlik regex'i > ve & karakterlerini engeller."
+    },
+    "logging": {
+      "keywords": ["log", "loglama", "logging", "hata log", "log formatı", "structured log", "log config", "log dosyası"],
+      "files": [
+        "scripts/backend/logging_config.py",
+        "scripts/backend/store/message_logger.py"
+      ],
+      "hint": "JSON structured loglar outputs/logs/ altında. Her dosya 10 MB rotasyon × 10 yedek. print() kullanma, logging modülü kullan."
+    },
+    "desktop": {
+      "keywords": ["desktop", "masaüstü", "ekran", "screenshot", "ocr", "tıklama", "click", "type text", "klavye", "xdotool", "screen", "vision query", "pencere", "window"],
+      "files": [
+        "scripts/backend/features/desktop.py",
+        "scripts/backend/routers/desktop_router.py",
+        "scripts/backend/features/desktop_common.py",
+        "scripts/backend/features/desktop_capture.py",
+        "scripts/backend/features/desktop_input.py"
+      ],
+      "hint": "Desktop API localhost-only. DESKTOP_ENABLED=false ise tüm aksiyonlar reddedilir. POST /internal/desktop ile aksiyon çalıştır. Medya göndermek için /internal/send_media endpoint'ini kullan."
+    },
+    "desktop_vision": {
+      "keywords": ["vision", "desktop vision", "ekran analiz", "görsel analiz", "desktop_vision", "görüntü tanı", "popup", "atspi"],
+      "files": [
+        "scripts/backend/features/desktop_vision.py",
+        "scripts/backend/features/desktop_popup.py",
+        "scripts/backend/features/desktop_atspi.py",
+        "scripts/backend/features/desktop_common.py"
+      ],
+      "hint": "Vision sorguları Claude Vision API ile yapılır. desktop_vision.py vision_query aksiyonu, desktop_popup.py popup tespiti, desktop_atspi.py erişilebilirlik API."
+    },
+    "browser": {
+      "keywords": ["browser", "tarayıcı", "selenium", "playwright", "headless", "web scrape", "web otomasyon", "url aç", "sayfa"],
+      "files": [
+        "scripts/backend/features/browser.py",
+        "scripts/backend/routers/browser_router.py"
+      ],
+      "hint": "Browser feature headless Chromium ile çalışır. browser.py iş mantığı, browser_router.py endpoint'ler. BROWSER_ENABLED env ile açılır/kapanır."
+    },
+    "login": {
+      "keywords": ["login", "giriş yap", "oturum aç", "sign in", "siteye gir", "şifre ile giriş", "kullanıcı adı", "parola gir", "credential", "kimlik doğrula"],
+      "files": [
+        "scripts/backend/features/browser.py",
+        "scripts/backend/routers/browser_router.py",
+        "scripts/backend/features/credential_store.py"
+      ],
+      "hint": "Login görevlerinde Playwright-first strateji kullan (DESK-LOGIN-1): /internal/browser goto → get_credential → fill → click → wait_for → screenshot. Desktop API (xdotool/vision) kullanma. Detay: CLAUDE.md 'Login Otomasyon Stratejisi' bölümü."
+    },
+    "i18n": {
+      "keywords": ["i18n", "lokalizasyon", "localization", "çeviri", "dil", "tr.json", "en.json", "t(", "locale", "metin ekle", "string ekle"],
+      "files": [
+        "scripts/backend/i18n.py",
+        "scripts/backend/locales/tr.json",
+        "scripts/backend/locales/en.json"
+      ],
+      "hint": "Her kullanıcı metni t() üzerinden geçmeli. t(key, lang, **kwargs) — fallback: istenen dil → tr → key. Her iki locale dosyasına da key ekle. _SUPPORTED = {'tr', 'en'}."
+    },
+    "text_routing": {
+      "keywords": ["text router", "mesaj yönlendirme", "dispatcher", "context routing", "proje yönlendirme", "main context", "project context", "yönlendirici"],
+      "files": [
+        "scripts/backend/routers/_text_router.py",
+        "scripts/backend/routers/_dispatcher.py",
+        "scripts/backend/routers/_auth_dispatcher.py"
+      ],
+      "hint": "_dispatcher.py platform-agnostik yönlendirme (WhatsApp+Telegram paylaşır). _auth_dispatcher.py registry tabanlı auth-flow dispatch. Platform-agnostik mantık _dispatcher.py'ye eklenir."
+    },
+    "menu": {
+      "keywords": ["menu", "menü", "buton", "button", "seçim ekranı", "kullanıcı arayüzü", "interactive menu", "send_buttons"],
+      "files": [
+        "scripts/backend/features/menu.py",
+        "scripts/backend/features/menu_project.py"
+      ],
+      "hint": "menu.py ana menü sistemi, menu_project.py proje-spesifik handler'lar (SRP ayrımı). send_buttons ile interaktif butonlar gönderilir."
+    },
+    "plans": {
+      "keywords": ["plan", "iş planı", "work plan", "task list", "görev listesi", "!plan", "plan ekle", "plan oluştur"],
+      "files": [
+        "scripts/backend/features/plans.py",
+        "scripts/backend/store/repositories/plan_repo.py",
+        "scripts/backend/routers/api/plans_api.py"
+      ],
+      "hint": "!plan komutları plans.py üzerinden çalışır. plan_repo.py SQLite erişimi. /agent/plans REST endpoint."
+    },
+    "calendar": {
+      "keywords": ["takvim", "calendar", "etkinlik", "event", "hatırlat", "randevu", "appointment", "tarih", "!cal"],
+      "files": [
+        "scripts/backend/features/calendar.py",
+        "scripts/backend/store/repositories/event_repo.py",
+        "scripts/backend/routers/api/calendar_api.py"
+      ],
+      "hint": "calendar.py takvim işlemleri. event_repo.py SQLite erişimi. TR→UTC: saat - 3. /agent/calendar REST endpoint."
+    },
+    "terminal": {
+      "keywords": ["terminal", "shell komut", "bash çalıştır", "komut çalıştır", "!terminal", "terminal api", "terminal_cmd", "subprocess"],
+      "files": [
+        "scripts/backend/features/terminal.py",
+        "scripts/backend/routers/terminal_router.py",
+        "scripts/backend/guards/commands/terminal_cmd.py"
+      ],
+      "hint": "Terminal API localhost-only. POST /internal/terminal ile komut çalıştır. timeout 1-300s. dangerous komutlar için admin TOTP gerekir. shell=False güvenlik."
+    },
+    "telegram": {
+      "keywords": ["telegram", "telegram webhook", "telegram bot", "telegram router", "telegram mesaj", "bot api", "telegram send"],
+      "files": [
+        "scripts/backend/routers/telegram_router.py",
+        "scripts/backend/routers/_dispatcher.py",
+        "scripts/backend/adapters/messenger/messenger_factory.py"
+      ],
+      "hint": "telegram_router.py WhatsApp router ile simetrik yapı. _verify_secret() webhook token doğrulaması. /telegram/send Bridge bildirimleri için. MESSENGER_TYPE=telegram ile aktifleşir."
+    },
+    "app_types": {
+      "keywords": ["typeddict", "app_types", "session state", "sessionstate", "project meta", "workplan", "type tanımı", "type definition"],
+      "files": [
+        "scripts/backend/app_types.py"
+      ],
+      "hint": "Paylaşılan TypedDict tanımları: SessionState, ProjectMeta, WorkPlan, CalendarEvent, ScheduledTask. Auth akışları için start_totp(), start_admin_totp(), start_math_challenge() metodlarını kullan."
+    },
+    "history": {
+      "keywords": ["history", "geçmiş", "mesaj geçmişi", "conv history", "konuşma geçmişi", "!history", "message log", "mesaj log"],
+      "files": [
+        "scripts/backend/features/history.py",
+        "scripts/backend/guards/commands/history_cmd.py",
+        "scripts/backend/store/repositories/message_repo.py"
+      ],
+      "hint": "history.py mesaj geçmişi. conv_history/ Bridge konuşma geçmişi (session başına JSON; max 8 tur). RESTRICT_CONV_HISTORY=true ile kaydı kapat."
+    },
+    "media": {
+      "keywords": ["medya", "media", "resim", "fotoğraf", "ses", "video", "dosya gönder", "image", "audio", "document", "media handler"],
+      "files": [
+        "scripts/backend/features/media_handler.py",
+        "scripts/backend/routers/_media_handlers.py"
+      ],
+      "hint": "media_handler.py medya işleme, _media_handlers.py webhook'taki medya routing. RESTRICT_MEDIA=true ile medya mesajları engellenir. /internal/send_media ile dosya gönder."
+    },
+    "pdf": {
+      "keywords": ["pdf", "pdf import", "belge içe aktar", "pdf yükle", "pdf işle", "pdf_importer"],
+      "files": [
+        "scripts/backend/features/pdf_importer.py",
+        "scripts/backend/routers/api/pdf_api.py"
+      ],
+      "hint": "pdf_importer.py PDF içe aktarma pipeline. RESTRICT_PDF_IMPORT=true ile bloklanır. /agent/pdf REST endpoint. project_scaffold.py ile entegre."
+    },
+    "projects": {
+      "keywords": ["proje yönet", "project crud", "proje listele", "proje sil", "project_crud", "proje servis", "project service", "proje repo"],
+      "files": [
+        "scripts/backend/features/project_crud.py",
+        "scripts/backend/features/project_service.py",
+        "scripts/backend/store/repositories/project_repo.py",
+        "scripts/backend/routers/api/projects_api.py"
+      ],
+      "hint": "project_crud.py CRUD işlemleri, project_service.py servis yönetimi (start/stop), project_repo.py SQLite erişimi. /agent/projects REST endpoint."
+    },
+    "auth": {
+      "keywords": ["auth", "totp", "doğrulama", "authentication", "math challenge", "2fa", "otp", "lock", "unlock", "kilitle"],
+      "files": [
+        "scripts/backend/routers/_auth_flows.py",
+        "scripts/backend/routers/_auth_dispatcher.py",
+        "scripts/backend/guards/commands/lock_cmd.py",
+        "scripts/backend/guards/commands/unlock_cmd.py"
+      ],
+      "hint": "TOTP akışları _auth_flows.py'de. _auth_dispatcher.py registry tabanlı OCP dispatch. SessionState metodları: start_totp(), start_admin_totp(), start_math_challenge(). 3 deneme → 15dk kilit."
+    },
+    "webhook_proxy": {
+      "keywords": ["ngrok", "cloudflared", "webhook proxy", "tunnel", "tünel", "dış erişim", "external webhook"],
+      "files": [
+        "scripts/backend/features/webhook_proxy.py"
+      ],
+      "hint": "webhook_proxy.py ngrok/cloudflared/external webhook proxy yönetimi. Proje servislerine dışarıdan erişim için kullanılır."
+    },
+    "main_startup": {
+      "keywords": ["main.py", "startup", "lifespan", "router kaydı", "app başlatma", "fastapi app", "uvicorn", "servis başlat"],
+      "files": [
+        "scripts/backend/main.py",
+        "scripts/backend/logging_config.py",
+        "scripts/backend/services/bridge_monitor.py"
+      ],
+      "hint": "main.py FastAPI app, startup/shutdown, router kayıtları. bridge_monitor.py BridgeMonitor lifespan'da kayıtlı. Uvicorn scripts/ dizininden başlatılmalı: backend.main:app."
+    },
+    "capability_guard": {
+      "keywords": ["capability", "restrict", "kısıtla", "kısıtlama", "RESTRICT_", "yetenek kısıt", "capability guard", "özellik kapat"],
+      "files": [
+        "scripts/backend/guards/capability_guard.py",
+        "scripts/backend/config.py"
+      ],
+      "hint": "capability_guard.register_capability_rule() ile yeni kısıtlama ekle. config.py'e bool field + .env.example'a yorum + install.sh cap_keys/cap_envs dizilerine eleman + locale dosyalarına key."
+    },
+    "credential_store": {
+      "keywords": ["credential", "şifre sakla", "parola", "credential store", "kimlik bilgisi", "secret store"],
+      "files": [
+        "scripts/backend/features/credential_store.py"
+      ],
+      "hint": "credential_store.py şifre/credential saklama. Güvenli depolama için kullanılır."
+    },
+    "internal_router": {
+      "keywords": ["internal", "localhost api", "dahili api", "internal endpoint", "verify totp", "admin totp", "internal_router"],
+      "files": [
+        "scripts/backend/routers/internal_router.py",
+        "scripts/backend/routers/_localhost_guard.py"
+      ],
+      "hint": "internal_router.py yalnızca 127.0.0.1/::1 erişimi. API key gerektirmez. Admin TOTP: POST /internal/verify-admin-totp. Desktop: POST /internal/desktop. Terminal: POST /internal/terminal."
+    }
+  }
+}

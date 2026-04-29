@@ -1,0 +1,61 @@
+services:
+  99-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: personal-agent-api
+    restart: unless-stopped
+    ports:
+      - "8010:8010"
+    env_file:
+      - ./scripts/backend/.env
+    environment:
+      # Bridge'in container adına erişmesi için override
+      - CLAUDE_BRIDGE_URL=http://99-bridge:8013
+      # Proje dizini — bridge ile aynı yolu kullan (mount: ./data:/app/data)
+      - PROJECTS_DIR=/app/data/projects
+      # RUN_TESTS_ON_START=true → ilk başlatmada pytest çalışır (isteğe bağlı)
+      # - RUN_TESTS_ON_START=true
+    volumes:
+      - ./data:/app/data
+      - ./outputs/logs:/app/outputs/logs
+      - ./reports:/app/reports
+    depends_on:
+      99-bridge:
+        condition: service_healthy
+
+  99-bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile.bridge
+    container_name: personal-agent-bridge
+    restart: unless-stopped
+    # NOT: user override yok. Container root olarak başlar, entrypoint
+    # bind-mount'ları chown'lar ve gosu ile claude:claude'a düşer.
+    # Cross-platform fix (Linux/Mac/Windows). Claude CLI bypassPermissions
+    # root ile çalışmaz — drop entrypoint'in ilk adımında yapılır.
+    ports:
+      - "8013:8013"
+    env_file:
+      - ./scripts/backend/.env
+    environment:
+      # FastAPI'nin container adına erişmesi için override
+      - FASTAPI_URL=http://99-api:8010
+      # Veri dizinleri container yoluna göre ayarla
+      - ROOT_DIR=/app
+      - PROJECTS_DIR=/app/data/projects
+      - SESSIONS_DIR=/app/data/claude_sessions
+      - CONV_HISTORY_DIR=/app/data/conv_history
+      - ACTIVE_CONTEXT_PATH=/app/data/active_context.json
+    volumes:
+      - ./data:/app/data
+      - ./outputs/logs:/app/outputs/logs
+      - ./reports:/app/reports
+      # CLAUDE.md ve GUARDRAILS.md her zaman güncel kalsın
+      - ./CLAUDE.md:/app/CLAUDE.md:ro
+      - ./GUARDRAILS.md:/app/GUARDRAILS.md:ro
+      # Claude CLI auth — writable. CLI usage stats ve OAuth refresh için yazma şart.
+      # Host'ta `claude auth login` yapıldıktan sonra container ile iki yönlü senkron.
+      # :ro mount Claude CLI'nin ~/.claude.json'a yazmasını engeller → sessiz hang.
+      - ${HOME}/.claude.json:/home/claude/.claude.json
+      - ${HOME}/.claude:/home/claude/.claude

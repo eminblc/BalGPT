@@ -1,0 +1,15 @@
+{
+  "name": "claude-code-bridge",
+  "version": "1.0.0",
+  "description": "WhatsApp → Claude Code SDK köprüsü",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-code": "latest",
+    "dotenv": "^17.4.1",
+    "express": "^4.18.0"
+  }
+}

@@ -1,0 +1,56 @@
+# ── FastAPI (Uvicorn) — Port 8010 ─────────────────────────────────────────────
+FROM python:3.11-slim
+
+# Sistem bağımlılıkları: gcc (derleme) + curl (healthcheck)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# CAPABILITIES: install.sh --docker tarafından ayarlanır.
+# "all" (varsayılan/CI) → requirements.txt (tüm paketler)
+# "core dev scheduler browser" gibi → yalnızca seçili requirements/*.txt dosyaları
+ARG CAPABILITIES="all"
+
+# Bağımlılıkları önce kopyala — Docker layer cache optimizasyonu
+COPY scripts/backend/requirements.txt scripts/backend/requirements.txt
+COPY scripts/backend/requirements/ scripts/backend/requirements/
+RUN if [ "$CAPABILITIES" = "all" ]; then \
+      pip install --no-cache-dir -r scripts/backend/requirements.txt; \
+    else \
+      args=""; \
+      for cap in $CAPABILITIES; do \
+        args="$args -r scripts/backend/requirements/$cap.txt"; \
+      done; \
+      pip install --no-cache-dir $args; \
+    fi
+
+# ngrok binary'sini build-time'da önceden indir — runtime download'u önle.
+# pyngrok her build'de core.txt'ten gelir; binary olmadan ilk kullanımda
+# ~28 MB indirir ve 5-10s gecikmeye neden olur.
+RUN python -c "from pyngrok import ngrok; ngrok.install_ngrok()"
+
+# Kaynak kodun tamamını kopyala
+COPY . .
+
+# Veri ve log dizinlerini oluştur (volume mount yoksa container içinde kullanılır)
+RUN mkdir -p data/projects data/media data/claude_sessions data/conv_history \
+             outputs/logs reports/done
+
+# Entrypoint ve LLM fixer scriptlerini kopyala
+COPY docker/entrypoint-api.sh /entrypoint.sh
+COPY docker/llm_fix.py /docker/llm_fix.py
+RUN chmod +x /entrypoint.sh
+
+# FastAPI, scripts/ dizininden başlatılmalı (backend.main:app modül yolu için)
+WORKDIR /app/scripts
+
+EXPOSE 8010
+
+# Sağlık kontrolü — container "healthy" olana kadar depends_on bekler
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -sf http://localhost:8010/health || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]

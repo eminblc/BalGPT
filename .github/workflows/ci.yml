@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  python-syntax:
+    name: Python Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          cd scripts/backend
+          python -m venv venv
+          venv/bin/pip install --quiet -r requirements.txt
+
+      - name: Import check (catches syntax + import errors)
+        run: |
+          cd scripts
+          backend/venv/bin/python -c "from backend.main import app; print('Python OK')"
+
+      - name: Check for secrets in .env files
+        run: |
+          if find . -name ".env" -not -name ".env.example" | grep -q .; then
+            echo "ERROR: .env file found in repository. Never commit secrets."
+            find . -name ".env" -not -name ".env.example"
+            exit 1
+          fi
+          echo "No .env files found. OK"
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          cd scripts/backend
+          python -m venv venv
+          venv/bin/pip install --quiet -r requirements.txt
+          venv/bin/pip install --quiet pytest pytest-asyncio
+
+      - name: Run unit tests
+        run: |
+          cd scripts
+          backend/venv/bin/python -m pytest tests/ -v
+
+  node-syntax:
+    name: Node.js Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install dependencies
+        run: |
+          cd scripts/claude-code-bridge
+          npm ci --quiet
+
+      - name: Syntax check
+        run: node --check scripts/claude-code-bridge/server.js && echo "Node OK"
+
+  shellcheck:
+    name: install.sh — ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run shellcheck on install.sh and lib/*.sh
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck
+          shellcheck --severity=warning install.sh lib/*.sh
+
+  install-tests:
+    name: install.sh — Bats Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bats and python3
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bats python3
+      - name: Run bats test suite
+        run: bats tests/install/
+      - name: Locale parity check
+        run: |
+          python3 -c "
+          import json, re, glob
+          src = open('install.sh').read() + ''.join(open(f).read() for f in glob.glob('lib/*.sh'))
+          refs = set(re.findall(r'_S_[A-Z][A-Z0-9_]*', src))
+          for lang in ('tr', 'en'):
+              keys = {'_S_' + k for k in json.load(open(f'locales/install_{lang}.json'))}
+              missing = refs - keys
+              assert not missing, f'{lang}: missing keys {sorted(missing)}'
+          print('locale parity OK')
+          "

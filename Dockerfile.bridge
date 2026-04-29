@@ -1,0 +1,62 @@
+# ── Claude Code Bridge (Node.js) — Port 8013 ──────────────────────────────────
+FROM node:18-slim
+
+# Git (claude CLI için) + curl (healthcheck + API bekleme) + gosu (root → claude drop)
+# gosu: entrypoint root olarak başlar, bind-mount'ları chown'lar, sonra claude'a düşer.
+# Cross-platform fix: Docker Desktop Windows/Mac'te host UID container UID'ye eşlenmez.
+#
+# Acquire::Max-FutureTime=86400: Debian security mirror'da nadiren ileri tarihli
+# InRelease dosyaları görülüyor (build pipeline saat senkron sorunu); GPG imzası
+# yine doğrulanır, sadece zaman damgası toleransı 1 güne çıkarılır.
+RUN apt-get -o Acquire::Max-FutureTime=86400 update \
+    && apt-get install -y --no-install-recommends \
+       git \
+       curl \
+       gosu \
+    && rm -rf /var/lib/apt/lists/*
+
+# Claude CLI --permission-mode bypassPermissions root/sudo ile çalışmaz;
+# non-root user gerekli.
+RUN groupadd -g 1001 claude && useradd -u 1001 -g 1001 -m -s /bin/sh claude
+
+WORKDIR /app
+
+# Kaynak kodun tamamını kopyala
+COPY . .
+
+# Bridge bağımlılıklarını kur (@anthropic-ai/claude-code dahil)
+# CLI_PATH = node_modules/@anthropic-ai/claude-code/cli.js (yerel kurulum)
+WORKDIR /app/scripts/claude-code-bridge
+RUN npm ci --omit=dev
+
+# Veri ve log dizinlerini oluştur
+WORKDIR /app
+RUN mkdir -p data/projects data/media data/claude_sessions data/conv_history \
+             outputs/logs reports/done
+
+# Entrypoint ve LLM fixer scriptlerini kopyala
+COPY docker/entrypoint-bridge.sh /entrypoint.sh
+COPY docker/llm_fix.py /docker/llm_fix.py
+RUN chmod +x /entrypoint.sh
+
+# Tüm uygulama dosyalarının sahipliğini claude user'a ver
+RUN chown -R claude:claude /app
+
+# /home/claude/.claude/ dizinini önceden sahiplikle oluştur.
+# Docker bind-mount parent dizini yoksa root:root 755 olarak yaratır;
+# bu olduğunda Claude CLI ~/.claude/projects/ altına session dosyası
+# yazamaz ve epoll_wait'te askıda kalır.
+RUN mkdir -p /home/claude/.claude && chown -R claude:claude /home/claude
+
+# USER claude — KALDIRILDI. Entrypoint root olarak başlamalı ki bind-mount'ları
+# chown'layabilsin (Windows/Mac Docker Desktop için). Sonra gosu ile claude'a düşer.
+# Claude CLI bypassPermissions root ile çalışmaz; bu yüzden gosu drop zorunlu.
+
+EXPOSE 8013
+
+# Sağlık kontrolü — container "healthy" olana kadar API depends_on bekler
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl -sf http://localhost:8013/health || exit 1
+
+WORKDIR /app/scripts/claude-code-bridge
+ENTRYPOINT ["/entrypoint.sh"]

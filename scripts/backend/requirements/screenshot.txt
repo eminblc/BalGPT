@@ -1,0 +1,4 @@
+# Yetenek: screenshot (RESTRICT_SCREENSHOT=false)
+# Not: desktop etkinse bu paketler zaten desktop.txt ile kurulur
+mss>=9.0
+Pillow>=10.0

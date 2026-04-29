@@ -1,0 +1,3 @@
+# Yetenek: media (RESTRICT_MEDIA=false)
+# Not: desktop etkinse Pillow zaten desktop.txt ile kurulur
+Pillow>=10.0
