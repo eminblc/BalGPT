@@ -702,7 +702,7 @@ _write_env() {
   local env_src="$BACKEND_DIR/.env.example"
   if [ ! -f "$env_dst" ]; then
     # Strip capability flags so step_capabilities can ask the user interactively
-    grep -vE "^(RESTRICT_|DESKTOP_ENABLED|BROWSER_ENABLED)" "$env_src" > "$env_dst"
+    grep -vE "^(RESTRICT_|DESKTOP_ENABLED|BROWSER_ENABLED|HOST_FS_ACCESS)" "$env_src" > "$env_dst"
   fi
 
   _env_set "MESSENGER_TYPE" "$messenger" "$env_dst"
