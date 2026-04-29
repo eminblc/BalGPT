@@ -487,7 +487,7 @@ class TestTotpSendViaMessenger:
         env = tmp_path / ".env"
         env.write_text("MESSENGER_TYPE=telegram\n")  # no token/chat_id
         result = _bash(
-            f'_totp_send_via_messenger "OWNERBASE32" "ADMINBASE32" "{env}"'
+            f'_totp_send_via_messenger "OWNERBASE32" "{env}"'
         )
         assert result.returncode != 0
 
@@ -495,7 +495,7 @@ class TestTotpSendViaMessenger:
         env = tmp_path / ".env"
         env.write_text("MESSENGER_TYPE=whatsapp\n")  # no token/phone/owner
         result = _bash(
-            f'_totp_send_via_messenger "OWNERBASE32" "ADMINBASE32" "{env}"'
+            f'_totp_send_via_messenger "OWNERBASE32" "{env}"'
         )
         assert result.returncode != 0
 
@@ -511,7 +511,7 @@ class TestTotpSendViaMessenger:
 curl() {{
     printf '%s\\n' "$@" >&2
 }}
-_totp_send_via_messenger "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB" "{env}" || true
+_totp_send_via_messenger "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" "{env}" || true
 """
         result = _bash(fragment)
         assert "sendMessage" in result.stderr
@@ -529,7 +529,7 @@ _totp_send_via_messenger "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" "BBBBBBBBBBBBBBBBB
 curl() {{
     printf '%s\\n' "$@" >&2
 }}
-_totp_send_via_messenger "OWNSECRET32CHARS0000000000000000" "ADMSECRET32CHARS0000000000000000" "{env}" || true
+_totp_send_via_messenger "OWNSECRET32CHARS0000000000000000" "{env}" || true
 """
         result = _bash(fragment)
         assert "messages" in result.stderr  # WhatsApp messages endpoint

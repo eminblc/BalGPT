@@ -58,35 +58,6 @@ def test_clear_totp_without_start_is_safe(session):
     assert session.get("pending_command") is None
 
 
-# ── start_admin_totp / clear_admin_totp ──────────────────────────
-
-def test_start_admin_totp_with_action(session):
-    session.start_admin_totp(action="rm -rf /tmp/test")
-    assert session["awaiting_admin_totp"] is True
-    assert session["pending_bridge_message"] == "rm -rf /tmp/test"
-
-
-def test_start_admin_totp_with_cmd(session):
-    session.start_admin_totp(cmd="!shutdown")
-    assert session["awaiting_admin_totp"] is True
-    assert session["pending_command"] == "!shutdown"
-
-
-def test_start_admin_totp_empty_action_no_key(session):
-    """Boş action ile pending_bridge_message set edilmemeli."""
-    session.start_admin_totp()
-    assert session["awaiting_admin_totp"] is True
-    assert "pending_bridge_message" not in session
-
-
-def test_clear_admin_totp_removes_all_keys(session):
-    session.start_admin_totp(action="some action", cmd="!cmd")
-    session.clear_admin_totp()
-    assert session["awaiting_admin_totp"] is False
-    assert session.get("pending_command") is None
-    assert session.get("pending_bridge_message") is None
-
-
 # ── start_math_challenge / clear_math_challenge ───────────────────
 
 def test_start_math_challenge_sets_three_keys(session):
@@ -131,26 +102,27 @@ def test_clear_guardrail_without_start_is_safe(session):
 
 # ── Birden fazla auth akışı art arda ─────────────────────────────
 
-def test_math_then_admin_totp_transition(session):
-    """Math challenge tamamlanınca admin TOTP başlatılabilmeli."""
+def test_math_then_owner_totp_transition(session):
+    """Math challenge tamamlanınca owner TOTP başlatılabilmeli."""
     session.start_math_challenge(answer=15, cmd="!shutdown")
     cmd = session.get("math_challenge_command", "")
     session.clear_math_challenge()
-    session.start_admin_totp(cmd=cmd)
+    session.start_totp(cmd=cmd)
 
     assert session["awaiting_math_challenge"] is False
     assert session.get("math_challenge_answer") is None
-    assert session["awaiting_admin_totp"] is True
+    assert session["awaiting_totp"] is True
     assert session["pending_command"] == "!shutdown"
 
 
-def test_guardrail_then_admin_totp_transition(session):
-    """Guardrail onaylanınca admin TOTP başlatılabilmeli."""
+def test_guardrail_then_owner_totp_transition(session):
+    """Guardrail onaylanınca owner TOTP başlatılabilmeli."""
     session.start_guardrail("rm -rf /tmp")
     action = session.pop("pending_guardrail_action", "")
     session.clear_guardrail()
-    session.start_admin_totp(action=action)
+    dict.__setitem__(session, "pending_bridge_message", action)
+    session.start_totp(cmd="")
 
     assert session["awaiting_guardrail_confirm"] is False
-    assert session["awaiting_admin_totp"] is True
+    assert session["awaiting_totp"] is True
     assert session["pending_bridge_message"] == "rm -rf /tmp"

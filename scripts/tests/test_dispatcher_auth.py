@@ -14,7 +14,6 @@ def _make_session(**kwargs) -> SessionState:
     defaults = dict(
         active_context="main",
         awaiting_totp=False,
-        awaiting_admin_totp=False,
         awaiting_math_challenge=False,
         awaiting_guardrail_confirm=False,
         pending_command="",
@@ -52,7 +51,6 @@ def test_registry_contains_all_keys():
     from backend.routers._auth_dispatcher import _AUTH_FLOW_REGISTRY
     expected = {
         "awaiting_math_challenge",
-        "awaiting_admin_totp",
         "awaiting_totp",
         "awaiting_guardrail_confirm",
         "awaiting_desktop_totp",  # DESK-TOTP-2
@@ -98,34 +96,6 @@ async def test_awaiting_totp_skips_text_routing():
     mock_route_text.assert_not_awaited()
     # gerçek totp handler çağrıldı
     mock_handle_totp.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_awaiting_admin_totp_skips_text_routing():
-    """awaiting_admin_totp=True → _route_text çağrılmamalı."""
-    session = _make_session(awaiting_admin_totp=True)
-
-    mock_route_text = AsyncMock()
-    mock_handle_admin = AsyncMock()
-    patcher_m, _ = _patch_messenger()
-
-    mock_smgr = MagicMock()
-    mock_lock = MagicMock()
-    mock_lock.__aenter__ = AsyncMock(return_value=None)
-    mock_lock.__aexit__ = AsyncMock(return_value=False)
-    mock_smgr.lock.return_value = mock_lock
-    with patcher_m, \
-         patch("backend.routers._dispatcher._route_text", mock_route_text), \
-         patch("backend.routers._auth_flows.handle_admin_totp", mock_handle_admin), \
-         patch("backend.routers._dispatcher.log_inbound"), \
-         patch("backend.routers._dispatcher.get_session_mgr", return_value=mock_smgr):
-        from backend.routers import _dispatcher
-        await _dispatcher.handle_common_message(
-            "905001234567", "msg-001", "text", session, InboundMessage(text="654321")
-        )
-
-    mock_route_text.assert_not_awaited()
-    mock_handle_admin.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -237,8 +207,8 @@ async def test_cancel_word_clears_totp_state():
 
 
 @pytest.mark.asyncio
-async def test_cancel_word_clears_admin_totp_state():
-    session = _make_session(awaiting_admin_totp=True)
+async def test_cancel_word_clears_totp_state():
+    session = _make_session(awaiting_totp=True, pending_command="!shutdown")
 
     patcher_m, mock_msg = _patch_messenger()
     mock_lock = MagicMock()
@@ -256,7 +226,7 @@ async def test_cancel_word_clears_admin_totp_state():
             "905001234567", "msg-001", "text", session, InboundMessage(text="iptal")
         )
 
-    assert session.get("awaiting_admin_totp") is False
+    assert session.get("awaiting_totp") is False
     mock_msg.send_text.assert_awaited_once()
 
 
@@ -292,8 +262,8 @@ async def test_guardrail_no_answer_prompts_again():
 
 
 @pytest.mark.asyncio
-async def test_guardrail_yes_transitions_to_admin_totp():
-    """evet yanıtı → admin TOTP akışına geçmeli."""
+async def test_guardrail_yes_transitions_to_owner_totp():
+    """evet yanıtı → owner TOTP akışına geçmeli."""
     session = _make_session(awaiting_guardrail_confirm=True, pending_guardrail_action="rm -rf /tmp/x")
 
     patcher_m, mock_msg = _patch_messenger()
@@ -315,7 +285,7 @@ async def test_guardrail_yes_transitions_to_admin_totp():
         )
 
     assert session.get("awaiting_guardrail_confirm") is False
-    assert session.get("awaiting_admin_totp") is True
+    assert session.get("awaiting_totp") is True
     assert session.get("pending_bridge_message") == "rm -rf /tmp/x"
     mock_msg.send_text.assert_awaited_once()
     assert "TOTP" in mock_msg.send_text.call_args[0][1]
