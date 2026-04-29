@@ -360,11 +360,12 @@ class WizardLLMScaffoldService:
             )
         except Exception:
             pass
-        block = self._extractor.extract(completion.text if completion else "")
+        raw = completion.text if completion else ""
+        block = self._extractor.extract(raw)
         if block is None:
             logger.warning(
                 "wizard_llm_scaffold: yanıtta JSON bloğu bulunamadı (uzunluk=%d)",
-                len(raw or ""),
+                len(raw),
             )
             return None
 
