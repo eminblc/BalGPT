@@ -166,7 +166,7 @@ class SessionState(dict):
         _text_router.py'nin iç anahtar adlarını bilmesini engeller.
         """
         self.pop("awaiting_project_description", None)
-        self["wiz_desc"] = desc
+        dict.__setitem__(self, "wiz_desc", desc)
 
     def start_task(self) -> None:
         """Görev metni bekleme durumunu başlat."""
