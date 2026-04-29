@@ -172,16 +172,6 @@ async def internal_send_message(request: Request, body: _SendMessageRequest):
     return {"ok": True}
 
 
-@router.post("/force-unlock")
-async def force_unlock(request: Request):
-    """Acil kilit açma — TOTP bypass. Yalnızca localhost."""
-    _require_localhost(request)
-    from ..guards.runtime_state import set_locked
-    set_locked(False)
-    logger.warning("force-unlock: uygulama kilidi TOTP olmadan açıldı")
-    return {"ok": True, "locked": False}
-
-
 @router.post("/verify-admin-totp")
 async def verify_totp_internal(request: Request, body: _VerifyRequest):
     """Owner TOTP doğrulaması — Claude Code CLI guardrail override için.
