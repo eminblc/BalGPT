@@ -299,6 +299,7 @@
   "AUTH_FAIL_HARD": "Claude auth login failed or was cancelled.\n  • Fix the underlying issue and re-run: bash install.sh --docker\n  • OR set CLAUDE_AUTH_OPTIONAL=1 to skip (Bridge will not work until you authenticate)\n  • OR re-run with API Key instead of Claude Login (in the wizard)",
   "AUTH_EMPTY_CREDS": "Login completed but ~/.claude/.credentials.json is still empty.\n  This usually means the OAuth flow was interrupted.  Try one of:\n  • Run 'claude auth login' manually and watch for errors\n  • Re-run install.sh with API Key authentication instead\n  • Set CLAUDE_AUTH_OPTIONAL=1 to skip (Bridge will not work)",
   "AUTH_OPTIONAL_HINT": "Tip: set CLAUDE_AUTH_OPTIONAL=1 to skip this check (CI / advanced users)",
-  "AUTH_TG_HEADSUP": "🔐 Claude login is starting. I'll forward the URL here too.",
-  "AUTH_TG_URL_PROMPT": "🔐 *Claude login*\n\nOpen the link below in the browser **on the computer where you ran the installer**:\n\n%s\n\n⚠️ Don't open it on your phone — Claude redirects to a localhost callback that the phone can't reach."
+  "AUTH_TG_HEADSUP": "🔐 Claude login is starting. You can sign in now.",
+  "AUTH_TG_URL_PROMPT": "🔐 *Claude login*\n\nOpen the link below in the browser **on the computer where you ran the installer**:\n\n%s\n\n⚠️ Don't open it on your phone — Claude redirects to a localhost callback that the phone can't reach.",
+  "AUTH_TG_DONE": "✅ You have signed in to Claude Code. Installation will complete in the terminal."
 }

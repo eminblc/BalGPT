@@ -299,6 +299,7 @@
   "AUTH_FAIL_HARD": "Claude auth login başarısız veya iptal edildi.\n  • Sorunu çöz ve tekrar çalıştır: bash install.sh --docker\n  • VEYA CLAUDE_AUTH_OPTIONAL=1 ile atla (Bridge auth tamamlanmadan çalışmaz)\n  • VEYA sihirbazı yeniden çalıştırıp Claude Login yerine API Key seç",
   "AUTH_EMPTY_CREDS": "Giriş tamamlandı görünüyor ama ~/.claude/.credentials.json hâlâ boş.\n  Bu genelde OAuth akışının yarıda kesildiği anlamına gelir. Şunlardan birini dene:\n  • 'claude auth login' komutunu manuel çalıştır, hatayı izle\n  • install.sh'yi tekrar çalıştır, bu sefer API Key seç\n  • CLAUDE_AUTH_OPTIONAL=1 ile bu kontrolü atla (Bridge çalışmaz)",
   "AUTH_OPTIONAL_HINT": "İpucu: CLAUDE_AUTH_OPTIONAL=1 ile bu kontrolü atla (CI / ileri kullanıcılar için)",
-  "AUTH_TG_HEADSUP": "🔐 Birazdan Claude girişi başlayacak. Linki buraya da göndereceğim.",
-  "AUTH_TG_URL_PROMPT": "🔐 *Claude'a giriş*\n\nAşağıdaki linki **kurulum yaptığın bilgisayarın** tarayıcısında aç:\n\n%s\n\n⚠️ Linki telefondan açma — login sonrası Claude lokal makineye yönlendirir, telefon erişemez."
+  "AUTH_TG_HEADSUP": "🔐 Birazdan Claude girişi başlayacak. Giriş yapabilirsin.",
+  "AUTH_TG_URL_PROMPT": "🔐 *Claude'a giriş*\n\nAşağıdaki linki **kurulum yaptığın bilgisayarın** tarayıcısında aç:\n\n%s\n\n⚠️ Linki telefondan açma — login sonrası Claude lokal makineye yönlendirir, telefon erişemez.",
+  "AUTH_TG_DONE": "✅ Claude Code girişini yaptınız. Terminalde kurulum tamamlanacaktır."
 }

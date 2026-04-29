@@ -481,6 +481,9 @@ step_claude_auth() {
   fi
 
   ok "$_S_AUTH_OK"
+  if [[ -n "$_tg_tok" && -n "$_tg_cid" ]]; then
+    _tg_notify "$_tg_tok" "$_tg_cid" "$_S_AUTH_TG_DONE" || true
+  fi
 }
 
 
