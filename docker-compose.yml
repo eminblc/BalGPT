@@ -12,6 +12,8 @@ services:
     environment:
       # Bridge'in container adına erişmesi için override
       - CLAUDE_BRIDGE_URL=http://99-bridge:8013
+      # Proje dizini — bridge ile aynı yolu kullan (mount: ./data:/app/data)
+      - PROJECTS_DIR=/app/data/projects
       # RUN_TESTS_ON_START=true → ilk başlatmada pytest çalışır (isteğe bağlı)
       # - RUN_TESTS_ON_START=true
     volumes:
