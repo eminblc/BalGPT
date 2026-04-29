@@ -36,7 +36,12 @@ class DedupGuard:
             if recent:
                 logger.info("DedupGuard: %d mesaj ID'si SQLite'tan yüklendi", len(recent))
         except Exception as exc:
-            logger.warning("DedupGuard: SQLite yüklenemedi, yalnızca bellek kullanılacak: %s", exc)
+            # "no such table" → lifespan'den önce çağrıldı, beklenen durum.
+            # is_duplicate() içindeki lazy-reconnect init_db() sonrası tekrar dener.
+            if "no such table" in str(exc).lower():
+                logger.debug("DedupGuard: SQLite henüz hazır değil (lazy reconnect aktif): %s", exc)
+            else:
+                logger.warning("DedupGuard: SQLite yüklenemedi, yalnızca bellek kullanılacak: %s", exc)
             self._db_available = False
 
     def is_duplicate(self, message_id: str) -> bool:

@@ -27,6 +27,11 @@ RUN if [ "$CAPABILITIES" = "all" ]; then \
       pip install --no-cache-dir $args; \
     fi
 
+# ngrok binary'sini build-time'da önceden indir — runtime download'u önle.
+# pyngrok her build'de core.txt'ten gelir; binary olmadan ilk kullanımda
+# ~28 MB indirir ve 5-10s gecikmeye neden olur.
+RUN python -c "from pyngrok import ngrok; ngrok.install_ngrok()"
+
 # Kaynak kodun tamamını kopyala
 COPY . .
 

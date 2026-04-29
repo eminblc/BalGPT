@@ -71,7 +71,14 @@ check_env() {
 check_env "API_KEY"               "X-Api-Key header'ı için"
 check_env "TOTP_SECRET"           "owner TOTP doğrulaması"
 check_env "TOTP_SECRET_ADMIN"     "admin TOTP doğrulaması (yıkıcı komutlar)"
-check_env "ANTHROPIC_API_KEY"     "Claude LLM erişimi (llm_backend=anthropic ise)"
+
+LLM_BACKEND="${LLM_BACKEND:-anthropic}"
+if [ "$LLM_BACKEND" = "anthropic" ]; then
+  check_env "ANTHROPIC_API_KEY" "Claude LLM erişimi (llm_backend=anthropic)"
+elif [ -z "$ANTHROPIC_API_KEY" ] && [ "${RESTRICT_INTENT_CLASSIFIER:-false}" != "true" ]; then
+  echo "  $INFO ANTHROPIC_API_KEY tanımlı değil — intent classifier devre dışı kalır"
+  echo "    (RESTRICT_INTENT_CLASSIFIER=true ile sessize alabilirsin)"
+fi
 
 MESSENGER_TYPE="${MESSENGER_TYPE:-whatsapp}"
 if [ "$MESSENGER_TYPE" = "whatsapp" ]; then

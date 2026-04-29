@@ -46,6 +46,14 @@ for dir in /app/data/claude_sessions /app/data/conv_history /home/claude/.claude
     rm -f "$dir/.writetest"
   fi
 done
+# .claude.json ayrıca kontrol et — dizin RW olsa bile dosya :ro mount edilmiş olabilir
+if [ -f /home/claude/.claude.json ] && [ ! -w /home/claude/.claude.json ]; then
+  echo "  $ERR /home/claude/.claude.json yazılabilir değil (:ro mount kaldırılmış olmalı)"
+  echo "  $INFO docker-compose.yml'de :ro flag'ini kaldırın ve container'ı yeniden başlatın"
+  WRITE_OK=false
+elif [ -f /home/claude/.claude.json ]; then
+  echo "  $OK /home/claude/.claude.json yazılabilir"
+fi
 if [ "$WRITE_OK" = "false" ]; then
   echo "  $ERR Bridge yazma izinleri eksik — Claude CLI session yazamayacak, sorgular askıda kalacak"
   exit 1

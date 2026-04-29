@@ -50,6 +50,8 @@ services:
       # CLAUDE.md ve GUARDRAILS.md her zaman güncel kalsın
       - ./CLAUDE.md:/app/CLAUDE.md:ro
       - ./GUARDRAILS.md:/app/GUARDRAILS.md:ro
-      # Claude CLI auth — read-only; ön koşul: host'ta `claude auth login` çalıştırılmış olmalı.
-      - ${HOME}/.claude.json:/home/claude/.claude.json:ro
-      - ${HOME}/.claude/.credentials.json:/home/claude/.claude/.credentials.json:ro
+      # Claude CLI auth — writable. CLI usage stats ve OAuth refresh için yazma şart.
+      # Host'ta `claude auth login` yapıldıktan sonra container ile iki yönlü senkron.
+      # :ro mount Claude CLI'nin ~/.claude.json'a yazmasını engeller → sessiz hang.
+      - ${HOME}/.claude.json:/home/claude/.claude.json
+      - ${HOME}/.claude:/home/claude/.claude

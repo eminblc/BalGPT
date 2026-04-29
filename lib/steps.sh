@@ -141,6 +141,8 @@ step_docker_build() {
   if [ ! -d "$claude_dir" ]; then
     mkdir -p "$claude_dir"
     warn "$_S_DOCKER_CRED_CREATED"
+  elif [ ! -f "$claude_dir/.credentials.json" ]; then
+    warn "$_S_DOCKER_CRED_NEED_LOGIN"
   else
     ok "$_S_DOCKER_CRED_OK"
   fi
