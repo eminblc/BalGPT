@@ -123,18 +123,14 @@ class TelegramMessenger:
     async def send_list(self, to: str, text: str, sections: list[dict]) -> None:
         """sections'ı InlineKeyboard butonları olarak gönder.
 
-        Section başlıkları tam genişlik, içerik satırları 2'li gruplarda
-        gösterilir — uzun listelerde dikey yüksekliği yarıya indirir.
+        Section başlıkları keyboard içinde tam genişlik ayraç satırı olarak
+        gösterilir; içerik satırları 2'li gruplara yerleştirilir.
         """
-        lines = [text, ""]
+        keyboard: list[list[dict]] = []
         for section in sections:
             section_title = section.get("title", "")
             if section_title:
-                lines.append(f"*{section_title}*")
-        message_text = "\n".join(lines).rstrip()
-
-        keyboard: list[list[dict]] = []
-        for section in sections:
+                keyboard.append([{"text": f"── {section_title} ──", "callback_data": "noop"}])
             rows = section.get("rows", [])
             for i in range(0, len(rows), 2):
                 pair = rows[i : i + 2]
@@ -148,7 +144,7 @@ class TelegramMessenger:
                 f"{self._base}/sendMessage",
                 json={
                     "chat_id": to,
-                    "text": message_text,
+                    "text": text or "​",
                     "parse_mode": "Markdown",
                     "reply_markup": {"inline_keyboard": keyboard},
                 },

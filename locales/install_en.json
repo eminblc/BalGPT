@@ -298,5 +298,14 @@
   "AUTH_OPTIONAL_HINT": "Tip: set CLAUDE_AUTH_OPTIONAL=1 to skip this check (CI / advanced users)",
   "AUTH_TG_HEADSUP": "🔐 Claude login is starting. You can sign in now.",
   "AUTH_TG_URL_PROMPT": "🔐 *Claude login*\n\nOpen the link below in the browser **on the computer where you ran the installer**:\n\n%s\n\n⚠️ Don't open it on your phone — Claude redirects to a localhost callback that the phone can't reach.",
-  "AUTH_TG_DONE": "✅ You have signed in to Claude Code. Installation will complete in the terminal."
+  "AUTH_TG_DONE": "✅ You have signed in to Claude Code. Installation will complete in the terminal.",
+  "WIZ_HFS_TITLE": "Host Filesystem Access",
+  "WIZ_HFS_MSG": "By default the Docker container can only access its own volumes.\nDo you want to grant access to all directories on the host computer?\n(Only applies in Docker mode — systemd/PM2 already has full access)",
+  "WIZ_HFS_READ": "Read access — can read any file (e.g. Desktop, Downloads, documents)",
+  "WIZ_HFS_WRITE": "Write access — can create new files and directories",
+  "WIZ_HFS_DELETE": "Delete access — can delete files and directories",
+  "WIZ_HFS_EDIT": "Edit access — can modify existing files",
+  "WIZ_HFS_RESULT_RW": "Host filesystem: read + write + delete + edit (rw)",
+  "WIZ_HFS_RESULT_RO": "Host filesystem: read-only (ro)",
+  "WIZ_HFS_RESULT_NONE": "Host filesystem: no access"
 }

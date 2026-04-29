@@ -31,9 +31,13 @@ import asyncio
 import json
 import logging
 import re
+import uuid
 from typing import Any, Callable
 
+import httpx
+
 from ..adapters.llm.llm_factory import get_llm
+from ..adapters.llm.result import CompletionResult
 from ..config import settings
 from ..store.repositories import token_stat_repo
 
@@ -248,13 +252,10 @@ class WizardLLMConfig:
         self._settings = settings_obj
 
     def resolve_model(self) -> str | None:
-        """Anthropic backend'de `wizard_llm_model` (yoksa `intent_classifier_model`);
-        aksi halde `None` (adapter kendi default modelini kullanır).
-        """
+        """Anthropic backend'de `wizard_llm_model`; aksi halde `None`."""
         backend = self._settings.llm_backend.lower()
         if backend != "anthropic":
             return None
-        # WIZ-LLM-2 öncesinde bile çalışabilmesi için getattr ile güvenli okuma.
         return getattr(
             self._settings,
             "wizard_llm_model",
@@ -268,6 +269,62 @@ class WizardLLMConfig:
         if backend == "gemini":
             return bool(self._settings.gemini_api_key.get_secret_value())
         return True  # ollama — API anahtarı gerekmez
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Bridge adapter — LLM arayüzüyle uyumlu bridge istemcisi (DIP)
+# ══════════════════════════════════════════════════════════════════════
+
+_BRIDGE_SESSION_PREFIX = "wizard-arch-"
+
+
+class WizardBridgeAdapter:
+    """Bridge /query endpoint'ini LLM provider arayüzüyle saran adapter.
+
+    Claude Code Bridge OAuth ile doğrulandığından Anthropic API anahtarı
+    gerekmez. Her çağrıya özgü session_id üretilir — oturumlar arası
+    durum kirleşmesi olmaz.
+    """
+
+    def __init__(self, bridge_url: str, api_key: str) -> None:
+        self._bridge_url = bridge_url
+        self._api_key = api_key
+
+    async def complete(
+        self,
+        messages: list[dict],
+        model: str | None = None,
+        max_tokens: int | None = None,
+    ) -> CompletionResult:
+        prompt = next(
+            (m["content"] for m in messages if m.get("role") == "user"),
+            "",
+        )
+        session_id = f"{_BRIDGE_SESSION_PREFIX}{uuid.uuid4().hex[:8]}"
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            r = await client.post(
+                f"{self._bridge_url}/query",
+                headers={"X-Api-Key": self._api_key},
+                json={"session_id": session_id, "message": prompt},
+            )
+            r.raise_for_status()
+            answer = r.json().get("answer", "")
+        return CompletionResult(
+            text=answer,
+            model_id="bridge",
+            model_name="bridge",
+            backend="bridge",
+            input_tokens=0,
+            output_tokens=0,
+        )
+
+
+def _bridge_factory() -> WizardBridgeAdapter:
+    """Bridge adapter örneği oluşturur — testlerde patch.object hedefi."""
+    return WizardBridgeAdapter(
+        bridge_url=settings.claude_bridge_url,
+        api_key=settings.api_key.get_secret_value(),
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -325,14 +382,16 @@ class WizardLLMScaffoldService:
         return await self._call_llm(prompt)
 
     async def _call_llm(self, prompt: str) -> dict | None:
-        """Ortak akış: API-key → LLM → timeout → extract → parse → sanitize."""
-        if not self._config.has_api_key():
-            logger.warning(
-                "wizard_llm_scaffold: LLM API anahtarı tanımlı değil — önizleme atlanıyor"
-            )
-            return None
+        """Ortak akış: API-key kontrolü → LLM veya bridge → timeout → extract → parse → sanitize.
 
-        llm = self._llm_factory()
+        API anahtarı varsa doğrudan LLM adapter kullanılır; yoksa bridge fallback devreye girer.
+        """
+        if self._config.has_api_key():
+            llm = self._llm_factory()
+        else:
+            logger.info("wizard_llm_scaffold: API anahtarı yok — bridge fallback kullanılıyor")
+            llm = _bridge_factory()
+
         try:
             completion = await asyncio.wait_for(
                 llm.complete(
@@ -398,7 +457,7 @@ def _build_service() -> WizardLLMScaffoldService:
     """Modül-seviye bağımlılıklardan yeni bir servis oluşturur.
 
     Her çağrıda yeniden kurulur; `patch.object(mod, "settings", ...)`,
-    `patch.object(mod, "get_llm", ...)` ve
+    `patch.object(mod, "get_llm", ...)`, `patch.object(mod, "_bridge_factory", ...)` ve
     `patch.object(mod, "_LLM_TIMEOUT_SECONDS", ...)` mevcut testler korunur.
     """
     return WizardLLMScaffoldService(

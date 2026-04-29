@@ -38,10 +38,38 @@ Personal AI agent controlled via WhatsApp (single user). Two services run togeth
 | FastAPI (Uvicorn) | 8010 | `scripts/` | `curl -s http://localhost:8010/health` |
 | Claude Code Bridge | 8013 | `scripts/claude-code-bridge/` | `curl -s http://localhost:8013/health` |
 
+## Runtime Environments
+
+The project supports **two runtime modes**. Never assume one without checking:
+
+| Mode | How to detect | Data path | Host filesystem access |
+|------|--------------|-----------|----------------------|
+| **systemd (Linux native)** | `systemctl status personal-agent.service` responds | `data/` (project root relative) | Full access via Terminal API |
+| **Docker** | `docker compose ps` shows running containers; env has `ROOT_DIR=/app` | `/app/data/` (inside container) | Only mounted volumes: `./data`, `./outputs/logs`, `./reports`; host Desktop/home dirs are NOT accessible |
+
+**How to detect current runtime from inside the agent (Terminal API):**
+```bash
+# If this returns a result → running in Docker
+cat /proc/1/cgroup | grep -i docker
+# Or check env variable
+echo $ROOT_DIR   # /app → Docker, empty → native
+```
+
+**Docker volume mounts** (from `docker-compose.yml`):
+- `./data` → `/app/data` — projects, sessions, DB, active_context (read-write)
+- `./outputs/logs` → `/app/outputs/logs` — log files (read-write)
+- `./reports` → `/app/reports` — report files (read-write)
+- `/` → `/app/host_root` — full host filesystem (only when `HOST_FS_ACCESS=ro` or `rw` in `.env`)
+  - `ro`: read-only — bot can read any file, cannot write/delete
+  - `rw`: read+write+delete+edit — full access
+  - Windows: C: drive at `/app/host_root/mnt/c/`, D: at `/app/host_root/mnt/d/`
+  - Linux/macOS: entire root at `/app/host_root/`
+  - Example: `C:\Users\emin\Desktop\Noki.pdf` → `/app/host_root/mnt/c/Users/emin/Desktop/Noki.pdf`
+  - Configured during `bash install.sh --docker` wizard; or set `HOST_FS_ACCESS=ro|rw` in `.env` and re-run
+
 ## Service Management
 
-Services start automatically via systemd (see `MEMORY.md`). Daily usage:
-
+**systemd (Linux native):**
 ```bash
 # Status / log monitoring
 sudo systemctl status personal-agent.service personal-agent-bridge.service
@@ -50,6 +78,14 @@ journalctl -u personal-agent-bridge.service -f
 
 # Restart
 sudo systemctl restart personal-agent.service personal-agent-bridge.service
+```
+
+**Docker:**
+```bash
+docker compose ps
+docker compose logs -f 99-api
+docker compose logs -f 99-bridge
+docker compose restart
 ```
 
 To start manually during development:
@@ -147,6 +183,8 @@ docker compose logs -f 99-bridge
 # Restart
 docker compose restart
 ```
+
+> **Docker filesystem constraint:** In Docker mode, the agent can only access mounted volumes (`./data`, `./outputs/logs`, `./reports`). Host directories such as Desktop, Downloads, or home folders are **not mounted** and therefore **not accessible** via Terminal API. If the user asks to access a host file (e.g. `~/Desktop/file.pdf`), explain this limitation and ask them to copy the file into `data/` first, or send it directly via Telegram/WhatsApp.
 
 ## Architecture — Message Flow
 

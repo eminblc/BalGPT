@@ -115,7 +115,10 @@ Mesaj:
 | `features/desktop_vision.py` | `reset_vision_limiter()` | Sayaç sıfırla (test) |
 | `features/desktop_atspi.py` | AT-SPI erişilebilirlik ağacı | DOM olmayan GUI'de |
 
-## Gelecek İyileştirmeler
+## Tamamlanan İyileştirmeler
 
-- **BROWSER-1** (BACKLOG): Playwright entegrasyonunu Claude tarafından programatik kullanılan komutlarla genişletmek (mevcut FEAT-13/15'in üstüne).
-- Selector `.claude-routes.json` benzeri bir dosyayla site-özel map'lenebilir (ör. `hepsiburada.com` → login selector'ları).
+- **BROWSER-1** (2026-04-22): Playwright paketi SRP modüllerine bölündü; `cdp_click`, `wait_for`, `get_text`, `get_content`, `save_session` endpoint'leri eklendi. Artık tüm DOM-based akışlar `browser_router` üzerinden çalışır.
+
+## Planlanan İyileştirmeler
+
+- Selector'ların `.claude-routes.json` benzeri bir site-özel haritayla saklanması (ör. `hepsiburada.com` → login selector'ları).

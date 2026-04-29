@@ -20,6 +20,8 @@ if [ "$(id -u)" = "0" ]; then
   # /home/claude — image içinde zaten claude:claude; bind-mount overlay'de yeniden gerekli.
   # |true: Windows/Mac single-file mount'larda chown sessizce başarısız olabilir.
   chown -R claude:claude \
+    /app/data/projects \
+    /app/data/media \
     /app/data/claude_sessions \
     /app/data/conv_history \
     /home/claude 2>/dev/null || true

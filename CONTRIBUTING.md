@@ -63,10 +63,10 @@ node --check scripts/claude-code-bridge/server.js
 
 1. Create `scripts/backend/guards/commands/my_cmd.py`
 2. Implement the `Command` Protocol (`cmd_id`, `async execute(sender, arg, session)`)
-3. Call `registry.register(MyCommand())` at the bottom of the file
-4. Add an import line to `guards/commands/__init__.py`
-5. Add `"!mycommand": Perm.OWNER` to `guards/permission.py` → `CMD_PERMS` dict — without this, the command returns "unauthorized"
-6. Do **not** touch `main.py` or any other existing file
+3. Define `perm = Perm.OWNER` (or appropriate level) as a class attribute — `required_perm()` reads this from the registry; if missing, the command returns "no permission"
+4. Call `registry.register(MyCommand())` at the bottom of the file
+5. Add an import line to `guards/commands/__init__.py`
+6. Do **not** touch `main.py`, `guards/permission.py`, or any other existing file
 
 ## Localization (i18n)
 

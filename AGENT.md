@@ -8,10 +8,10 @@ Sohbet, iş planlaması, takvim, proje yönetimi ve zamanlanmış görevleri tek
 
 | Hedef | KPI | Başlangıç | Hedef |
 |-------|-----|-----------|-------|
-| Yanıt güvenilirliği | Başarılı yanıt / toplam istek | — | >99% |
-| Bildirim zamanlaması | Zamanında gelen hatırlatıcı / toplam | — | >95% |
-| Proje oluşturma | Başarılı proje init / istek | — | >90% |
-| Çalışma süresi | Servis erişilebilirlik | — | >99.5% |
+| Yanıt güvenilirliği | Başarılı yanıt / toplam istek | ~95% (timeout/crash) | >99% |
+| Bildirim zamanlaması | Zamanında gelen hatırlatıcı / toplam | ~98% (APScheduler) | >99% |
+| Proje oluşturma | Başarılı proje init / istek | ~85% (wizard düzeltme gerekiyordu) | >95% |
+| Çalışma süresi | Servis erişilebilirlik | ~99% (BridgeMonitor öncesi) | >99.5% |
 
 ## Özellikler
 
@@ -41,6 +41,10 @@ Sohbet, iş planlaması, takvim, proje yönetimi ve zamanlanmış görevleri tek
 | Token kullanım istatistikleri | `store/repositories/token_stat_repo.py`, `guards/commands/tokens_cmd.py` | ✅ Tamamlandı |
 | Uygulama kilidi / kilit açma | `guards/commands/lock_cmd.py`, `unlock_cmd.py` | ✅ Tamamlandı |
 | Çalışma zamanı saat dilimi değiştirme | `guards/commands/timezone_cmd.py` | ✅ Tamamlandı |
+| LLM intent sınıflandırıcı | `routers/_intent_classifier.py` | ✅ Tamamlandı |
+| Bridge otomatik yeniden başlatma | `services/bridge_monitor.py` | ✅ Tamamlandı |
+| Wizard LLM scaffold (proje iskelet üretimi) | `features/wizard_llm_scaffold.py`, `wizard_steps.py` | ✅ Tamamlandı |
+| Telegram messenger desteği | `adapters/messenger/telegram_messenger.py`, `routers/telegram_router.py` | ✅ Tamamlandı |
 
 ## Kapsam Dışı
 - Birden fazla kullanıcıya hizmet vermek (tek kullanıcı sistemi)

@@ -298,5 +298,14 @@
   "AUTH_OPTIONAL_HINT": "İpucu: CLAUDE_AUTH_OPTIONAL=1 ile bu kontrolü atla (CI / ileri kullanıcılar için)",
   "AUTH_TG_HEADSUP": "🔐 Birazdan Claude girişi başlayacak. Giriş yapabilirsin.",
   "AUTH_TG_URL_PROMPT": "🔐 *Claude'a giriş*\n\nAşağıdaki linki **kurulum yaptığın bilgisayarın** tarayıcısında aç:\n\n%s\n\n⚠️ Linki telefondan açma — login sonrası Claude lokal makineye yönlendirir, telefon erişemez.",
-  "AUTH_TG_DONE": "✅ Claude Code girişini yaptınız. Terminalde kurulum tamamlanacaktır."
+  "AUTH_TG_DONE": "✅ Claude Code girişini yaptınız. Terminalde kurulum tamamlanacaktır.",
+  "WIZ_HFS_TITLE": "Host Dosya Sistemi Erişimi",
+  "WIZ_HFS_MSG": "Docker container, varsayılan olarak yalnızca kendi volume'lerine erişebilir.\nHost bilgisayarının tüm dizinlerine erişim vermek ister misiniz?\n(Sadece Docker modunda etkilidir — systemd/PM2'de zaten tam erişim var)",
+  "WIZ_HFS_READ": "Okuma erişimi — tüm dosyaları okuyabilir (ör. Desktop, Downloads, belgeler)",
+  "WIZ_HFS_WRITE": "Yazma erişimi — yeni dosya/klasör oluşturabilir",
+  "WIZ_HFS_DELETE": "Silme erişimi — dosya ve klasörleri silebilir",
+  "WIZ_HFS_EDIT": "Düzenleme erişimi — mevcut dosyaları değiştirebilir",
+  "WIZ_HFS_RESULT_RW": "Host dosya sistemi: okuma + yazma + silme + düzenleme (rw)",
+  "WIZ_HFS_RESULT_RO": "Host dosya sistemi: yalnızca okuma (ro)",
+  "WIZ_HFS_RESULT_NONE": "Host dosya sistemi: erişim yok"
 }

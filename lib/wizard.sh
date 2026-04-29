@@ -301,6 +301,21 @@ except: pass" 2>/dev/null || true)"
     fi
   fi
 
+  # ── Host dosya sistemi erişimi (Docker) ───────────────────────────────────
+  local host_fs_access="none"
+  if _wt_yesno "$_S_WIZ_HFS_TITLE" "$_S_WIZ_HFS_MSG"; then
+    local _hfs_read=false _hfs_write=false _hfs_delete=false _hfs_edit=false
+    _wt_yesno "$_S_WIZ_HFS_TITLE" "$_S_WIZ_HFS_READ"   && _hfs_read=true   || true
+    _wt_yesno "$_S_WIZ_HFS_TITLE" "$_S_WIZ_HFS_WRITE"  && _hfs_write=true  || true
+    _wt_yesno "$_S_WIZ_HFS_TITLE" "$_S_WIZ_HFS_DELETE" && _hfs_delete=true || true
+    _wt_yesno "$_S_WIZ_HFS_TITLE" "$_S_WIZ_HFS_EDIT"   && _hfs_edit=true   || true
+    if $_hfs_write || $_hfs_delete || $_hfs_edit; then
+      host_fs_access="rw"
+    elif $_hfs_read; then
+      host_fs_access="ro"
+    fi
+  fi
+
   # ── Security keys + summary ────────────────────────────────────────────────
   local api_key totp_secret
   api_key="$(_gen_api_key)"
@@ -309,6 +324,13 @@ except: pass" 2>/dev/null || true)"
   local summary="Messenger  : $messenger\nLLM Backend: $llm\nProxy      : $proxy\nTimezone   : $tz_value"
   [[ -n "$public_url" ]] && summary+="\nPublic URL : $public_url"
   [[ -n "$wa_owner"   ]] && summary+="\nWA Owner   : $wa_owner"
+  if [[ "$host_fs_access" == "rw" ]]; then
+    summary+="\n$_S_WIZ_HFS_RESULT_RW"
+  elif [[ "$host_fs_access" == "ro" ]]; then
+    summary+="\n$_S_WIZ_HFS_RESULT_RO"
+  else
+    summary+="\n$_S_WIZ_HFS_RESULT_NONE"
+  fi
   summary+="\n\n$_S_WIZ_SUM_MSG_AUTO\n$_S_WIZ_SUM_MSG_CONF"
   _wt_msg "$_S_WIZ_SUM_TITLE" "$summary" || return 1
 
@@ -319,6 +341,7 @@ except: pass" 2>/dev/null || true)"
     "$public_url" "$ngrok_token" "$ngrok_domain" \
     "$api_key" "$totp_secret" \
     "$tz_value"
+  _env_set "HOST_FS_ACCESS" "$host_fs_access" "$env_dst"
 
   # For WhatsApp: send a setup-complete summary to the owner's number
   if [[ "$messenger" == "whatsapp" && -n "$wa_token" && -n "$wa_phone_id" && -n "$wa_owner" ]]; then
@@ -660,6 +683,39 @@ except: pass" 2>/dev/null || true)"
     esac
   fi
 
+  # ── Host dosya sistemi erişimi (Docker) ───────────────────────────────────
+  _sep
+  echo ""
+  echo "▶ $_S_WIZ_HFS_TITLE"
+  echo ""
+  printf "  %b\n" "$_S_WIZ_HFS_MSG"
+  echo ""
+  local host_fs_access="none" _hfs_ans
+  _ask_inline "[${_S_TXT_RERUN_Y}/n]:" _hfs_ans
+  if [[ "${_hfs_ans,,}" == "$_S_TXT_RERUN_Y" ]]; then
+    local _hfs_read=false _hfs_write=false _hfs_delete=false _hfs_edit=false
+    local _hfs_r
+    _ask_inline "  $_S_WIZ_HFS_READ [${_S_TXT_RERUN_Y}/n]:" _hfs_r
+    [[ "${_hfs_r,,}" == "$_S_TXT_RERUN_Y" ]] && _hfs_read=true
+    _ask_inline "  $_S_WIZ_HFS_WRITE [${_S_TXT_RERUN_Y}/n]:" _hfs_r
+    [[ "${_hfs_r,,}" == "$_S_TXT_RERUN_Y" ]] && _hfs_write=true
+    _ask_inline "  $_S_WIZ_HFS_DELETE [${_S_TXT_RERUN_Y}/n]:" _hfs_r
+    [[ "${_hfs_r,,}" == "$_S_TXT_RERUN_Y" ]] && _hfs_delete=true
+    _ask_inline "  $_S_WIZ_HFS_EDIT [${_S_TXT_RERUN_Y}/n]:" _hfs_r
+    [[ "${_hfs_r,,}" == "$_S_TXT_RERUN_Y" ]] && _hfs_edit=true
+    if $_hfs_write || $_hfs_delete || $_hfs_edit; then
+      host_fs_access="rw"
+      ok "  $_S_WIZ_HFS_RESULT_RW"
+    elif $_hfs_read; then
+      host_fs_access="ro"
+      ok "  $_S_WIZ_HFS_RESULT_RO"
+    else
+      ok "  $_S_WIZ_HFS_RESULT_NONE"
+    fi
+  else
+    ok "  $_S_WIZ_HFS_RESULT_NONE"
+  fi
+
   # ── Güvenlik anahtarları ──────────────────────────────────────────────────
   _sep
   echo ""
@@ -676,6 +732,7 @@ except: pass" 2>/dev/null || true)"
     "$public_url" "$ngrok_token" "$ngrok_domain" \
     "$api_key" "$totp_secret" \
     "$tz_value"
+  _env_set "HOST_FS_ACCESS" "$host_fs_access" "$env_dst"
 
   # WhatsApp: setup-complete summary
   if [[ "$messenger" == "whatsapp" && -n "$wa_token" && -n "$wa_phone_id" && -n "$wa_owner" ]]; then
