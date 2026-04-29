@@ -92,20 +92,18 @@ step_data_dirs() {
 
   # When run via sudo, dirs are owned by root — but services start as $SUDO_USER,
   # which then can't write to data/personal_agent.db etc.  Restore ownership.
-  # Bridge container runs as UID 1001 (claude user in Dockerfile.bridge) and needs
-  # write access to claude_sessions and conv_history — keep those at UID 1001.
+  # NOT: Bridge container artık entrypoint'inde root → claude:claude (UID 1001) drop'u
+  # yapıyor (bkz. docker/entrypoint-bridge.sh). Bu yüzden install.sh'ın 1001:1001'e
+  # chown yapmasına gerek yok; aksine native (systemd) bridge SUDO_USER olarak çalışır,
+  # 1001 sahipliği yazma hatasına neden olur. Tüm data dizinlerini SUDO_USER'a ata.
   if [ "$EUID" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
     local _grp
     _grp="$(id -gn "$SUDO_USER" 2>/dev/null || echo "$SUDO_USER")"
-    # API and install.sh-owned directories: restore to SUDO_USER
     chown -R "$SUDO_USER:$_grp" \
       "$ROOT_DIR/data/projects" "$ROOT_DIR/data/media" \
-      "$ROOT_DIR/outputs" "$ROOT_DIR/reports" "$ROOT_DIR/research" \
-      2>/dev/null || warn "  ↳ chown failed for user dirs (continuing)"
-    # Bridge container-owned directories: UID 1001 (claude user in Dockerfile.bridge)
-    chown -R 1001:1001 \
       "$ROOT_DIR/data/claude_sessions" "$ROOT_DIR/data/conv_history" \
-      2>/dev/null || warn "  ↳ chown failed for bridge dirs (continuing)"
+      "$ROOT_DIR/outputs" "$ROOT_DIR/reports" "$ROOT_DIR/research" \
+      2>/dev/null || warn "  ↳ chown failed for data dirs (continuing)"
   fi
   ok "$_S_STEP_DIRS_DONE"
 }

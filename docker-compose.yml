@@ -28,8 +28,10 @@ services:
       dockerfile: Dockerfile.bridge
     container_name: personal-agent-bridge
     restart: unless-stopped
-    # Claude CLI --permission-mode bypassPermissions root ile çalışmaz; non-root user zorunlu.
-    user: "1001:1001"
+    # NOT: user override yok. Container root olarak başlar, entrypoint
+    # bind-mount'ları chown'lar ve gosu ile claude:claude'a düşer.
+    # Cross-platform fix (Linux/Mac/Windows). Claude CLI bypassPermissions
+    # root ile çalışmaz — drop entrypoint'in ilk adımında yapılır.
     ports:
       - "8013:8013"
     env_file:

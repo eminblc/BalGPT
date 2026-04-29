@@ -1,10 +1,18 @@
 # ── Claude Code Bridge (Node.js) — Port 8013 ──────────────────────────────────
 FROM node:18-slim
 
-# Git (claude CLI için) + curl (healthcheck + API bekleme)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    curl \
+# Git (claude CLI için) + curl (healthcheck + API bekleme) + gosu (root → claude drop)
+# gosu: entrypoint root olarak başlar, bind-mount'ları chown'lar, sonra claude'a düşer.
+# Cross-platform fix: Docker Desktop Windows/Mac'te host UID container UID'ye eşlenmez.
+#
+# Acquire::Max-FutureTime=86400: Debian security mirror'da nadiren ileri tarihli
+# InRelease dosyaları görülüyor (build pipeline saat senkron sorunu); GPG imzası
+# yine doğrulanır, sadece zaman damgası toleransı 1 güne çıkarılır.
+RUN apt-get -o Acquire::Max-FutureTime=86400 update \
+    && apt-get install -y --no-install-recommends \
+       git \
+       curl \
+       gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Claude CLI --permission-mode bypassPermissions root/sudo ile çalışmaz;
@@ -40,7 +48,9 @@ RUN chown -R claude:claude /app
 # yazamaz ve epoll_wait'te askıda kalır.
 RUN mkdir -p /home/claude/.claude && chown -R claude:claude /home/claude
 
-USER claude
+# USER claude — KALDIRILDI. Entrypoint root olarak başlamalı ki bind-mount'ları
+# chown'layabilsin (Windows/Mac Docker Desktop için). Sonra gosu ile claude'a düşer.
+# Claude CLI bypassPermissions root ile çalışmaz; bu yüzden gosu drop zorunlu.
 
 EXPOSE 8013
 
