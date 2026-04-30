@@ -78,8 +78,8 @@ Look at the system tray (bottom right). Whale icon should say **"Docker Desktop 
 In Git Bash:
 
 ```bash
-git clone https://github.com/your-username/99-root.git
-cd 99-root
+git clone https://github.com/eminblc/BalGPT.git
+cd BalGPT
 ```
 
 ### Step 3 — Run the installer
@@ -106,7 +106,7 @@ Both `curl` commands should print JSON containing `"status":"ok"`. Then **send a
 
 | Symptom | Fix |
 |---------|-----|
-| `bash: install.sh: No such file or directory` | You're not in the project folder. Run `cd 99-root` first. |
+| `bash: install.sh: No such file or directory` | You're not in the project folder. Run `cd BalGPT` first. |
 | `Docker daemon is not running` | Open Docker Desktop and wait for the whale icon to stop animating. |
 | Wizard appears in PowerShell and looks broken | You ran the script from PowerShell. Close it; open **Git Bash** instead. |
 | `python3: command not found` | Reinstall Python from python.org with ☑ **Add to PATH** checked. |
@@ -145,8 +145,8 @@ npm --version
 ### Step 1 — Download the project
 
 ```bash
-git clone https://github.com/your-username/99-root.git
-cd 99-root
+git clone https://github.com/eminblc/BalGPT.git
+cd BalGPT
 ```
 
 ### Step 2 — Run the installer
@@ -234,8 +234,8 @@ docker info >/dev/null && echo "Docker OK"
 ### Step 2 — Download the project
 
 ```bash
-git clone https://github.com/your-username/99-root.git
-cd 99-root
+git clone https://github.com/eminblc/BalGPT.git
+cd BalGPT
 ```
 
 ### Step 3 — Run the installer
@@ -396,8 +396,8 @@ Below sections are detailed reference for the install modes — most users don't
 > Best choice for most users. Works on Linux, macOS, and Windows (Git Bash + Docker Desktop). The host still needs `bash`, `python3` 3.11+, and `curl` to run the install wizard — see [Prerequisites](#prerequisites). Node.js is **not** needed on the host (the Bridge container ships it).
 
 ```bash
-git clone https://github.com/your-username/99-root.git
-cd 99-root
+git clone https://github.com/eminblc/BalGPT.git
+cd BalGPT
 bash install.sh --docker
 ```
 
@@ -444,8 +444,8 @@ docker compose restart
 > Best choice for a dedicated Linux server or Raspberry Pi where you want native performance and automatic startup.
 
 ```bash
-git clone https://github.com/your-username/99-root.git
-cd 99-root
+git clone https://github.com/eminblc/BalGPT.git
+cd BalGPT
 sudo bash install.sh
 ```
 
@@ -475,8 +475,8 @@ bash install.sh --reconfigure-capabilities  # re-run capability wizard and re-sy
 Use PM2 if you don't have systemd (macOS, Windows WSL, VPS without root).
 
 ```bash
-git clone https://github.com/your-username/99-root.git
-cd 99-root
+git clone https://github.com/eminblc/BalGPT.git
+cd BalGPT
 bash install.sh --pm2
 ```
 
