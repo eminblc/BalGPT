@@ -45,11 +45,13 @@ WhatsApp / Telegram → POST /whatsapp/webhook  or  POST /telegram/webhook
 | 1 | **Docker Desktop** | [docker.com/desktop](https://docs.docker.com/desktop/install/windows-install/) | Runs the bot in a container |
 | 2 | **Git for Windows** | [git-scm.com/download/win](https://git-scm.com/download/win) | Provides "Git Bash" — the terminal you'll use |
 | 3 | **Python 3.11+** | [python.org/downloads/windows](https://www.python.org/downloads/windows/) | Required by the installer wizard |
+| 4 | **Node.js 18+** | [nodejs.org/en/download](https://nodejs.org/en/download) | Required for the Claude Code CLI / Bridge (ships `npm`) |
 
 **Important during installation:**
 - Docker Desktop: leave all defaults checked. After install, **launch it** (whale icon in tray, ~1 min to boot).
 - Git for Windows: leave all defaults (especially the "Git Bash Here" option).
 - Python: ☑ **Check "Add python.exe to PATH"** on the first install screen — without this, the installer can't find Python.
+- Node.js: pick the **LTS** installer; it ships `npm` automatically. Restart Git Bash after install so PATH picks up `node` and `npm`.
 
 ### Verify everything is ready
 
@@ -59,9 +61,11 @@ Open **Git Bash** (Start Menu → "Git Bash"), then paste these one at a time:
 docker --version
 python3 --version   # or: python --version  /  py --version  (Windows)
 bash --version | head -1
+node --version       # 18+
+npm --version
 ```
 
-You should see Docker 24+, Python 3.11+, Bash 4+. If any prints `command not found`, reinstall that tool.
+You should see Docker 24+, Python 3.11+, Bash 4+, Node 18+, and `npm` printing a version. If any prints `command not found`, reinstall that tool.
 
 > **Windows note:** `python3` may not exist on Windows — `python --version` or `py --version` works too. `install.sh` detects this automatically.
 
@@ -121,6 +125,7 @@ Both `curl` commands should print JSON containing `"status":"ok"`. Then **send a
 | 2 | **Docker Desktop** | `brew install --cask docker` (or [download from docker.com](https://docs.docker.com/desktop/install/mac-install/)) | Runs the bot in a container |
 | 3 | **Python 3.11+** | `brew install python@3.11` (most macs have it already) | Required by the installer |
 | 4 | **Git** | `brew install git` (most macs have it already) | Downloads the project |
+| 5 | **Node.js 18+** | `brew install node` (or [download from nodejs.org](https://nodejs.org/en/download)) | Required for the Claude Code CLI / Bridge (ships `npm`) |
 
 After Homebrew + Docker install, **launch Docker Desktop** (Applications → Docker). It takes ~1 minute to boot; you'll see the whale icon in the menu bar say "Docker Desktop is running".
 
@@ -133,6 +138,8 @@ docker --version          # 24+
 python3 --version          # 3.11+
 git --version
 bash --version | head -1   # 3+ on macOS is fine; install.sh handles it
+node --version             # 18+
+npm --version
 ```
 
 ### Step 1 — Download the project
@@ -190,12 +197,18 @@ sudo usermod -aG docker $USER
 # 4. Install Python 3.11+, git, curl, and the venv module
 sudo apt install -y python3 python3-venv python3-pip git curl
 
-# 5. (Optional but recommended) for terminal QR code rendering:
+# 5. Install Node.js 18+ and npm (required for the Claude Code CLI / Bridge)
+sudo apt install -y nodejs npm
+# If your distro ships Node < 18, use NodeSource instead:
+#   curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+#   sudo apt install -y nodejs
+
+# 6. (Optional but recommended) for terminal QR code rendering:
 sudo apt install -y qrencode whiptail
 ```
 
-For Fedora: `sudo dnf install docker docker-compose python3 python3-pip git curl qrencode newt`
-For Arch: `sudo pacman -S docker docker-compose python python-pip git curl qrencode libnewt`
+For Fedora: `sudo dnf install docker docker-compose python3 python3-pip git curl nodejs npm qrencode newt`
+For Arch: `sudo pacman -S docker docker-compose python python-pip git curl nodejs npm qrencode libnewt`
 
 ### Verify
 
@@ -204,6 +217,8 @@ docker --version
 docker compose version
 python3 --version          # 3.11+
 git --version
+node --version             # 18+
+npm --version
 ```
 
 If `docker info` complains about permissions, you forgot step 3 (log out/in after `usermod`).

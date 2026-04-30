@@ -45,11 +45,13 @@ Kurulum tamamlandığında Telegram veya WhatsApp üzerinden dosya oluşturabile
 | 1 | **Docker Desktop** | [docker.com/desktop](https://docs.docker.com/desktop/install/windows-install/) | Botu container içinde çalıştırır |
 | 2 | **Git for Windows** | [git-scm.com/download/win](https://git-scm.com/download/win) | Git Bash terminalini sağlar |
 | 3 | **Python 3.11+** | [python.org/downloads/windows](https://www.python.org/downloads/windows/) | Kurulum sihirbazı için gereklidir |
+| 4 | **Node.js 18+** | [nodejs.org/en/download](https://nodejs.org/en/download) | Claude Code CLI / Bridge için gereklidir (`npm` ile birlikte gelir) |
 
 **Kurulum sırasında dikkat edilmesi gerekenler:**
 - Docker Desktop: tüm varsayılanları işaretli bırakın. Kurulumdan sonra **uygulamayı başlatın** (sistem tepsisindeki balina simgesi ~1 dakika içinde hazır olur).
 - Git for Windows: tüm varsayılanları kabul edin (özellikle "Git Bash Here" seçeneği).
 - Python: ilk ekranda **"Add python.exe to PATH"** kutusunu işaretleyin — aksi hâlde kurulum scripti Python'u bulamaz.
+- Node.js: **LTS** sürümünü seçin; `npm` otomatik olarak gelir. Kurulum sonrası `node` ve `npm`'in PATH'e eklenmesi için Git Bash'i yeniden başlatın.
 
 ### Bağımlılıkları Doğrulayın
 
@@ -59,9 +61,11 @@ Kurulum tamamlandığında Telegram veya WhatsApp üzerinden dosya oluşturabile
 docker --version
 python3 --version   # ya da: python --version  /  py --version  (Windows)
 bash --version | head -1
+node --version       # 18+
+npm --version
 ```
 
-Çıktı: Docker 24+, Python 3.11+, Bash 4+ olmalıdır. Herhangi bir komut `command not found` hatası veriyorsa ilgili aracı yeniden kurun.
+Çıktı: Docker 24+, Python 3.11+, Bash 4+, Node 18+ olmalı ve `npm` bir sürüm yazdırmalıdır. Herhangi bir komut `command not found` hatası veriyorsa ilgili aracı yeniden kurun.
 
 > **Windows notu:** `python3` komutu Windows'ta olmayabilir — `python --version` veya `py --version` da çalışır. `install.sh` bunu otomatik olarak algılar.
 
@@ -121,6 +125,7 @@ curl -s http://localhost:8013/health
 | 2 | **Docker Desktop** | `brew install --cask docker` veya [docker.com](https://docs.docker.com/desktop/install/mac-install/) | Botu container içinde çalıştırır |
 | 3 | **Python 3.11+** | `brew install python@3.11` (çoğu macOS kurulumunda mevcuttur) | Kurulum sihirbazı için gereklidir |
 | 4 | **Git** | `brew install git` (çoğu macOS kurulumunda mevcuttur) | Projeyi indirir |
+| 5 | **Node.js 18+** | `brew install node` (veya [nodejs.org](https://nodejs.org/en/download)) | Claude Code CLI / Bridge için gereklidir (`npm` ile birlikte gelir) |
 
 Homebrew ve Docker kurulumundan sonra **Docker Desktop'ı başlatın** (Uygulamalar → Docker). ~1 dakika içinde hazır olur.
 
@@ -133,6 +138,8 @@ docker --version          # 24+
 python3 --version          # 3.11+
 git --version
 bash --version | head -1
+node --version             # 18+
+npm --version
 ```
 
 ### 1. Adım — Projeyi indirin
@@ -190,12 +197,18 @@ sudo usermod -aG docker $USER
 # 4. Python 3.11+, git, curl ve venv modülünü kurun
 sudo apt install -y python3 python3-venv python3-pip git curl
 
-# 5. (İsteğe bağlı) Terminal QR kod desteği için:
+# 5. Node.js 18+ ve npm kurun (Claude Code CLI / Bridge için gereklidir)
+sudo apt install -y nodejs npm
+# Dağıtımınızda Node 18'den eski sürüm geliyorsa NodeSource kullanın:
+#   curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+#   sudo apt install -y nodejs
+
+# 6. (İsteğe bağlı) Terminal QR kod desteği için:
 sudo apt install -y qrencode whiptail
 ```
 
-Fedora: `sudo dnf install docker docker-compose python3 python3-pip git curl qrencode newt`  
-Arch: `sudo pacman -S docker docker-compose python python-pip git curl qrencode libnewt`
+Fedora: `sudo dnf install docker docker-compose python3 python3-pip git curl nodejs npm qrencode newt`  
+Arch: `sudo pacman -S docker docker-compose python python-pip git curl nodejs npm qrencode libnewt`
 
 ### Bağımlılıkları Doğrulayın
 
@@ -204,6 +217,8 @@ docker --version
 docker compose version
 python3 --version          # 3.11+
 git --version
+node --version             # 18+
+npm --version
 ```
 
 ### 1. Adım — Docker'ın çalıştığından emin olun
