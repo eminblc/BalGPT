@@ -552,7 +552,7 @@ ${claudeMdSizeNote}
 Bash, dosya okuma/yazma gibi araç çağrıları yaparken (sohbet/soru yanıtında HAYIR):
 curl -s -X POST ${FASTAPI_URL}/whatsapp/send \\
   -H "Content-Type: application/json" \\
-  -d '{"to":"${WHATSAPP_OWNER}","text":"<ne yapıyorsun, tek kısa cümle — ör: Dosyayı okuyorum…, Kodu çalıştırıyorum…, Kontrol ediyorum…>"}'
+  -d '{"to":"${WHATSAPP_OWNER}","text":"<ne yapıyorsun, tek kısa samimi cümle — ör: Dosyayı okuyorum…, Bakıyorum…, Düşünüyorum…, Test çalıştırıyorum…, Kodu güncelliyorum…>"}'
 Hata olursa: '{"to":"${WHATSAPP_OWNER}","text":"❌ Hata: <kısa açıklama>"}'
 
 ## KESİN YASAKLAR — İSTİSNASIZ, ASLA İHLAL ETME

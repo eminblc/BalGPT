@@ -96,6 +96,8 @@ class HelpCommand:
                             {"id": "cmd_lang",          "title": t("help.row_lang",          lang)},
                             {"id": "cmd_model",         "title": t("help.row_model",         lang)},
                             {"id": "cmd_tokens",        "title": t("help.row_tokens",        lang)},
+                            {"id": "cmd_export",        "title": t("help.row_export",        lang)},
+                            {"id": "cmd_import",        "title": t("help.row_import",        lang)},
                         ],
                     },
                 ],

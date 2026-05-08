@@ -17,7 +17,7 @@ from ..adapters.messenger.messenger_factory import get_messenger
 from ..i18n import t
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/internal")
+router = APIRouter(prefix="/internal", tags=["internal"])
 
 _LOCALHOST = frozenset(("127.0.0.1", "::1", "::ffff:127.0.0.1"))
 
@@ -40,9 +40,23 @@ class _PermissionPromptRequest(BaseModel):
     tool_detail: str  # Bridge'de summarizeToolInput() ile hazırlanmış özet
 
 
-@router.post("/send_permission_prompt")
+@router.post(
+    "/send_permission_prompt",
+    summary="Araç onay isteğini kullanıcıya ilet",
+    response_model=dict,
+    responses={
+        200: {"description": "Buton mesajı gönderildi", "content": {"application/json": {"example": {"ok": True}}}},
+        403: {"description": "Localhost dışı erişim engellendi"},
+    },
+)
 async def send_permission_prompt(request: Request, body: _PermissionPromptRequest):
-    """Bridge'den gelen araç onayı isteğini kullanıcıya buton olarak ilet."""
+    """Bridge'den gelen araç onayı isteğini kullanıcıya buton olarak iletir.
+
+    Claude Code CLI bir araç çalıştırmadan önce izin istediğinde, Bridge bu endpoint'i
+    çağırır. Kullanıcıya "İzin ver / Reddet" butonları gönderilir.
+
+    **Yalnızca localhost** erişimine açıktır; API key gerekmez.
+    """
     _require_localhost(request)
     messenger = get_messenger()
     owner     = settings.owner_id
@@ -82,7 +96,16 @@ class _SendMediaRequest(BaseModel):
     to: Optional[str] = None
 
 
-@router.post("/send_media")
+@router.post(
+    "/send_media",
+    summary="Yerel medya dosyasını kullanıcıya gönder",
+    response_model=dict,
+    responses={
+        200: {"description": "Gönderim sonuçları", "content": {"application/json": {"example": {"ok": True, "results": [{"path": "/tmp/screen.png", "ok": True}]}}}},
+        400: {"description": "path veya paths alanı eksik"},
+        403: {"description": "Localhost dışı erişim engellendi"},
+    },
+)
 async def internal_send_media(request: Request, body: _SendMediaRequest):
     """Yerel medya dosyasını (görsel/video/belge) owner'a gönder.
 
@@ -157,7 +180,15 @@ async def internal_send_media(request: Request, body: _SendMediaRequest):
     return {"ok": all_ok, "results": results}
 
 
-@router.post("/send_message")
+@router.post(
+    "/send_message",
+    summary="Kullanıcıya mesaj gönder (proje servisleri için)",
+    response_model=dict,
+    responses={
+        200: {"description": "Mesaj gönderildi", "content": {"application/json": {"example": {"ok": True}}}},
+        403: {"description": "Localhost dışı erişim engellendi"},
+    },
+)
 async def internal_send_message(request: Request, body: _SendMessageRequest):
     """Localhost'taki proje servislerinin kullanıcıya mesaj göndermesi için.
 
@@ -172,7 +203,18 @@ async def internal_send_message(request: Request, body: _SendMessageRequest):
     return {"ok": True}
 
 
-@router.post("/verify-admin-totp")
+@router.post(
+    "/verify-admin-totp",
+    summary="Admin TOTP doğrula (CLI guardrail override)",
+    response_model=dict,
+    responses={
+        200: {
+            "description": "Doğrulama sonucu",
+            "content": {"application/json": {"example": {"valid": True}}},
+        },
+        403: {"description": "Localhost dışı erişim engellendi"},
+    },
+)
 async def verify_admin_totp(request: Request, body: _VerifyRequest):
     """Admin TOTP doğrulaması — Claude Code CLI guardrail override için.
 

@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     # İleride merkezi yol yönetimi için bu alanlar aktif hale getirilecek (K6).
     projects_dir: str = ""   # Boş bırakılırsa DEFAULT_PROJECTS_DIR (33-projects/) kullanılır
     pdf_tmp_dir: str = "/tmp/personal-agent-pdf"  # PDF indirme geçici dizini
+    data_dir: str = ""       # Boş bırakılırsa repo kökündeki data/ dizini kullanılır (BACKUP-8)
+    backup_encryption_key: SecretStr = SecretStr("")  # AES-256-GCM şifreleme anahtarı; boş = şifreleme devre dışı (BACKUP-9)
+    auto_backup_enabled: bool = False    # True = günlük otomatik yedekleme aktif (BACKUP-10)
+    auto_backup_cron: str = "0 2 * * *"  # Varsayılan: her gün 02:00 local time (BACKUP-10)
+    backup_retention_days: int = 7       # data/backups/ altında tutulacak maksimum gün sayısı (BACKUP-11)
 
     @property
     def resolved_projects_dir(self) -> Path:
@@ -67,6 +72,14 @@ class Settings(BaseSettings):
             return Path(self.projects_dir)
         from .app_types import DEFAULT_PROJECTS_DIR
         return DEFAULT_PROJECTS_DIR
+
+    @property
+    def resolved_data_dir(self) -> Path:
+        """Yedek/medya/geçmiş veri dizini — DATA_DIR env var'ı veya repo kökü altındaki data/."""
+        if self.data_dir:
+            return Path(self.data_dir)
+        # scripts/backend/config.py → ×2 → scripts/ → ×1 → repo kökü → / "data"
+        return Path(__file__).parent.parent.parent / "data"
 
     # ── Oturum ───────────────────────────────────────────────────
     session_ttl_hours: int = 24       # Oturum inaktivite süresi

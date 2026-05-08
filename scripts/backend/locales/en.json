@@ -78,7 +78,7 @@
     "list_header": "Commands — for details: /help /command",
     "section_planning": "Planning & Projects",
     "section_system": "System & Tools",
-    "fallback": "Commands:\n/help [/cmd]     — This menu or command details\n/history [N|summary] — Recent messages\n/project [id]    — Set active project (TOTP)\n/lang <tr|en>    — Change language\n/model           — {model_hint}\n/beta       — Exit beta mode\n\nCreate project:\n  Menu → New Project → enter name → select type:\n  • Software Project  (CLAUDE.md, BACKLOG.md ...)\n  • Save Task         (README + outputs/)\n  • Folder Only       (empty folder)\n\nSystem commands:\n/root-reset  — Reset session\n/restart     — Restart services\n/terminal <cmd> — Run shell command (dangerous → admin TOTP)\n⚠️ Destructive (math + admin TOTP):\n/shutdown    — Stop service\n\nScheduling (TOTP):\n/schedule                        → list\n/schedule ekle 0 9 * * * <desc>  → 9am daily — Bridge prompt\n/schedule mesaj 0 9 * * * <text> → 9am daily — fixed message\n/schedule sil|durdur|başlat <id>\nNatural language: 'Write a brief every morning at 9' → Claude creates it\n\nNon-command messages go to Claude. 💬",
+    "fallback": "Commands:\n/help [/cmd]     — This menu or command details\n/history [N|summary] — Recent messages\n/project [id]    — Set active project (TOTP)\n/lang <tr|en>    — Change language\n/model           — {model_hint}\n/beta       — Exit beta mode\n\nCreate project:\n  Menu → New Project → enter name → select type:\n  • Software Project  (CLAUDE.md, BACKLOG.md ...)\n  • Save Task         (README + outputs/)\n  • Folder Only       (empty folder)\n\nSystem commands:\n/root-reset  — Reset session\n/restart     — Restart services\n/terminal <cmd> — Run shell command (dangerous → admin TOTP)\n⚠️ Destructive (math + admin TOTP):\n/shutdown    — Stop service\n\nBackup:\n/export          — Basic backup (.99rb)\n/export full     — Full backup (with media)\n/export media    — Basic + media\n/import          — Restore from .99rb file\n\nScheduling (TOTP):\n/schedule                        → list\n/schedule ekle 0 9 * * * <desc>  → 9am daily — Bridge prompt\n/schedule mesaj 0 9 * * * <text> → 9am daily — fixed message\n/schedule sil|durdur|başlat <id>\nNatural language: 'Write a brief every morning at 9' → Claude creates it\n\nNon-command messages go to Claude. 💬",
     "btn_chat": "💬 Chat",
     "btn_plans": "📋 My Plans",
     "btn_projects": "📁 Projects",
@@ -93,6 +93,8 @@
     "row_lang": "Change Language",
     "row_model": "Change Model",
     "row_tokens": "Token Statistics",
+    "row_export": "Backup",
+    "row_import": "Restore from Backup",
     "model_hint_anthropic": "/model sonnet|haiku|opus — active: {current}",
     "model_hint_ollama": "/model <model_name> — active: {current}",
     "model_hint_gemini": "/model gemini-2.0-flash etc. — active: {current}",
@@ -459,5 +461,19 @@
     "totp_missing": "⚠️ TOTP secret ({label}) not found — check your `.env` file.",
     "done": "🎉 *Setup complete!*\n\nRestart services for the changes to take effect:\n\n• If you're on Docker:\n```\ndocker compose restart\n```\n• If you're on systemd:\n```\nsudo systemctl restart personal-agent.service personal-agent-bridge.service\n```\n• If you're on PM2:\n```\npm2 restart 99-api 99-bridge\n```\n\nGet started with: `/help` — all commands.",
     "env_write_failed": "❌ Failed to write `.env`. Check server logs."
+  },
+  "backup": {
+    "export_start": "⏳ Creating backup...",
+    "export_caption": "✅ Backup ready: {size} KB, {tables} tables, {files} files",
+    "export_error": "❌ Backup failed: {error}",
+    "export_send_error": "❌ Could not send backup file: {error}",
+    "import_prompt": "📤 Please send your .99rb backup file.",
+    "import_ok": "✅ Import complete: {rows} rows inserted, {tables} tables processed, {files} files restored.",
+    "import_error": "❌ Import error: {error}",
+    "import_bad_file": "❌ Expected a .99rb backup file. Invalid file.",
+    "import_download_error": "❌ Could not download file: {error}",
+    "usage": "Usage:\n/export — essential backup\n/export full — all data\n/export media — include media\n/import — upload .99rb file",
+    "auto_backup_caption": "🔄 Auto-backup ready: {size} KB, {tables} tables, {files} files",
+    "auto_backup_error": "❌ Auto-backup failed: {error}"
   }
 }

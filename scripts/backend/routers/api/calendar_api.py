@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ._deps import COMMON_DEPS
 from ...config import settings
 
-router = APIRouter(dependencies=COMMON_DEPS)
+router = APIRouter(dependencies=COMMON_DEPS, tags=["calendar"])
 
 _CALENDAR_DISABLED = HTTPException(
     status_code=503,
@@ -16,15 +16,29 @@ _CALENDAR_DISABLED = HTTPException(
 
 
 class EventRequest(BaseModel):
-    title: str
-    event_time: float
-    description: str = ""
-    remind_before_minutes: int = 30
-    recurring: str | None = None
+    title: str = Field(..., example="Doktor randevusu", description="Etkinlik başlığı")
+    event_time: float = Field(..., example=1714568400.0, description="Unix timestamp (UTC)")
+    description: str = Field("", example="Kardiyoloji kontrolü", description="Opsiyonel açıklama")
+    remind_before_minutes: int = Field(30, example=30, description="Kaç dakika önce hatırlatılsın")
+    recurring: str | None = Field(None, example="daily", description="Tekrar tipi: 'daily', 'weekly', 'monthly' veya None")
 
 
-@router.post("/calendar")
+@router.post(
+    "/calendar",
+    summary="Takvim etkinliği oluştur",
+    response_model=dict,
+    responses={
+        200: {"description": "Oluşturulan etkinlik"},
+        503: {"description": "Takvim özelliği devre dışı (RESTRICT_CALENDAR=true)"},
+    },
+)
 async def create_event(body: EventRequest):
+    """Yeni bir takvim etkinliği oluşturur.
+
+    `event_time` UTC unix timestamp olmalıdır. Hatırlatıcı, etkinlik zamanından
+    `remind_before_minutes` dakika önce gönderilir. Tekrarlayan etkinlikler için
+    `recurring` alanını kullanın: `'daily'`, `'weekly'`, `'monthly'`.
+    """
     if settings.restrict_calendar:
         raise _CALENDAR_DISABLED
     from ...features.calendar import create_event
@@ -32,8 +46,21 @@ async def create_event(body: EventRequest):
                                body.remind_before_minutes, body.recurring)
 
 
-@router.get("/calendar")
+@router.get(
+    "/calendar",
+    summary="Yaklaşan etkinlikleri listele",
+    response_model=list,
+    responses={
+        200: {"description": "Yaklaşan takvim etkinlikleri listesi"},
+        503: {"description": "Takvim özelliği devre dışı (RESTRICT_CALENDAR=true)"},
+    },
+)
 async def list_events():
+    """Yaklaşan tüm takvim etkinliklerini döndürür.
+
+    Etkinlikler olay zamanına göre sıralanmış olarak döner.
+    Geçmiş etkinlikler dahil edilmez.
+    """
     if settings.restrict_calendar:
         raise _CALENDAR_DISABLED
     from ...features.calendar import list_upcoming

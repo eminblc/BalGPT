@@ -128,7 +128,7 @@
   "TXT_TG_TZ_SELECTED": "Saat dilimi seçildi",
   "TXT_TG_TZ_OTHER": "Özel saat dilimi — manuel girin:",
   "TXT_TG_CHATID_FAIL": "Otomatik algılama başarısız. Chat ID'nizi 10 saniyede öğrenin:\n  → Telegram'ı açın → @userinfobot'u aratın → Başlat'a dokunun → anında ID'nizi söyler\n  → Gelen numarayı (örn. 123456789) aşağıya girin.",
-  "NGROK_TOKEN_INVALID": "ngrok auth token alfanümerik ve en az 16 karakter olmalı.",
+  "NGROK_TOKEN_INVALID": "ngrok auth token alfanümerik ve en az 40 karakter olmalı.",
   "NGROK_DOMAIN_INVALID": "ngrok domain bir nokta içermeli (örn. yourname.ngrok-free.app).",
   "WIZ_AN_INFO_TITLE": "Anthropic — Kimlik Doğrulama Yöntemi",
   "WIZ_AN_CHOICE_MSG": "Anthropic ile nasıl kimlik doğrulamak istersiniz?\n\n  [1] Claude Girişi  ✦ ÖNERİLEN\n      claude.ai hesabınızla giriş yapın (Pro/Max aboneliği).\n      Daha güvenli — yönetilecek veya sızabilecek anahtar yok.\n      Sihirbaz bu adımdan sonra 'claude auth login' çalıştırır.\n\n  [2] API Key\n      Anthropic Console'dan kullandıkça öde anahtarı.\n      console.anthropic.com → Settings → API Keys → Create Key",

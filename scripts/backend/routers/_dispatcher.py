@@ -163,6 +163,80 @@ async def _handle_unsupported(ctx: _MsgCtx) -> None:
     )
 
 
+async def _handle_document(ctx: _MsgCtx) -> None:
+    """Telegram belge mesajlarını işler (BACKUP-7 — OCP-MSG genişletme noktası).
+
+    Backup import akışı aktifse Telegram Bot API üzerinden dosyayı indirir;
+    akış aktif değilse belge açıklamasını Bridge'e iletir.
+    """
+    from ._backup_import_handler import is_backup_pending, handle_backup_bytes
+
+    if settings.conv_history_enabled:
+        log_inbound(ctx.msg_id, ctx.sender, "document", content=ctx.extra_desc,
+                    context_id=ctx.context_id, raw_payload=ctx.raw_payload)
+
+    if not is_backup_pending(ctx.session):
+        # Import akışı yok — Bridge'e metin açıklamasını ilet
+        await _forward_to_bridge(ctx.sender, ctx.extra_desc, ctx.session)
+        return
+
+    # Telegram belge indirme (BACKUP-7)
+    doc = (ctx.raw_payload or {}).get("message", {}).get("document", {})
+    file_id  = doc.get("file_id", "")
+    filename = doc.get("file_name", "backup.99rb")
+
+    if not file_id:
+        await get_messenger().send_text(
+            ctx.sender, t("backup.import_bad_file", ctx.lang)
+        )
+        ctx.session.clear_backup_import()
+        return
+
+    raw_bytes = await _download_telegram_file(file_id)
+    if raw_bytes is None:
+        await get_messenger().send_text(
+            ctx.sender,
+            t("backup.import_download_error", ctx.lang, error="Telegram dosyası indirilemedi"),
+        )
+        ctx.session.clear_backup_import()
+        return
+
+    await handle_backup_bytes(ctx.sender, filename, raw_bytes, ctx.session)
+
+
+async def _download_telegram_file(file_id: str) -> bytes | None:
+    """Telegram Bot API'si üzerinden file_id'ye karşılık gelen dosyayı indirir.
+
+    Returns:
+        İndirilen dosyanın ham byte'ları veya hata durumunda None.
+    """
+    import httpx
+    from ..config import settings as _cfg
+
+    token = _cfg.telegram_bot_token
+    if not token:
+        logger.warning("Telegram dosyası indirilemedi: TELEGRAM_BOT_TOKEN ayarlanmamış")
+        return None
+
+    token_val = token.get_secret_value() if hasattr(token, "get_secret_value") else str(token)
+    base = f"https://api.telegram.org/bot{token_val}"
+
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            r = await client.get(f"{base}/getFile", params={"file_id": file_id})
+            r.raise_for_status()
+            file_path = r.json().get("result", {}).get("file_path", "")
+            if not file_path:
+                logger.warning("Telegram getFile: file_path boş döndü (file_id=%s)", file_id)
+                return None
+            dl = await client.get(f"https://api.telegram.org/file/bot{token_val}/{file_path}")
+            dl.raise_for_status()
+            return dl.content
+    except Exception as exc:
+        logger.exception("Telegram dosya indirme hatası: file_id=%s hata=%s", file_id, exc)
+        return None
+
+
 # OCP-MSG: Yeni mesaj tipi = yeni _handle_<type>() + buraya kayıt
 _MSG_TYPE_HANDLERS: dict[str, _HandlerFn] = {
     "text":        _handle_text,
@@ -170,6 +244,7 @@ _MSG_TYPE_HANDLERS: dict[str, _HandlerFn] = {
     "location":    _handle_location,
     "sticker":     _handle_sticker,
     "reaction":    _handle_reaction,
+    "document":    _handle_document,
 }
 
 

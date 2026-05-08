@@ -99,7 +99,7 @@ except: pass" 2>/dev/null || true)"
     while true; do
       ngrok_token=$(_wt_password "$_S_WIZ_NGROK_INFO_TITLE" "$_S_WIZ_NGROK_TOKEN") || return 1
       if [[ -z "$ngrok_token" ]]; then _wt_msg "$_S_ERROR" "$_S_REQUIRED"; continue; fi
-      if [[ ! "$ngrok_token" =~ ^[A-Za-z0-9_]{16,}$ ]]; then
+      if [[ ! "$ngrok_token" =~ ^[A-Za-z0-9_]{40,}$ ]]; then
         _wt_msg "$_S_ERROR" "$_S_NGROK_TOKEN_INVALID"; continue
       fi
       break
@@ -435,7 +435,7 @@ except: pass" 2>/dev/null || true)"
       if [[ -z "$ngrok_token" ]]; then
         warn "    $_S_REQUIRED"; continue
       fi
-      if [[ ! "$ngrok_token" =~ ^[A-Za-z0-9_]{16,}$ ]]; then
+      if [[ ! "$ngrok_token" =~ ^[A-Za-z0-9_]{40,}$ ]]; then
         warn "    $_S_NGROK_TOKEN_INVALID"; continue
       fi
       break

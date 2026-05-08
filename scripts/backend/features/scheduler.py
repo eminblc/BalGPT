@@ -114,6 +114,9 @@ async def start_scheduler() -> None:
     # SQLite'taki aktif job'ları (cron + one-shot) APScheduler'a yükle
     await _reload_all_jobs()
 
+    # Otomatik periyodik yedekleme (BACKUP-10)
+    _register_auto_backup_job()
+
     logger.info("Scheduler başladı")
 
 
@@ -528,6 +531,53 @@ def add_one_shot_job(job_id: str, run_at: float, message: str) -> None:
         args=[t("scheduler.task_reminder", "tr", message=message)],
         replace_existing=True,
     )
+
+
+# ── Otomatik periyodik yedekleme (BACKUP-10) ─────────────────────
+
+_AUTO_BACKUP_JOB_ID = "system_auto_backup"
+
+
+def _register_auto_backup_job() -> None:
+    """AUTO_BACKUP_ENABLED=true ise APScheduler'a sistem yedekleme cron'u ekler.
+
+    OCP: Mevcut start_scheduler() koduna dokunulmadan ayrı fonksiyon olarak eklendi.
+    SRP: Yalnızca kayıt mantığını içerir; iş mantığı AutoBackupJob'da.
+    """
+    cfg = get_settings()
+    if not cfg.auto_backup_enabled:
+        logger.debug("Otomatik yedekleme devre dışı (AUTO_BACKUP_ENABLED=false)")
+        return
+
+    try:
+        fields = _parse_cron(cfg.auto_backup_cron)
+    except ValueError as exc:
+        logger.error("Geçersiz AUTO_BACKUP_CRON ifadesi: %s — otomatik yedekleme kaydedilemedi", exc)
+        return
+
+    _scheduler.add_job(
+        _run_auto_backup,
+        trigger="cron",
+        id=_AUTO_BACKUP_JOB_ID,
+        replace_existing=True,
+        **fields,
+    )
+    logger.info(
+        "Otomatik yedekleme kaydedildi: cron=%r job_id=%s",
+        cfg.auto_backup_cron, _AUTO_BACKUP_JOB_ID,
+    )
+
+
+async def _run_auto_backup() -> None:
+    """APScheduler tarafından çağrılan otomatik yedekleme entrypoint'i."""
+    from .backup._auto_backup import get_auto_backup_job
+
+    logger.info("Otomatik yedekleme tetiklendi")
+    try:
+        job = get_auto_backup_job()
+        await job.run()
+    except Exception as exc:
+        logger.exception("Otomatik yedekleme beklenmedik hata: %s", exc)
 
 
 # ── Yardımcı ─────────────────────────────────────────────────────

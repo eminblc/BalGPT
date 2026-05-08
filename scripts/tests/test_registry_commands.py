@@ -113,6 +113,7 @@ def test_known_commands_registered():
         "/restart", "/shutdown", "/root-project", "/root-exit",
         "/beta", "/root-check", "/root-log", "/project-delete",
         "/terminal", "/timezone", "/tokens",
+        "/export", "/import",
     }
     registered = set(registry.all_ids())
     missing = expected - registered

@@ -10,9 +10,7 @@
 
 ## 🟠 YÜKSEK
 
-| # | Başlık | Dosya | Not |
-|---|--------|-------|-----|
-| MSG-UI-2 | Telegram'da 'yazıyor…' göstergesi ekle | `routers/telegram_router.py`, `adapters/messenger/telegram_messenger.py` | Telegram Bot API `sendChatAction("typing")` — Bridge `/query` başında ve her N saniyede bir tekrarla, sonuç gelince durdur. |
+*(Şu an yüksek öncelikli açık görev yok)*
 
 ---
 
@@ -20,19 +18,14 @@
 
 | # | Başlık | Dosya | Not |
 |---|--------|-------|-----|
-| MSG-UI-1 | WhatsApp bildirim metni doğallaştır | `CLAUDE.md` | "⚙️ <ne yapıyorsun>" yerine "Yazıyor…", "Kontrol ediyorum…", "Düşünüyorum…" gibi daha samimi ifadeler kullan. |
-| DOC-MEM-1 | `MEMORY.md` + `WORK_LOG.md` güncellik denetimi | `MEMORY.md`, `WORK_LOG.md` | Son 30 günlük değişikliklerle karşılaştır; stale/eksik teknik karar kayıtlarını tespit et ve güncelle. |
 | TG-WIZ-2 | TG-WIZ-1 uçtan uca manuel test | — | `.env` sil → `bash install.sh` → Telegram + bot token + ngrok creds → welcome ping → `!wizard` → 5 adım butonla → QR'lar gelsin → TOTP `.env` ile eşleşsin → `docker compose restart` → bot normal cevap versin. |
 | TG-WIZ-3 | CI'da bats + shellcheck (TG-WIZ-1) | `.github/workflows/ci.yml` | Lokalde bats/shellcheck yoktu; CI çalıştırınca locale parity ve install.sh sözdizim doğrulanacak. İlk başarısız run'da düzeltme yap. |
-| TG-WIZ-4 | ngrok token regex iyileştir | `lib/wizard.sh` | Mevcut: `[A-Za-z0-9_]{16,}` (gevşek). Gerçek ngrok token formatı dokümante değil — kullanım sırasında tipik uzunluk/karakter set ölçülüp regex sıkılaştırılabilir. |
 
 ---
 
 ## 🟢 DÜŞÜK
 
-| # | Başlık | Dosya | Not |
-|---|--------|-------|-----|
-| DOC-API-1 | OpenAPI schema zenginleştirme | `routers/api/`, `routers/personal_agent_router.py`, `routers/internal_router.py` | Her endpoint için `summary`, `description`, `response_model`, örnek request/response ekle; FastAPI `/docs` sayfası kullanılabilir hale gelsin. |
+*(Şu an düşük öncelikli açık görev yok)*
 
 ---
 
@@ -105,3 +98,19 @@
 | SEC-1..10 | Webhook HMAC, prompt injection, TOTP, GUARDRAILS (49 kategori), output filter | 2026-04-11–14 |
 | AUD-* | Tam audit serisi — güvenlik, bug, kod kalitesi (40+ madde) | 2026-04-15–16 |
 | F1..F7, S01-* | İlk kurulum, temel özellikler (chat, plan, takvim, proje, PDF, scheduler, beta modu) | 2026-04-11–12 |
+| BACKUP-1 | Export/Import Faz 1a — `backup/` paketi: protokoller, ExportScope, BackupManifest | 2026-05-08 |
+| BACKUP-2 | Export/Import Faz 1b — BackupWriter, BackupReader, MsgpackSerializer; msgpack>=1.0.7 | 2026-05-08 |
+| BACKUP-3 | Export/Import Faz 1c — DbExporter + ExportService + 30 unit test; FileExporter null stub | 2026-05-08 |
+| BACKUP-4 | Export/Import Faz 2a — DbImporter + ImportService + 43 unit test; FileImporter null stub | 2026-05-08 |
+| BACKUP-5 | Export/Import Faz 2b — LocalFileExporter + LocalFileImporter + 37 unit test; path traversal koruması, .bak yedek | 2026-05-08 |
+| BACKUP-6 | Export/Import Faz 3a — REST API: POST /agent/export, POST /agent/import, GET /agent/export/status; 23 unit test | 2026-05-08 |
+| BACKUP-7 | Export/Import Faz 3b — /export + /import komutları; _backup_import_handler; Telegram document handler; 30 unit test (889 passed) | 2026-05-08 |
+| BACKUP-8 | `settings.data_dir` — `DATA_DIR` env; `resolved_data_dir` property; factory'lere enjeksiyon | 2026-05-08 |
+| BACKUP-9 | AES-256-GCM şifreleme: `_cipher.py`, v2 format (writer/reader), `BACKUP_ENCRYPTION_KEY` config; 15 unit test (904 passed) | 2026-05-08 |
+| BACKUP-10 | Otomatik periyodik yedekleme: `_auto_backup.py` (AutoBackupJob), scheduler.py cron kaydı, `AUTO_BACKUP_ENABLED/CRON` config; 7 unit test (911 passed) | 2026-05-08 |
+| BACKUP-11 | Tarih bazlı yedek rotasyonu: `_rotation.py` (BackupRotationManager), `BACKUP_RETENTION_DAYS` config, AutoBackupJob entegrasyonu; 15 unit test (926 passed) | 2026-05-09 |
+| MSG-UI-2 | Telegram typing indicator: `TypingMessenger` protokolü, `send_typing()`, `_typing_loop()` async goroutine (Bridge yanıtı gelene kadar her 4 sn yenileme) | 2026-05-09 |
+| MSG-UI-1 | WhatsApp bildirim metni doğallaştır: server.js init_prompt örnekleri "Bakıyorum…, Düşünüyorum…, Test çalıştırıyorum…" şeklinde güncellendi | 2026-05-09 |
+| DOC-MEM-1 | MEMORY.md + WORK_LOG.md denetimi: BACKUP-1..11 ve MSG-UI serisi WORK_LOG'a eklendi | 2026-05-09 |
+| TG-WIZ-4 | ngrok token regex `{16,}` → `{40,}` (gerçek token uzunluğuna uygun); locale mesajları güncellendi | 2026-05-09 |
+| DOC-API-1 | OpenAPI schema zenginleştirme: calendar/plans/projects/scheduler/internal endpoint'lerine `summary`, `description`, `response_model`, `tags`, örnek response eklendi | 2026-05-09 |

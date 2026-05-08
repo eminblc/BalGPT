@@ -87,6 +87,15 @@ class TelegramMessenger:
                     f"{self._base}/sendMessage",
                     json={"chat_id": to, "text": part, "parse_mode": "Markdown"},
                 )
+                if res.status_code == 400 and "can't parse entities" in res.text:
+                    logger.warning(
+                        "Telegram Markdown parse hatası (plain text fallback): to=%s body=%s",
+                        to, res.text[:200],
+                    )
+                    res = await client.post(
+                        f"{self._base}/sendMessage",
+                        json={"chat_id": to, "text": part},
+                    )
                 if not res.is_success:
                     logger.error(
                         "Telegram send_text başarısız: to=%s status=%d body=%s",
@@ -171,10 +180,16 @@ class TelegramMessenger:
         Kurulum sırasında veya URL değiştiğinde bir kez çağrılır.
         url: HTTPS endpoint (ör. https://yourdomain.com/telegram/webhook)
         """
+        from ...config import settings  # avoid circular import at module level
+
+        payload: dict = {"url": url, "allowed_updates": ["message", "callback_query"]}
+        secret = settings.telegram_webhook_secret.get_secret_value()
+        if secret:
+            payload["secret_token"] = secret
         async with httpx.AsyncClient(timeout=15) as client:
             res = await client.post(
                 f"{self._base}/setWebhook",
-                json={"url": url, "allowed_updates": ["message", "callback_query"]},
+                json=payload,
             )
             res.raise_for_status()
             result = res.json()

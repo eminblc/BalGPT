@@ -71,11 +71,17 @@ async def handle_document(
     sender: str, msg_id: str, msg: dict, session: dict, raw_payload: dict | None
 ) -> None:
     from . import _bridge_client
+    from ._backup_import_handler import is_backup_pending
     context_id = session.get("active_context", "main")
     doc      = msg.get("document", {})
     media_id = doc.get("id", "")
     mime     = doc.get("mime_type", "")
     filename = doc.get("filename", "")
+
+    # Backup import akışı: pending_backup_import set ise .99rb dosyasını işle (BACKUP-7)
+    if is_backup_pending(session):
+        await _handle_backup_document(sender, media_id, filename, session)
+        return
 
     if settings.conv_history_enabled:
         log_inbound(msg_id, sender, "document", content=filename, media_id=media_id,
@@ -110,3 +116,27 @@ async def handle_document(
             log_outbound(sender, "text", "pdf_confirm_prompt", context_id=context_id)
     else:
         await _bridge_client.forward_document_locked(sender, media_id, filename, mime, session)
+
+
+async def _handle_backup_document(
+    sender: str,
+    media_id: str,
+    filename: str,
+    session: dict,
+) -> None:
+    """WhatsApp .99rb belgesini indirir ve backup import akışını çalıştırır (BACKUP-7)."""
+    from ._backup_import_handler import handle_backup_bytes
+    from ..adapters.media.media_factory import get_media_downloader
+
+    try:
+        raw_bytes, _mime = await get_media_downloader().download(media_id)
+    except Exception as exc:
+        logger.exception("Backup dosyası indirilemedi: media_id=%s hata=%s", media_id, exc)
+        from ..adapters.messenger import get_messenger
+        from ..i18n import t
+        lang = session.get("lang", "tr")
+        session.clear_backup_import()
+        await get_messenger().send_text(sender, t("backup.import_download_error", lang, error=str(exc)))
+        return
+
+    await handle_backup_bytes(sender, filename, raw_bytes, session)

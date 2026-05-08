@@ -128,7 +128,7 @@
   "TXT_TG_TZ_SELECTED": "Timezone selected",
   "TXT_TG_TZ_OTHER": "Custom timezone — enter manually:",
   "TXT_TG_CHATID_FAIL": "Auto-detect failed. Get your Chat ID in 10 seconds:\n  → Open Telegram → search @userinfobot → tap Start → it replies with your ID\n  → Copy the number (e.g. 123456789) and enter it below.",
-  "NGROK_TOKEN_INVALID": "ngrok auth token must be alphanumeric and at least 16 characters.",
+  "NGROK_TOKEN_INVALID": "ngrok auth token must be alphanumeric and at least 40 characters.",
   "NGROK_DOMAIN_INVALID": "ngrok domain must contain a dot (e.g. yourname.ngrok-free.app).",
   "WIZ_AN_INFO_TITLE": "Anthropic — Authentication Method",
   "WIZ_AN_CHOICE_MSG": "How do you want to authenticate with Anthropic?\n\n  [1] Claude Login  ✦ RECOMMENDED\n      Sign in with your claude.ai account (Pro/Max subscription).\n      More secure — no key to manage or leak. The wizard runs\n      'claude auth login' automatically after this step.\n\n  [2] API Key\n      Pay-per-use key from Anthropic Console.\n      console.anthropic.com → Settings → API Keys → Create Key",

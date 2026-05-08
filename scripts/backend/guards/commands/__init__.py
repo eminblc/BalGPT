@@ -31,5 +31,7 @@ from . import terminal_cmd          # noqa: F401, E402
 from . import timezone_cmd          # noqa: F401, E402
 from . import tokens_cmd            # noqa: F401, E402
 from . import wizard_cmd            # noqa: F401, E402
+from . import export_cmd            # noqa: F401, E402
+from . import import_cmd            # noqa: F401, E402
 
 __all__ = ["registry", "Command"]

@@ -4,6 +4,49 @@ Geliştirme geçmişi bu dosyada tutulur.
 
 ---
 
+### BACKUP-1..11 — Export/Import + Şifreleme + Otomatik Yedek + Rotasyon
+**Tarih:** 2026-05-08 → 2026-05-09
+**Dosya(lar):** `scripts/backend/features/backup/` (yeni paket), `scripts/backend/features/export_service.py`, `scripts/backend/features/import_service.py`, `scripts/backend/guards/commands/export_cmd.py`, `scripts/backend/guards/commands/import_cmd.py`, `scripts/backend/routers/_backup_import_handler.py`, `scripts/backend/routers/api/backup_api.py`, `scripts/backend/config.py`, `scripts/backend/app_types.py`, `scripts/backend/features/scheduler.py`, `scripts/backend/routers/_dispatcher.py`, `scripts/backend/routers/_media_handlers.py`, `scripts/backend/guards/commands/__init__.py`, `scripts/backend/locales/{tr,en}.json`, `scripts/tests/test_backup_*.py`, `scripts/tests/test_export_service.py`, `scripts/tests/test_import_service.py`
+
+**Sorun:** Yedekleme yoktu; veritabanı hasarı veya taşıma durumunda tüm konuşma geçmişi, takvim, plan ve proje verileri kayboluyordu.
+
+**Çözüm (11 aşama):**
+- *BACKUP-1/2/3:* `backup/` paketi iskelet + msgpack tabanlı `BackupWriter`/`BackupReader` + `DbExporter`/`ExportService` (30 unit test).
+- *BACKUP-4/5:* `DbImporter`/`ImportService` + `LocalFileExporter`/`LocalFileImporter` — path traversal koruması, `.bak` yedek mekanizması (43+37 unit test).
+- *BACKUP-6:* REST API — `POST /agent/export`, `POST /agent/import`, `GET /agent/export/status` (23 unit test).
+- *BACKUP-7:* `/export` + `/import` komutları; `_backup_import_handler.py`; Telegram document handler (OCP-MSG `_dispatcher`'a eklendi) (30 unit test).
+- *BACKUP-8:* `DATA_DIR` env + `settings.resolved_data_dir` — fabrikalar artık dinamik veri dizini kullanıyor.
+- *BACKUP-9:* AES-256-GCM şifreleme — `_cipher.py` (SRP), v2 format writer/reader, `BACKUP_ENCRYPTION_KEY` config (15 unit test, 904 toplam).
+- *BACKUP-10:* `AutoBackupJob` + `scheduler.py` cron kaydı + `AUTO_BACKUP_ENABLED/CRON` config (7 unit test, 911 toplam).
+- *BACKUP-11:* `BackupRotationManager` (`_rotation.py`) + `BACKUP_RETENTION_DAYS` config + `AutoBackupJob` entegrasyonu (15 unit test, 926 toplam).
+
+**Mimari kararlar:**
+- Tüm `backup/` modülleri Protocol tabanlı (SRP): `_protocol.py` (ExportScope, BackupManifest), `_writer.py`, `_reader.py`, `_cipher.py`, `_rotation.py`, `_auto_backup.py`.
+- Şifreleme opsiyonel: anahtar yoksa düz msgpack, varsa AES-256-GCM v2 format (magic byte + nonce + ciphertext).
+- Rotasyon tarih-tabanlı: `BACKUP_RETENTION_DAYS` gün öncesi yedekler silinir; `AutoBackupJob` her yedek sonrası çalıştırır.
+- Telegram dosya indirme: `_dispatcher._download_telegram_file()` ile Bot API'den file_id'ye göre byte stream indirilir.
+- `app_types.py`'e `pending_backup_import` alanı eklendi (`SessionState`).
+
+**Test:** 926 test geçti (tamamı). Python import + Node syntax OK. CI uyumlu.
+
+**Durum:** ✅ Tamamlandı
+
+---
+
+### MSG-UI-1/2 — WhatsApp/Telegram bildirim iyileştirmeleri
+**Tarih:** 2026-05-09
+**Dosya(lar):** `scripts/claude-code-bridge/server.js`, `scripts/backend/adapters/messenger/telegram_messenger.py`, `scripts/backend/adapters/messenger/__init__.py`, `scripts/backend/routers/_bridge_client.py`
+
+**Sorun:** Telegram'da uzun yanıtlarda kullanıcı hiçbir geri bildirim alamıyordu; WhatsApp bildirim örnekleri teknik ve soğuktu.
+
+**Çözüm:**
+- *MSG-UI-2:* `TypingMessenger` protokolü (`__init__.py`), `TelegramMessenger.send_typing()` (Telegram `sendChatAction` API), `_typing_loop()` async görevi (`_bridge_client.forward()`'da `asyncio.create_task`) — Bridge yanıtı gelene kadar her 4 saniyede bir typing yenilenir.
+- *MSG-UI-1:* `server.js` init_prompt'unda bildirim örnekleri "Dosyayı okuyorum…, Bakıyorum…, Düşünüyorum…, Test çalıştırıyorum…, Kodu güncelliyorum…" şeklinde güncellendi.
+
+**Durum:** ✅ Tamamlandı
+
+---
+
 ### TG-WIZ-1 — Telegram Stage-2 install wizard
 **Tarih:** 2026-04-27
 **Dosya(lar):** `install.sh`, `lib/wizard.sh`, `lib/steps.sh`, `lib/messenger.sh`, `locales/install_{tr,en}.json`, `scripts/backend/features/install_wizard/*`, `scripts/backend/store/repositories/install_wizard_repo.py`, `scripts/backend/store/sqlite_store.py`, `scripts/backend/guards/commands/{wizard_cmd,cancel_cmd}.py`, `scripts/backend/routers/{_dispatcher,_text_router}.py`, `scripts/backend/locales/{tr,en}.json`, `scripts/tests/test_install_wizard.py`

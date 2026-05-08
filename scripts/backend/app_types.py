@@ -73,6 +73,8 @@ class SessionState(dict):
         "awaiting_task",
         "pending_pdf",
         "_terminal_pending_cmd",
+        # Backup import akışı (BACKUP-7)
+        "pending_backup_import",
         # Wizard step flow-control (SOLID-v2-5)
         "awaiting_project_path",
         "awaiting_service_name",
@@ -196,6 +198,15 @@ class SessionState(dict):
     def set_pending_pdf(self, media_id: str) -> None:
         """Bekleyen PDF media_id'sini kaydet."""
         dict.__setitem__(self, "pending_pdf", media_id)
+
+    def set_pending_backup_import(self) -> None:
+        """Backup import akışını başlat — sonraki .99rb belge bekleniyor."""
+        dict.__setitem__(self, "pending_backup_import", True)
+
+    def clear_backup_import(self) -> None:
+        """Backup import akışını sonlandır."""
+        dict.__setitem__(self, "pending_backup_import", False)
+        self.pop("pending_backup_import", None)
 
     def set_terminal_pending(self, cmd: str) -> None:
         """Tehlikeli terminal komutunu admin TOTP onayı için sakla."""

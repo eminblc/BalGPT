@@ -5,14 +5,14 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
 from ._deps import COMMON_DEPS
 from ...config import settings
 
-router = APIRouter(dependencies=COMMON_DEPS)
+router = APIRouter(dependencies=COMMON_DEPS, tags=["scheduler"])
 
 _SCHEDULER_DISABLED = HTTPException(
     status_code=503,
@@ -21,16 +21,51 @@ _SCHEDULER_DISABLED = HTTPException(
 
 
 class ScheduleRequest(BaseModel):
-    description: str
-    action_type: str = "run_bridge"     # "run_bridge" | "send_message"
-    message: str = ""                   # override; boşsa description kullanılır
-    cron_expr: Optional[str] = None     # tekrarlayan: "0 9 * * *" (UTC)
-    run_at: Optional[float] = None      # tek seferlik: unix timestamp (UTC)
+    description: str = Field(..., example="Her sabah 9'da haber özeti", description="İş açıklaması")
+    action_type: str = Field(
+        "run_bridge",
+        example="run_bridge",
+        description="'run_bridge' — mesajı Bridge'e gönder (Claude yanıtlar), 'send_message' — metni doğrudan kullanıcıya gönder",
+    )
+    message: str = Field(
+        "",
+        example="Bugünkü haber özetini hazırla",
+        description="Bridge'e gönderilecek prompt (run_bridge) veya kullanıcıya gönderilecek metin (send_message). Boşsa description kullanılır.",
+    )
+    cron_expr: Optional[str] = Field(
+        None,
+        example="0 9 * * *",
+        description="Cron ifadesi — yerel saat (TIMEZONE ayarına göre). cron_expr XOR run_at.",
+    )
+    run_at: Optional[float] = Field(
+        None,
+        example=1714654800.0,
+        description="Tek seferlik çalışma zamanı (Unix timestamp UTC). cron_expr XOR run_at.",
+    )
 
 
-@router.post("/schedule")
+@router.post(
+    "/schedule",
+    summary="Zamanlı görev oluştur",
+    response_model=dict,
+    responses={
+        200: {"description": "Oluşturulan görev kaydı"},
+        400: {"description": "Geçersiz istek — cron_expr veya run_at gerekli, ikisi birden kullanılamaz"},
+        503: {"description": "Scheduler devre dışı (RESTRICT_SCHEDULER=true)"},
+    },
+)
 async def create_schedule(body: ScheduleRequest):
-    """Cron veya tek seferlik job oluştur. cron_expr XOR run_at."""
+    """Cron tabanlı veya tek seferlik zamanlı görev oluşturur.
+
+    **`cron_expr` XOR `run_at`** — ikisi birden kullanılamaz, biri zorunludur.
+
+    - `cron_expr` belirtilirse: tekrarlayan görev (ör. `"0 9 * * *"` = her gün 09:00 yerel saat)
+    - `run_at` belirtilirse: tek seferlik görev (unix timestamp UTC)
+
+    `action_type`:
+    - `run_bridge` — `message` alanındaki promptu Bridge'e gönderir, Claude yanıtlar ve kullanıcıya iletilir
+    - `send_message` — `message` alanındaki metni doğrudan kullanıcıya gönderir
+    """
     if not settings.scheduler_enabled:
         raise _SCHEDULER_DISABLED
     if body.cron_expr and body.run_at is not None:
@@ -60,17 +95,45 @@ async def create_schedule(body: ScheduleRequest):
         )
 
 
-@router.get("/schedules")
+@router.get(
+    "/schedules",
+    summary="Zamanlı görevleri listele",
+    response_model=list,
+    responses={
+        200: {"description": "Aktif ve duraklatılmış zamanlı görevler"},
+        503: {"description": "Scheduler devre dışı (RESTRICT_SCHEDULER=true)"},
+    },
+)
 async def list_schedules():
+    """Tüm cron ve tek seferlik görevleri döndürür.
+
+    Silinmiş (soft-deleted) görevler dahil edilmez.
+    Her kayıt: `id`, `description`, `action_type`, `cron_expr`/`run_at`, `status` alanlarını içerir.
+    """
     if not settings.scheduler_enabled:
         raise _SCHEDULER_DISABLED
     from ...features.scheduler import list_cron_jobs
     return list_cron_jobs()
 
 
-@router.delete("/schedule/{task_id}")
+@router.delete(
+    "/schedule/{task_id}",
+    summary="Zamanlı görevi sil",
+    response_model=dict,
+    responses={
+        200: {
+            "description": "Görev silindi (soft delete)",
+            "content": {"application/json": {"example": {"status": "deleted"}}},
+        },
+        503: {"description": "Scheduler devre dışı (RESTRICT_SCHEDULER=true)"},
+    },
+)
 async def delete_schedule(task_id: str):
-    """Soft delete — job geçmişi korunur."""
+    """Belirtilen görevi soft-delete ile siler.
+
+    Görev kaydı veritabanında korunur ancak APScheduler'dan kaldırılır.
+    Silme işlemi geri alınamaz.
+    """
     if not settings.scheduler_enabled:
         raise _SCHEDULER_DISABLED
     from ...features.scheduler import soft_delete_job
@@ -78,8 +141,24 @@ async def delete_schedule(task_id: str):
     return {"status": "deleted"}
 
 
-@router.post("/schedule/{task_id}/pause")
+@router.post(
+    "/schedule/{task_id}/pause",
+    summary="Zamanlı görevi duraklat",
+    response_model=dict,
+    responses={
+        200: {
+            "description": "Görev duraklatıldı",
+            "content": {"application/json": {"example": {"status": "paused"}}},
+        },
+        503: {"description": "Scheduler devre dışı (RESTRICT_SCHEDULER=true)"},
+    },
+)
 async def pause_schedule(task_id: str):
+    """Belirtilen cron görevini geçici olarak duraklatır.
+
+    Görev APScheduler'da `paused` durumuna geçer; tetiklenmeyi durdurun,
+    `/resume` ile yeniden etkinleştirilebilir.
+    """
     if not settings.scheduler_enabled:
         raise _SCHEDULER_DISABLED
     from ...features.scheduler import pause_cron_job
@@ -87,8 +166,24 @@ async def pause_schedule(task_id: str):
     return {"status": "paused"}
 
 
-@router.post("/schedule/{task_id}/resume")
+@router.post(
+    "/schedule/{task_id}/resume",
+    summary="Duraklatılmış görevi devam ettir",
+    response_model=dict,
+    responses={
+        200: {
+            "description": "Görev devam ettirildi",
+            "content": {"application/json": {"example": {"status": "resumed"}}},
+        },
+        503: {"description": "Scheduler devre dışı (RESTRICT_SCHEDULER=true)"},
+    },
+)
 async def resume_schedule(task_id: str):
+    """Daha önce duraklatılmış bir cron görevini yeniden etkinleştirir.
+
+    Görev APScheduler'da `active` durumuna geçer ve bir sonraki cron
+    zamanında tetiklenmeye başlar.
+    """
     if not settings.scheduler_enabled:
         raise _SCHEDULER_DISABLED
     from ...features.scheduler import resume_cron_job
