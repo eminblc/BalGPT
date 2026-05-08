@@ -98,7 +98,7 @@ Format:
 
 ---
 
-### S01 — Beta modu + WMA entegrasyonu (2026-04-11)
+### S01 — Beta modu + proje entegrasyonu (2026-04-11)
 
 Bu oturumda yapılan tüm değişiklikler:
 
@@ -112,17 +112,17 @@ Bu oturumda yapılan tüm değişiklikler:
 WhatsApp → 99-root (8010)
   ├─ !beta-exit    → yerel (session temizle, ana moda dön)
   ├─ !<komut>      → yerel handler (99-root'un kendi butonları/listesi)
-  └─ düz metin     → projenin FastAPI'si (WMA için: localhost:8000/whatsapp/internal/message)
-       └─ WMA kendi pipeline'ını çalıştırır (!help, !ask, n8n, bridge...)
+  └─ düz metin     → projenin FastAPI'si (localhost:{port}/whatsapp/internal/message)
+       └─ Proje kendi pipeline'ını çalıştırır
 ```
 
 **Dosyalar:**
 - `scripts/backend/routers/whatsapp_router.py` → `_route_text` ve `_forward_to_bridge` yeniden yazıldı
 - Beta modunda proje metadata'sından `api` servisi bulunur, `http://localhost:{port}/whatsapp/internal/message` çağrılır
 
-#### 2. WMA — `/internal/message` Endpoint Eklendi
+#### 2. Proje — `/internal/message` Endpoint Eklendi
 
-**Dosya:** `10-base/whatsapp-memory-agent/scripts/backend/routers/whatsapp_router.py`
+Aktif projenin `whatsapp_router.py` dosyasına `/internal/message` endpoint'i eklendi:
 
 ```python
 @router.post("/internal/message")
@@ -134,9 +134,9 @@ async def internal_message(req: _InternalMessageRequest):
 - Doğrudan `_handle_message` çağırır
 - `_OPEN_PATHS`'e eklendi (API key middleware'i atlar)
 
-#### 3. WMA — `!root` Komutu Kaldırıldı
+#### 3. Proje — `!root` Komutu Kaldırıldı
 
-**Dosya:** `10-base/whatsapp-memory-agent/scripts/backend/guards/commands/__init__.py`
+Aktif projenin `guards/commands/__init__.py` dosyasından:
 
 - `root.py` import'u kaldırıldı → `!root`, `!root-exit`, `!root-reset` artık çalışmaz
 - 99-root bu görevi devraldı
@@ -184,14 +184,14 @@ Beta modunda proje servisleri kapalıysa:
 - Pencere yoksa: yeni aç
 - `work_dir = project_dir / svc["cwd"]` kullanılıyor
 
-**WMA servis dizinleri:**
+**Proje servis dizinleri:**
 - API: `scripts/` (`backend/venv/bin/python3 -m uvicorn backend.main:app ...`)
 - Bridge: `scripts/claude-code-bridge/` (`node server.js`)
 
 #### 9. Temizlik
 
-- Fazla açılmış tmux pencereleri (wma-api, wma-bridge duplikaları) kaldırıldı
-- WMA `root.session` import'u kaldırıldı
+- Fazla açılmış tmux pencereleri kaldırıldı
+- `root.session` import'u kaldırıldı
 
 ---
 
@@ -201,7 +201,7 @@ Beta modunda proje servisleri kapalıysa:
 
 #### 1. Beta Modunda `!` Komut Routing Düzeltmesi
 
-**Sorun:** Beta modunda `!help`, `!ask` gibi komutlar 99-root'un yerel handler'larına gidiyordu; kullanıcı WMA'nın kendi menüsünü göremiyordu.  
+**Sorun:** Beta modunda `!help`, `!ask` gibi komutlar 99-root'un yerel handler'larına gidiyordu; kullanıcı projenin kendi menüsünü göremiyordu.  
 **Çözüm:** `_route_text` yeniden yazıldı:
 - Beta modunda: `!beta-exit` → yerel; diğer HER mesaj (`!` ile başlayanlar dahil) → projenin FastAPI'si
 - Ana modda: `!` komutları yerel; düz metin → bridge (önceki davranış korundu)
@@ -224,7 +224,7 @@ Beta modunda proje servisleri kapalıysa:
 
 **Dosya:** `scripts/claude-code-bridge/server.js`  
 `PROJECTS_DIR` altında olma kısıtı kaldırıldı; `..` segment + dizin varlık kontrolü yeterli.  
-WMA ve diğer projeler için `project_path` artık geçerli sayılıyor.
+Tüm projeler için `project_path` artık geçerli sayılıyor.
 
 **Durum:** ✅ Tamamlandı
 
@@ -232,7 +232,7 @@ WMA ve diğer projeler için `project_path` artık geçerli sayılıyor.
 
 ---
 
-### S03 — Bridge conv_history + WMA başlatma bug fix'leri (2026-04-12)
+### S03 — Bridge conv_history + proje başlatma bug fix'leri (2026-04-12)
 
 #### 1. Bridge — Yerel Konuşma Geçmişi (conv_history)
 
@@ -245,17 +245,17 @@ WMA ve diğer projeler için `project_path` artık geçerli sayılıyor.
 
 **Dosya:** `scripts/claude-code-bridge/server.js`
 
-#### 2. WMA Metadata — `2>&1` Kaldırıldı
+#### 2. Proje Metadata — `2>&1` Kaldırıldı
 
-**Sorun:** WMA servislerinin DB'deki komutları (`...port 8000 2>&1`) `_validate_service_cmd` regex'ini tetikliyordu.  
+**Sorun:** Proje servislerinin DB'deki komutları (`...port 8000 2>&1`) `_validate_service_cmd` regex'ini tetikliyordu.  
 `>` ve `&` karakterleri tehlikeli shell operatörü olarak reddedilip `continue` ile atlanıyordu → "Başlat" sessizce çalışmıyordu.  
-**Çözüm:** `data/personal_agent.db`'deki WMA metadata'sından her iki servis komutunun `2>&1` kısmı kaldırıldı.
+**Çözüm:** `data/personal_agent.db`'deki proje metadata'sından servis komutlarındaki `2>&1` kısmı kaldırıldı.
 
 **Dosya:** `data/personal_agent.db` (SQLite UPDATE — doğrudan DB)
 
 #### 3. projects.py — Tmux `has-session` Fix
 
-**Sorun:** `start_project_services` içinde `tmux new-window -t services -n wma-api` çağrılıyordu fakat `services` session yoksa `new-window` hata döndürüp duruyordu.  
+**Sorun:** `start_project_services` içinde `tmux new-window -t services -n {pencere}` çağrılıyordu fakat `services` session yoksa `new-window` hata döndürüp duruyordu.  
 **Çözüm:** Her servis döngüsüne `tmux has-session -t services` kontrolü eklendi:
 - Session yoksa → `tmux new-session -d -s services -n {window}` ile session + ilk pencere birlikte oluşturuluyor
 - Session varsa → pencere yoksa sadece `new-window`, pencere varsa sadece `C-c` + komut gönder
@@ -550,11 +550,3 @@ Monolitik `StoreProtocol` (199 satır) 9 domain-spesifik sub-protocol'e bölünd
 | 99-root FastAPI | 8010 | `services:99-api` | ✅ |
 | 99-root Bridge | 8013 | `services:99-bridge` | ✅ |
 | ngrok | — | `services:ngrok` | ✅ |
-| WMA FastAPI | 8000 | `services:wma-api` | Kullanıcı başlatacak |
-| WMA Bridge | 8003 | `services:wma-bridge` | Kullanıcı başlatacak |
-
-### Açık Konular
-
-- WMA başlatma testi yapılmadı (`start_project_services` fix'i sonrası)
-- Beta modu uçtan uca testi: WMA başlatılıp `/internal/message` endpoint'i doğrulanmalı
-- WMA'nın `!root-check` komutu hâlâ var — root bridge URL'si güncellenmeli mi?
