@@ -636,9 +636,15 @@ async def test_restart_sends_notification_and_fires_task():
     session = {"lang": "tr"}
     task_mock = MagicMock()
 
+    def _fake_create_task(coro):
+        # Mocked create_task: koroutini çalıştırma, ama "never awaited"
+        # uyarısı oluşmaması için kapat.
+        coro.close()
+        return task_mock
+
     with patch("backend.adapters.messenger.get_messenger",
                return_value=mock_messenger), \
-         patch("asyncio.create_task", return_value=task_mock) as mock_create_task:
+         patch("asyncio.create_task", side_effect=_fake_create_task) as mock_create_task:
         from backend.guards.commands.restart_cmd import RestartCommand
         await RestartCommand().execute("905001234567", "", session)
 

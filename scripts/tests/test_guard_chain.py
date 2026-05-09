@@ -140,7 +140,7 @@ async def test_non_owner_blocked():
     mock_perm = MagicMock()
     mock_perm.is_owner.return_value = False
     mock_settings = MagicMock()
-    mock_settings.whatsapp_owner = None  # bildirim devre dışı
+    mock_settings.owner_id = None  # bildirim devre dışı (prod kod owner_id okur)
     guard = OwnerPermissionGuard(mock_perm, mock_settings, AsyncMock())
     result = await guard.check(_ctx(sender="999"))
     assert result.passed is False

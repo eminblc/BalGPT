@@ -195,7 +195,8 @@ class TestExportAsync:
 
         with patch("backend.guards.api_key.settings", api_key=_mock_secret(), environment="development"), \
              patch("backend.routers.api._deps.require_api_rate_limit", return_value=None), \
-             patch("backend.routers.api.backup_api.asyncio.create_task"):
+             patch("backend.routers.api.backup_api.asyncio.create_task",
+                   side_effect=lambda coro: (coro.close(), MagicMock())[1]):
 
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -218,7 +219,8 @@ class TestExportAsync:
 
         with patch("backend.guards.api_key.settings", api_key=_mock_secret(), environment="development"), \
              patch("backend.routers.api._deps.require_api_rate_limit", return_value=None), \
-             patch("backend.routers.api.backup_api.asyncio.create_task"):
+             patch("backend.routers.api.backup_api.asyncio.create_task",
+                   side_effect=lambda coro: (coro.close(), MagicMock())[1]):
 
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
