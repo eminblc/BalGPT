@@ -9,7 +9,7 @@ Bu dosya **ajan tarafından okunabilir** — hangi işlemlerin yasak olduğunu b
 **Davranış kuralı:**
 - Yasak bir işlemle karşılaşıldığında ajan düz reddetmez. Şunu söyler:
   *"[Kategori adı] sebebiyle bu işlemi yapamam. Devam etmek istiyor musunuz? (!cancel ile iptal)"*
-- Kullanıcı "evet" derse ajan admin TOTP ister (`POST /internal/verify-admin-totp`).
+- Kullanıcı "evet" derse ajan owner TOTP ister (`POST /internal/verify-admin-totp`).
 - TOTP geçerliyse işlemi gerçekleştirir; geçersizse reddeder.
 - Kullanıcı "hayır" veya `!cancel` yazarsa işlem iptal edilir.
 

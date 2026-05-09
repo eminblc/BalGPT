@@ -20,8 +20,7 @@ logger = logging.getLogger(__name__)
 class Perm(str, Enum):
     PUBLIC          = "public"       # Herkese açık (şu an sadece owner var, ilerisi için)
     OWNER           = "owner"        # Sadece owner
-    OWNER_TOTP      = "owner_totp"   # Owner + TOTP doğrulaması (rutin)
-    OWNER_ADMIN_TOTP = "owner_admin_totp"  # Owner + matematik + admin TOTP (yıkıcı komutlar)
+    OWNER_TOTP      = "owner_totp"   # Owner + TOTP doğrulaması
 
 
 class PermissionManager:
@@ -58,20 +57,14 @@ class PermissionManager:
             logger.error("TOTP secret ASCII olmayan karakter içeriyor — .env dosyasını kontrol et")
             return False
         totp = pyotp.TOTP(secret)
-        return totp.verify(code, valid_window=1)
+        result = totp.verify(code, valid_window=1)
+        if not result:
+            import time as _time
+            now = int(_time.time())
+            logger.warning(
+                "TOTP verify failed: code_len=%d secret_len=%d ts=%d window0=%s window-1=%s window+1=%s",
+                len(code), len(secret), now,
+                totp.at(now), totp.at(now - 30), totp.at(now + 30),
+            )
+        return result
 
-    def verify_admin_totp(self, code: str) -> bool:
-        """Yıkıcı komutlar için ayrı admin TOTP doğrulaması."""
-        if not settings.totp_secret_admin:
-            logger.warning("Admin TOTP secret (totp_secret_admin) tanımlı değil — yıkıcı komutlar devre dışı")
-            return False
-        if not code or len(code) < 6 or not code.isdigit():
-            return False
-        secret = settings.totp_secret_admin.get_secret_value().strip()
-        try:
-            secret.encode("ascii")
-        except UnicodeEncodeError:
-            logger.error("Admin TOTP secret ASCII olmayan karakter içeriyor — .env dosyasını kontrol et")
-            return False
-        totp = pyotp.TOTP(secret)
-        return totp.verify(code, valid_window=1)

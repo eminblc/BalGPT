@@ -92,22 +92,189 @@ step_data_dirs() {
 
   # When run via sudo, dirs are owned by root — but services start as $SUDO_USER,
   # which then can't write to data/personal_agent.db etc.  Restore ownership.
-  # Bridge container runs as UID 1001 (claude user in Dockerfile.bridge) and needs
-  # write access to claude_sessions and conv_history — keep those at UID 1001.
+  # NOT: Bridge container artık entrypoint'inde root → claude:claude (UID 1001) drop'u
+  # yapıyor (bkz. docker/entrypoint-bridge.sh). Bu yüzden install.sh'ın 1001:1001'e
+  # chown yapmasına gerek yok; aksine native (systemd) bridge SUDO_USER olarak çalışır,
+  # 1001 sahipliği yazma hatasına neden olur. Tüm data dizinlerini SUDO_USER'a ata.
   if [ "$EUID" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
     local _grp
     _grp="$(id -gn "$SUDO_USER" 2>/dev/null || echo "$SUDO_USER")"
-    # API and install.sh-owned directories: restore to SUDO_USER
     chown -R "$SUDO_USER:$_grp" \
       "$ROOT_DIR/data/projects" "$ROOT_DIR/data/media" \
-      "$ROOT_DIR/outputs" "$ROOT_DIR/reports" "$ROOT_DIR/research" \
-      2>/dev/null || warn "  ↳ chown failed for user dirs (continuing)"
-    # Bridge container-owned directories: UID 1001 (claude user in Dockerfile.bridge)
-    chown -R 1001:1001 \
       "$ROOT_DIR/data/claude_sessions" "$ROOT_DIR/data/conv_history" \
-      2>/dev/null || warn "  ↳ chown failed for bridge dirs (continuing)"
+      "$ROOT_DIR/outputs" "$ROOT_DIR/reports" "$ROOT_DIR/research" \
+      2>/dev/null || warn "  ↳ chown failed for data dirs (continuing)"
   fi
   ok "$_S_STEP_DIRS_DONE"
+}
+
+
+_hfs_telegram() {
+  local env_dst="$1"
+  local _tok _cid _offset _cb _cb_uid _cb_id _cb_data
+  _tok="$(_env_get "TELEGRAM_BOT_TOKEN" "$env_dst" 2>/dev/null || true)"
+  _cid="$(_env_get "TELEGRAM_CHAT_ID"   "$env_dst" 2>/dev/null || true)"
+  if [[ -z "$_tok" || -z "$_cid" ]]; then
+    warn "  ↳ Telegram credentials not in .env — falling back to text mode"
+    _hfs_text "$env_dst"
+    return
+  fi
+
+  _offset="$(_tg_get_offset "$_tok")"
+
+  # Intro: erişim ver / verme
+  log "  $_S_TXT_TG_WAIT"
+  _tg_send_buttons "$_tok" "$_cid" \
+    "*$_S_WIZ_HFS_TITLE*\n\n$_S_WIZ_HFS_MSG" \
+    "$_S_CAP_TG_BTN_ENABLE:hfs_yes" "|" "$_S_CAP_TG_BTN_DISABLE:hfs_no" >/dev/null
+
+  local _gate="" _a=0
+  while (( _a < 3 )); do
+    _cb="$(_tg_poll_callback "$_tok" "$_cid" "$_offset" 300)" || _cb="0 0 hfs_no"
+    _cb_uid="$(echo "$_cb" | cut -d' ' -f1)"
+    _cb_id="$(echo  "$_cb" | cut -d' ' -f2)"
+    _cb_data="$(echo "$_cb" | cut -d' ' -f3)"
+    _tg_answer_callback "$_tok" "$_cb_id"
+    [[ "$_cb_uid" =~ ^[0-9]+$ && "$_cb_uid" -gt 0 ]] && _offset=$(( _cb_uid + 1 ))
+    [[ "$_cb_data" == "hfs_yes" || "$_cb_data" == "hfs_no" ]] && { _gate="$_cb_data"; break; }
+    _a=$(( _a + 1 ))
+  done
+  [[ -z "$_gate" ]] && _gate="hfs_no"
+
+  if [[ "$_gate" == "hfs_no" ]]; then
+    _env_set "HOST_FS_ACCESS" "none" "$env_dst"
+    _tg_notify "$_tok" "$_cid" "$_S_WIZ_HFS_RESULT_NONE"
+    ok "  $_S_WIZ_HFS_RESULT_NONE"
+    return
+  fi
+
+  # 4 ayrı soru: okuma / yazma / silme / düzenleme
+  local -a _hfs_keys=( "read"              "write"              "delete"              "edit"             )
+  local -a _hfs_labels=( "$_S_WIZ_HFS_READ" "$_S_WIZ_HFS_WRITE" "$_S_WIZ_HFS_DELETE" "$_S_WIZ_HFS_EDIT" )
+  local _hfs_read=false _hfs_write=false _hfs_delete=false _hfs_edit=false
+  local i
+  for (( i=0; i<4; i++ )); do
+    local _key="${_hfs_keys[$i]}" _label="${_hfs_labels[$i]}"
+    log "  $_S_TXT_TG_WAIT"
+    _tg_send_buttons "$_tok" "$_cid" "*${_label}*" \
+      "$_S_CAP_TG_BTN_ENABLE:y" "$_S_CAP_TG_BTN_DISABLE:n" >/dev/null
+    local _yn="" _ya=0
+    while (( _ya < 3 )); do
+      _cb="$(_tg_poll_callback "$_tok" "$_cid" "$_offset" 300)" || _cb="0 0 y"
+      _cb_uid="$(echo "$_cb" | cut -d' ' -f1)"
+      _cb_id="$(echo  "$_cb" | cut -d' ' -f2)"
+      _cb_data="$(echo "$_cb" | cut -d' ' -f3)"
+      _tg_answer_callback "$_tok" "$_cb_id"
+      [[ "$_cb_uid" =~ ^[0-9]+$ && "$_cb_uid" -gt 0 ]] && _offset=$(( _cb_uid + 1 ))
+      [[ "$_cb_data" == "y" || "$_cb_data" == "n" ]] && { _yn="$_cb_data"; break; }
+      _ya=$(( _ya + 1 ))
+    done
+    [[ -z "$_yn" ]] && _yn="y"
+    [[ "$_yn" == "y" ]] && case "$_key" in
+      read)   _hfs_read=true ;;
+      write)  _hfs_write=true ;;
+      delete) _hfs_delete=true ;;
+      edit)   _hfs_edit=true ;;
+    esac
+  done
+
+  local _host_fs_access="none"
+  if $_hfs_write || $_hfs_delete || $_hfs_edit; then
+    _host_fs_access="rw"
+    _tg_notify "$_tok" "$_cid" "$_S_WIZ_HFS_RESULT_RW"
+    ok "  $_S_WIZ_HFS_RESULT_RW"
+  elif $_hfs_read; then
+    _host_fs_access="ro"
+    _tg_notify "$_tok" "$_cid" "$_S_WIZ_HFS_RESULT_RO"
+    ok "  $_S_WIZ_HFS_RESULT_RO"
+  else
+    _tg_notify "$_tok" "$_cid" "$_S_WIZ_HFS_RESULT_NONE"
+    ok "  $_S_WIZ_HFS_RESULT_NONE"
+  fi
+  _env_set "HOST_FS_ACCESS" "$_host_fs_access" "$env_dst"
+}
+
+
+_hfs_whiptail() {
+  local env_dst="$1"
+  local _host_fs_access="none"
+  if _wt_yesno "$_S_WIZ_HFS_TITLE" "$_S_WIZ_HFS_MSG"; then
+    local _hfs_read=false _hfs_write=false _hfs_delete=false _hfs_edit=false
+    _wt_yesno "$_S_WIZ_HFS_TITLE" "$_S_WIZ_HFS_READ"   && _hfs_read=true   || true
+    _wt_yesno "$_S_WIZ_HFS_TITLE" "$_S_WIZ_HFS_WRITE"  && _hfs_write=true  || true
+    _wt_yesno "$_S_WIZ_HFS_TITLE" "$_S_WIZ_HFS_DELETE" && _hfs_delete=true || true
+    _wt_yesno "$_S_WIZ_HFS_TITLE" "$_S_WIZ_HFS_EDIT"   && _hfs_edit=true   || true
+    if $_hfs_write || $_hfs_delete || $_hfs_edit; then
+      _host_fs_access="rw"
+    elif $_hfs_read; then
+      _host_fs_access="ro"
+    fi
+  fi
+  _env_set "HOST_FS_ACCESS" "$_host_fs_access" "$env_dst"
+  if [[ "$_host_fs_access" == "rw" ]]; then ok "  $_S_WIZ_HFS_RESULT_RW"
+  elif [[ "$_host_fs_access" == "ro" ]]; then ok "  $_S_WIZ_HFS_RESULT_RO"
+  else ok "  $_S_WIZ_HFS_RESULT_NONE"; fi
+}
+
+
+_hfs_text() {
+  local env_dst="$1"
+  echo ""
+  echo "▶ $_S_WIZ_HFS_TITLE"
+  echo ""
+  printf "  %b\n" "$_S_WIZ_HFS_MSG"
+  echo ""
+  local _host_fs_access="none" _hfs_ans _hfs_r
+  _ask_inline "[${_S_TXT_RERUN_Y}/n]:" _hfs_ans
+  if [[ "${_hfs_ans,,}" == "$_S_TXT_RERUN_Y" ]]; then
+    local _hfs_read=false _hfs_write=false _hfs_delete=false _hfs_edit=false
+    _ask_inline "  $_S_WIZ_HFS_READ [${_S_TXT_RERUN_Y}/n]:" _hfs_r
+    [[ "${_hfs_r,,}" == "$_S_TXT_RERUN_Y" ]] && _hfs_read=true
+    _ask_inline "  $_S_WIZ_HFS_WRITE [${_S_TXT_RERUN_Y}/n]:" _hfs_r
+    [[ "${_hfs_r,,}" == "$_S_TXT_RERUN_Y" ]] && _hfs_write=true
+    _ask_inline "  $_S_WIZ_HFS_DELETE [${_S_TXT_RERUN_Y}/n]:" _hfs_r
+    [[ "${_hfs_r,,}" == "$_S_TXT_RERUN_Y" ]] && _hfs_delete=true
+    _ask_inline "  $_S_WIZ_HFS_EDIT [${_S_TXT_RERUN_Y}/n]:" _hfs_r
+    [[ "${_hfs_r,,}" == "$_S_TXT_RERUN_Y" ]] && _hfs_edit=true
+    if $_hfs_write || $_hfs_delete || $_hfs_edit; then
+      _host_fs_access="rw"
+    elif $_hfs_read; then
+      _host_fs_access="ro"
+    fi
+  fi
+  _env_set "HOST_FS_ACCESS" "$_host_fs_access" "$env_dst"
+  if [[ "$_host_fs_access" == "rw" ]]; then ok "  $_S_WIZ_HFS_RESULT_RW"
+  elif [[ "$_host_fs_access" == "ro" ]]; then ok "  $_S_WIZ_HFS_RESULT_RO"
+  else ok "  $_S_WIZ_HFS_RESULT_NONE"; fi
+}
+
+
+step_host_fs_access() {
+  local env_dst="$BACKEND_DIR/.env"
+  log "🗂️  $_S_WIZ_HFS_TITLE..."
+
+  [ ! -f "$env_dst" ] && { warn "  ↳ .env not found, skipping"; return 0; }
+
+  # İdempotent: zaten ayarlıysa atla
+  local _existing
+  _existing="$(_read_env_var "HOST_FS_ACCESS" "$env_dst" 2>/dev/null || true)"
+  [[ -n "$_existing" ]] && { ok "  ↳ HOST_FS_ACCESS=$_existing (skipped)"; return 0; }
+
+  # Non-interactive: varsayılan none
+  if [ ! -t 0 ]; then
+    _env_set "HOST_FS_ACCESS" "none" "$env_dst"
+    return 0
+  fi
+
+  local _messenger
+  _messenger="$(_env_get "MESSENGER_TYPE" "$env_dst" 2>/dev/null || true)"
+  if [[ "$_messenger" == "telegram" ]]; then
+    _hfs_telegram "$env_dst"
+  elif _wt_available; then
+    _hfs_whiptail "$env_dst"
+  else
+    _hfs_text "$env_dst"
+  fi
 }
 
 
@@ -157,17 +324,37 @@ step_docker_build() {
   log "$_S_DOCKER_BUILD"
   log "$_S_DOCKER_BUILD_CAPS $caps_str"
 
-  # docker-compose.override.yml yaz — build-arg olarak ilet
+  # docker-compose.override.yml yaz — build-arg + host filesystem access
   log "$_S_DOCKER_OVERRIDE"
-  cat > "$ROOT_DIR/docker-compose.override.yml" <<EOF
-# Auto-generated by install.sh --docker — do not edit manually
-# Re-run: bash install.sh --docker
-services:
-  99-api:
-    build:
-      args:
-        CAPABILITIES: "${caps_str}"
-EOF
+  local _host_fs_access
+  _host_fs_access="$(_read_env_var "HOST_FS_ACCESS" "$ROOT_DIR/scripts/backend/.env")"
+  _host_fs_access="${_host_fs_access:-none}"
+
+  local _hfs_mount=""
+  if [[ "$_host_fs_access" == "rw" ]]; then
+    _hfs_mount="- /:/app/host_root:rw"
+  elif [[ "$_host_fs_access" == "ro" ]]; then
+    _hfs_mount="- /:/app/host_root:ro"
+  fi
+
+  {
+    echo "# Auto-generated by install.sh --docker — do not edit manually"
+    echo "# Re-run: bash install.sh --docker"
+    echo "services:"
+    echo "  99-api:"
+    echo "    build:"
+    echo "      args:"
+    echo "        CAPABILITIES: \"${caps_str}\""
+    if [[ -n "$_hfs_mount" ]]; then
+      echo "    volumes:"
+      echo "      $_hfs_mount"
+    fi
+    echo "  99-bridge:"
+    if [[ -n "$_hfs_mount" ]]; then
+      echo "    volumes:"
+      echo "      $_hfs_mount"
+    fi
+  } > "$ROOT_DIR/docker-compose.override.yml"
 
   # Build
   log "$_S_DOCKER_BUILD_RUN"

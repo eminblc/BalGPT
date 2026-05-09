@@ -56,9 +56,10 @@ async def ask_auto_arch(sender: str, session: dict) -> None:
         await ask_options(sender, session)
         return
 
+    name = session.get("wiz_name", "")
     await get_messenger().send_buttons(
         sender,
-        t("wizard.ask_auto_arch", lang),
+        t("wizard.ask_auto_arch", lang, name=name),
         [
             {"id": "wiz_auto_arch_yes", "title": t("wizard.auto_arch_yes_btn", lang)},
             {"id": "wiz_auto_arch_no",  "title": t("wizard.auto_arch_no_btn", lang)},
@@ -192,8 +193,11 @@ async def handle_arch_edit_input(sender: str, text: str, session: dict) -> None:
 async def ask_options(sender: str, session: dict) -> None:
     """Birleşik seçenekler menüsünü göster (adım 3)."""
     from ..adapters.messenger import get_messenger
+    # AI wizard ile önizleme kabul edildiyse CLAUDE.md+README zorunlu gelir → önceden seç
+    has_ai = session.get("wiz_auto_arch") == "yes" and session.get("wiz_ai_prev_json")
+    default_mds = "claude_readme" if has_ai else _DEFAULT_MDS
     session.setdefault("wiz_pending_level", _DEFAULT_LEVEL)
-    session.setdefault("wiz_pending_mds",   _DEFAULT_MDS)
+    session.setdefault("wiz_pending_mds",   default_mds)
     session.setdefault("wiz_pending_svc",   _DEFAULT_SVC)
 
     lang = session.get("lang", "tr")
@@ -451,6 +455,9 @@ async def show_summary(sender: str, session: dict) -> None:
 
     level_label = get_level_label(level, lang)
     mds_label   = ", ".join(mds) if mds else t("wizard.none_label", lang)
+
+    if session.get("wiz_auto_arch") == "yes" and session.get("wiz_ai_prev_json"):
+        mds_label += "\n" + t("wizard.ai_forced_mds", lang)
 
     svc_lines = ""
     for svc in services:

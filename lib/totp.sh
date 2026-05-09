@@ -8,9 +8,8 @@ step_show_totp() {
   local env_dst="$BACKEND_DIR/.env"
   [ ! -f "$env_dst" ] && return
 
-  local totp_secret totp_admin
-  totp_secret="$(_read_env_var "TOTP_SECRET"       "$env_dst")"
-  totp_admin="$( _read_env_var "TOTP_SECRET_ADMIN" "$env_dst")"
+  local totp_secret
+  totp_secret="$(_read_env_var "TOTP_SECRET" "$env_dst")"
   if [[ -z "$totp_secret" || "$totp_secret" == *DOLDUR* || "$totp_secret" == *FILL* ]]; then return; fi
 
   # _TOTP_QR_OK: set to true by _print_qr when a terminal QR is actually rendered
@@ -18,8 +17,7 @@ step_show_totp() {
 
   _print_qr() {
     local label="$1" secret="$2"
-    local heading
-    [[ "$label" == "admin" ]] && heading="$_S_TOTP_ADMIN" || heading="$_S_TOTP_OWNER"
+    local heading="$_S_TOTP_OWNER"
     local uri="otpauth://totp/BalGPT%3A${label}?secret=${secret}&issuer=BalGPT"
     echo ""
     echo "  ── $heading ──────────────────────────────"
@@ -114,9 +112,6 @@ PYEOF
   echo "║  $_S_TOTP_SUBTITLE"
   echo "╚══════════════════════════════════════════════════════╝"
   _print_qr "owner" "$totp_secret"
-  if [[ -n "$totp_admin" && "$totp_admin" != "$totp_secret" ]]; then
-    _print_qr "admin" "$totp_admin"
-  fi
   echo ""
   warn "$_S_TOTP_WARN"
 
@@ -128,15 +123,12 @@ PYEOF
     echo "  ════════════════════════════════════════════════════"
     echo ""
     echo "  ★  $_S_TOTP_NO_QR_OWNER : $totp_secret"
-    if [[ -n "$totp_admin" && "$totp_admin" != "$totp_secret" ]]; then
-      echo "  ★  $_S_TOTP_NO_QR_ADMIN  : $totp_admin"
-    fi
     echo ""
     _ask_inline "  $_S_TOTP_NO_QR_SEND_HINT" _totp_send_choice
     # shellcheck disable=SC2154  # _totp_send_choice set by _ask_inline (indirect)
     if [[ "${_totp_send_choice}" == "1" ]]; then
       log "  $_S_TOTP_NO_QR_SENDING"
-      if _totp_send_via_messenger "$totp_secret" "$totp_admin" "$env_dst"; then
+      if _totp_send_via_messenger "$totp_secret" "$env_dst"; then
         ok "  $_S_TOTP_NO_QR_SENT"
       else
         warn "  $_S_TOTP_NO_QR_SEND_FAIL"
@@ -155,33 +147,23 @@ PYEOF
 
 
 _totp_send_via_messenger() {
-  local _sec="$1" _adm="$2" _env="$3"
+  local _sec="$1" _env="$2"
   local _messenger _msg _msg_json
 
   _messenger="$(_read_env_var "MESSENGER_TYPE" "$_env")"
-
-  # Build message text
-  local _adm_line=""
-  [[ -n "$_adm" && "$_adm" != "$_sec" ]] && _adm_line="Admin TOTP:  $_adm"
 
   if [[ "$_messenger" == "telegram" ]]; then
     local _tok _cid
     _tok="$(_read_env_var "TELEGRAM_BOT_TOKEN" "$_env")"
     _cid="$(_read_env_var "TELEGRAM_CHAT_ID"   "$_env")"
     [[ -z "$_tok" || -z "$_cid" ]] && return 1
-    _msg="🔐 <b>TOTP Secrets (backup)</b>
+    _msg="🔐 <b>TOTP Secret (backup)</b>
 
-<b>Owner TOTP:</b> <code>$_sec</code>"
-    [[ -n "$_adm_line" ]] && _msg+="
-<b>Admin TOTP:</b> <code>$_adm</code>"
-    _msg+="
+<b>TOTP:</b> <code>$_sec</code>
 
 To add to Google Authenticator:
 • Open app → + → Enter setup key
-• Account <code>BalGPT:owner</code>, Key <code>$_sec</code>"
-    [[ -n "$_adm_line" ]] && _msg+="
-• Account <code>BalGPT:admin</code>, Key <code>$_adm</code>"
-    _msg+="
+• Account <code>BalGPT:owner</code>, Key <code>$_sec</code>
 • Type: Time-based (TOTP)"
 
     _msg_json="$("$PY" -c "import sys,json; print(json.dumps(sys.argv[1]))" "$_msg" 2>/dev/null)" || return 1
@@ -199,18 +181,12 @@ To add to Google Authenticator:
     _wown="$(_read_env_var "WHATSAPP_OWNER"           "$_env")"
     _wown="${_wown#+}"
     [[ -z "$_wtok" || -z "$_wpid" || -z "$_wown" ]] && return 1
-    _msg="🔐 TOTP Secrets (backup)
+    _msg="🔐 TOTP Secret (backup)
 
-Owner TOTP: $_sec"
-    [[ -n "$_adm_line" ]] && _msg+="
-Admin TOTP: $_adm"
-    _msg+="
+TOTP: $_sec
 
 Google Authenticator:
-• Account: BalGPT:owner  Key: $_sec"
-    [[ -n "$_adm_line" ]] && _msg+="
-• Account: BalGPT:admin  Key: $_adm"
-    _msg+="
+• Account: BalGPT:owner  Key: $_sec
 • Type: Time-based (TOTP)"
 
     _msg_json="$("$PY" -c "import sys,json; print(json.dumps(sys.argv[1]))" "$_msg" 2>/dev/null)" || return 1

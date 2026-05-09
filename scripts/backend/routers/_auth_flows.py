@@ -3,7 +3,6 @@
 Sorumluluk (SRP):
   - Matematik challenge yanıtını doğrulama (_handle_math_challenge)
   - Sahip TOTP doğrulaması (_handle_totp)
-  - Admin TOTP doğrulaması (_handle_admin_totp)
 
 Bağımlılık yönü: Auth flows → Bridge client (forward_locked)
 Döngüsel import önleme: _bridge_client.forward_locked doğrudan çağrılır.
@@ -36,7 +35,7 @@ def clear_math_state(session: dict) -> None:
 async def handle_math_challenge(sender: str, msg: dict, session: dict) -> None:
     """Matematik challenge yanıtını doğrula.
 
-    Doğruysa admin TOTP adımına geç. Yanlışsa sayacı artır, 3 hatada iptal et.
+    Doğruysa TOTP adımına geç. Yanlışsa sayacı artır, 3 hatada iptal et.
     Bu adım prompt injection alarm zili işlevi görür.
     """
     from . import _bridge_client  # döngüsel import önleme — geç içe aktarım
@@ -63,9 +62,9 @@ async def handle_math_challenge(sender: str, msg: dict, session: dict) -> None:
     if user_answer == expected:
         cmd = session.get("math_challenge_command", "")
         session.clear_math_challenge()
-        session.start_admin_totp(cmd=cmd)
+        session.start_totp(cmd=cmd)
         await get_messenger().send_text(sender, t("auth.math.ok", lang))
-        log_outbound(sender, "text", "math_ok_admin_totp_prompt", context_id=context_id)
+        log_outbound(sender, "text", "math_ok_totp_prompt", context_id=context_id)
     else:
         fail = session.get("math_fail_count", 0) + 1
         session["math_fail_count"] = fail
@@ -77,64 +76,6 @@ async def handle_math_challenge(sender: str, msg: dict, session: dict) -> None:
         else:
             await get_messenger().send_text(sender, t("auth.math.wrong", lang, remaining=remaining))
             log_outbound(sender, "text", "math_wrong", context_id=context_id)
-
-
-# ── Admin TOTP ─────────────────────────────────────────────────────
-
-async def handle_admin_totp(sender: str, msg: dict, session: dict) -> None:
-    """Admin TOTP doğrulaması — matematik challenge'dan sonra gelir."""
-    from . import _bridge_client  # döngüsel import önleme — geç içe aktarım
-    from ..store.sqlite_wrapper import store as db  # DIP: wrapper üzerinden erişim
-    context_id = session.get("active_context", "main")
-    lang       = session.get("lang", "tr")
-
-    _, lockout_until = await db.totp_get_lockout(sender, "admin")
-    if lockout_until and time.time() < lockout_until:
-        remaining = int(lockout_until - time.time())
-        await get_messenger().send_text(sender, t("auth.admin_totp.locked", lang, minutes=remaining // 60 + 1))
-        log_outbound(sender, "text", "admin_totp_locked", context_id=context_id)
-        return
-
-    code = msg.get("text", {}).get("body", "").strip()
-    log_inbound(msg.get("id", ""), sender, "admin_totp", content="[REDACTED]",
-                context_id=context_id)
-
-    if get_perm_mgr().verify_admin_totp(code):
-        pending        = session.pop("pending_command", "")
-        pending_bridge = session.pop("pending_bridge_message", "")
-        # Komuta özgü bekleyen payload'ı clear_admin_totp() silmeden önce koru.
-        # clear_admin_totp() hem cancel hem de success path'te çağrılır; ancak
-        # success path'te komut execute() edilmeden önce bu değere ihtiyaç duyulur.
-        _saved_terminal_cmd = session.pop("_terminal_pending_cmd", None)
-        session.clear_admin_totp()
-        await db.totp_reset_lockout(sender, "admin")
-        await get_messenger().send_text(sender, t("auth.admin_totp.ok", lang))
-        log_outbound(sender, "text", "admin_totp_ok", context_id=context_id)
-        if pending:
-            cmd     = pending.split()[0].lower()
-            command = cmd_registry.get(cmd)
-            if command:
-                # Komuta özgü pending payload'ı geri koy — execute() okuyacak.
-                if _saved_terminal_cmd is not None:
-                    session.set_terminal_pending(_saved_terminal_cmd)
-                arg = pending[len(cmd):].strip()
-                await command.execute(sender, arg, session)
-            else:
-                await _bridge_client.forward_locked(sender, pending, session)
-        elif pending_bridge:
-            logger.info("Onaylı yıkıcı bridge mesajı iletiliyor: '%s'", pending_bridge[:40])
-            await _bridge_client.forward_locked(sender, pending_bridge, session)
-    else:
-        fail_count, locked_until = await db.totp_record_failure(sender, "admin")
-        if locked_until:
-            session.clear_admin_totp()
-            logger.warning("Admin TOTP brute-force kilidi: sender=%s", _mask_phone(sender))
-            await get_messenger().send_text(sender, t("auth.admin_totp.lockout", lang))
-            log_outbound(sender, "text", "admin_totp_lockout", context_id=context_id)
-        else:
-            remaining_tries = TOTP_MAX_ATTEMPTS - fail_count
-            await get_messenger().send_text(sender, t("auth.admin_totp.invalid", lang, remaining=remaining_tries))
-            log_outbound(sender, "text", "admin_totp_fail", context_id=context_id)
 
 
 # ── Sahip TOTP ─────────────────────────────────────────────────────
@@ -158,7 +99,9 @@ async def handle_totp(sender: str, msg: dict, session: dict) -> None:
                 context_id=context_id)
 
     if get_perm_mgr().verify_totp(code):
-        pending = session.pop("pending_command", "")   # clear_totp'tan önce al
+        pending        = session.pop("pending_command", "")   # clear_totp'tan önce al
+        pending_bridge = session.pop("pending_bridge_message", "")
+        _saved_terminal_cmd = session.pop("_terminal_pending_cmd", None)
         session.clear_totp()
         await db.totp_reset_lockout(sender, "owner")
         await get_messenger().send_text(sender, t("auth.totp.ok", lang))
@@ -167,10 +110,15 @@ async def handle_totp(sender: str, msg: dict, session: dict) -> None:
             cmd     = pending.split()[0].lower()
             command = cmd_registry.get(cmd)
             if command:
+                if _saved_terminal_cmd is not None:
+                    session.set_terminal_pending(_saved_terminal_cmd)
                 arg = pending[len(cmd):].strip()
                 await command.execute(sender, arg, session)
             else:
                 await _bridge_client.forward_locked(sender, pending, session)
+        elif pending_bridge:
+            logger.info("Onaylı bridge mesajı iletiliyor: '%s'", pending_bridge[:40])
+            await _bridge_client.forward_locked(sender, pending_bridge, session)
     else:
         fail_count, locked_until = await db.totp_record_failure(sender, "owner")
         if locked_until:

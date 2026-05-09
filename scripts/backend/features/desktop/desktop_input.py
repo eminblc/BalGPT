@@ -99,16 +99,14 @@ def _xlib_type_sync(text: str, delay_ms: int, display_str: str, xauth: str) -> t
     Bu fonksiyon senkron; asyncio executor thread'inde çağrılır.
     Döner: (başarı, hata_mesajı).
     """
-    if display_str:
-        os.environ["DISPLAY"] = display_str
     if xauth:
-        os.environ["XAUTHORITY"] = xauth
+        os.environ["XAUTHORITY"] = xauth  # XAUTHORITY python-xlib'e API ile geçirilemiyor
 
     try:
         from Xlib import display as xdisplay, X  # noqa: PLC0415
         from Xlib.ext import xtest as xtestmod   # noqa: PLC0415
 
-        d = xdisplay.Display()
+        d = xdisplay.Display(display_str or None)
         try:
             if d.query_extension("XTEST") is None:
                 return False, "XTEST extension mevcut değil"
@@ -179,16 +177,14 @@ def _net_active_window_sync(
     Döner: (başarı, hata_mesajı).
     Senkron; asyncio executor thread'inde çağrılır.
     """
-    if display_str:
-        os.environ["DISPLAY"] = display_str
     if xauth:
-        os.environ["XAUTHORITY"] = xauth
+        os.environ["XAUTHORITY"] = xauth  # XAUTHORITY python-xlib'e API ile geçirilemiyor
 
     try:
         from Xlib import display as xdisplay, X  # noqa: PLC0415
         from Xlib.protocol import event as xevent  # noqa: PLC0415
 
-        d = xdisplay.Display()
+        d = xdisplay.Display(display_str or None)
         try:
             screen = d.screen()
             root = screen.root

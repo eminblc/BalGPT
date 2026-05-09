@@ -5,7 +5,7 @@ Sorumluluk (SRP):
   - Interactive (buton/liste) yönlendirme ve beta mod proje iletimi
 
 Alt modüller:
-  _auth_dispatcher.py — Auth state akışları (math_challenge, admin_totp, totp, guardrail)
+  _auth_dispatcher.py — Auth state akışları (math_challenge, totp, guardrail)
   _text_router.py     — Metin yönlendirme (!komutlar, wizard, niyet, Bridge)
 
 OCP-3: Auth state dispatch _AUTH_FLOW_REGISTRY dict ile yönetilir.
@@ -152,6 +152,50 @@ async def _handle_reaction(ctx: _MsgCtx) -> None:
     logger.info("Reaction: sender=%s %s", ctx.sender, ctx.extra_desc)
 
 
+async def _handle_media(ctx: _MsgCtx) -> None:
+    """Telegram medya mesajları için indirme + Bridge iletimi.
+
+    raw_payload içinde tg_file_id varsa TelegramMediaDownloader ile dosyayı indirir,
+    geçici diske yazar ve Bridge'e yol bilgisiyle birlikte iletir.
+    file_id yoksa (veya indirme başarısız olursa) metin açıklamasıyla Bridge'e düşer.
+
+    Not: WhatsApp medya tipleri (image/audio/video/document) telegram_router'a hiç
+    ulaşmadığından burası yalnızca Telegram (ve gelecekteki) platformları etkiler.
+    """
+    if settings.conv_history_enabled:
+        log_inbound(ctx.msg_id, ctx.sender, ctx.msg_type, content=ctx.extra_desc,
+                    context_id=ctx.context_id, raw_payload=ctx.raw_payload)
+
+    file_id: str | None = (ctx.raw_payload or {}).get("tg_file_id")
+    if file_id:
+        import pathlib
+        import tempfile
+
+        from ..adapters.media import get_media_downloader
+
+        try:
+            import mimetypes
+            content, mime = await get_media_downloader().download(file_id)
+            ext = mimetypes.guess_extension(mime) or ""
+            tmp = pathlib.Path(tempfile.mktemp(suffix=ext, prefix="tg_media_"))
+            tmp.write_bytes(content)
+            logger.info(
+                "Telegram medya indirildi: type=%s size=%d path=%s",
+                ctx.msg_type, len(content), tmp,
+            )
+            await _forward_to_bridge(
+                ctx.sender,
+                f"{ctx.extra_desc}\n[Medya kaydedildi: {tmp}]",
+                ctx.session,
+            )
+            return
+        except Exception as exc:
+            logger.warning("Telegram medya indirme hatası type=%s: %s", ctx.msg_type, exc)
+
+    # Fallback: metin açıklamasıyla Bridge'e ilet
+    await _forward_to_bridge(ctx.sender, ctx.extra_desc, ctx.session)
+
+
 async def _handle_unsupported(ctx: _MsgCtx) -> None:
     logger.info("Desteklenmeyen mesaj tipi: %s sender=%s", ctx.msg_type, ctx.sender)
     if settings.conv_history_enabled:
@@ -244,7 +288,10 @@ _MSG_TYPE_HANDLERS: dict[str, _HandlerFn] = {
     "location":    _handle_location,
     "sticker":     _handle_sticker,
     "reaction":    _handle_reaction,
-    "document":    _handle_document,
+    "image":       _handle_media,
+    "audio":       _handle_media,
+    "video":       _handle_media,
+    "document":    _handle_media,
 }
 
 
@@ -296,9 +343,10 @@ async def _forward_interactive_to_project(
         await get_messenger().send_text(sender, t("dispatcher.project_port_not_found", lang))
         return
     try:
+        messenger_type = settings.messenger_type.lower()
         async with httpx.AsyncClient(timeout=30) as client:
             r = await client.post(
-                f"http://localhost:{api_port}/whatsapp/internal/message",
+                f"http://localhost:{api_port}/{messenger_type}/internal/message",
                 json={"sender": sender, "text": "", "reply_id": reply_id},
             )
             r.raise_for_status()

@@ -71,7 +71,7 @@ class OwnerPermissionGuard:
 
         logger.warning("Yetkisiz sender: %s", _mask_phone(ctx.sender))
         target = (
-            self._settings.whatsapp_owner
+            self._settings.owner_id
             if self._notification_target is _UNSET
             else self._notification_target
         )

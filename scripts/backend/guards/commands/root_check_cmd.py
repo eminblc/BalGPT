@@ -14,18 +14,18 @@ def _fmt_time(ts: float) -> str:
     return datetime.datetime.fromtimestamp(ts).strftime("%H:%M:%S")
 
 
-def _fmt_duration(delta_sec: float) -> str:
-    """Saniye → insan okunur format."""
+def _fmt_duration(delta_sec: float, lang: str) -> str:
+    """Saniye → insan okunur format (i18n)."""
+    from ...i18n import t
     if delta_sec < 60:
-        return f"{int(delta_sec)} saniye"
-    elif delta_sec < 3600:
+        return t("root_check.duration_sec", lang, n=int(delta_sec))
+    if delta_sec < 3600:
         m = int(delta_sec / 60)
         s = int(delta_sec % 60)
-        return f"{m}d {s}s"
-    else:
-        h = int(delta_sec / 3600)
-        m = int((delta_sec % 3600) / 60)
-        return f"{h}s {m}d"
+        return t("root_check.duration_min", lang, m=m, s=s)
+    h = int(delta_sec / 3600)
+    m = int((delta_sec % 3600) / 60)
+    return t("root_check.duration_hour", lang, h=h, m=m)
 
 
 def _sync_get_summary() -> dict:
@@ -71,7 +71,6 @@ class RootCheckCommand:
         last_out = data["last_out"]
         now = _time.time()
 
-        # Bridge aktif mi? Son gelen istek, son giden yanıttan daha yeniyse aktif.
         in_ts  = last_in["ts"]  if last_in  else None
         out_ts = last_out["ts"] if last_out else None
 
@@ -81,27 +80,25 @@ class RootCheckCommand:
         )
 
         if not is_active:
-            # Boşta — son aktivite zamanını da bildir
             if in_ts:
-                ago = _fmt_duration(now - in_ts)
-                idle_msg = f"⚫ Root şu an çalışmıyor.\nSon istek: {_fmt_time(in_ts)} ({ago} önce)"
+                ago = _fmt_duration(now - in_ts, lang)
+                msg = t("root_check.idle_with_history", lang, time=_fmt_time(in_ts), ago=ago)
             else:
-                idle_msg = "⚫ Root şu an çalışmıyor."
-            await get_messenger().send_text(sender, idle_msg)
+                msg = t("root_check.idle_no_history", lang)
+            await get_messenger().send_text(sender, msg)
             return
 
-        # Aktif — tam istek içeriğini ve süreyi göster
-        duration = _fmt_duration(now - in_ts)
+        duration = _fmt_duration(now - in_ts, lang)
         content  = (last_in.get("content") or "").strip()
         msg_type = last_in.get("msg_type", "text")
 
         lines = [
-            f"🟢 Root aktif — {duration} süredir çalışıyor",
-            f"⏰ Başladı: {_fmt_time(in_ts)}",
-            f"📨 Tür: {msg_type}",
+            t("root_check.active_header", lang, duration=duration),
+            t("root_check.active_started", lang, time=_fmt_time(in_ts)),
+            t("root_check.active_type", lang, msg_type=msg_type),
             "",
-            "💬 Aktif istek:",
-            content if content else "(içerik yok)",
+            t("root_check.active_request_label", lang),
+            content if content else t("root_check.active_no_content", lang),
         ]
         await get_messenger().send_text(sender, "\n".join(lines))
 

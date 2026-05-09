@@ -61,7 +61,7 @@ async def test_gate_unlock_failure_returns_false():
     gate = mod.DesktopTotpGate(ttl_seconds=60)
 
     mock_perm = MagicMock()
-    mock_perm.verify_admin_totp.return_value = False
+    mock_perm.verify_totp.return_value = False
 
     with patch.object(mod, "get_perm_mgr", return_value=mock_perm), \
          patch("backend.store.sqlite_store.totp_get_lockout",
@@ -167,7 +167,7 @@ async def test_desktop_action_invalid_code_returns_invalid_message():
     mock_settings.desktop_enabled = True
 
     mock_perm = MagicMock()
-    mock_perm.verify_admin_totp.return_value = False
+    mock_perm.verify_totp.return_value = False
 
     with patch("backend.routers.desktop_router.is_localhost", return_value=True), \
          patch("backend.routers.desktop_router.settings", mock_settings), \

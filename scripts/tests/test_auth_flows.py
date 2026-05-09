@@ -16,7 +16,7 @@ import backend.routers._bridge_client  # noqa: F401
 
 def _make_session(**kwargs) -> SessionState:
     defaults = dict(active_context="main", awaiting_totp=False,
-                    awaiting_admin_totp=False, awaiting_math_challenge=False,
+                    awaiting_math_challenge=False,
                     awaiting_guardrail_confirm=False, pending_command="", menu_page=0)
     defaults.update(kwargs)
     return SessionState(**defaults)
@@ -35,8 +35,8 @@ def _patch_messenger():
 # handle_math_challenge
 # ═══════════════════════════════════════════════════════════════════
 
-async def test_math_correct_answer_transitions_to_admin_totp():
-    """Doğru yanıt → clear_math_challenge + start_admin_totp."""
+async def test_math_correct_answer_transitions_to_totp():
+    """Doğru yanıt → clear_math_challenge + start_totp."""
     session = _make_session(awaiting_math_challenge=True,
                             math_challenge_answer=42,
                             math_challenge_command="!shutdown")
@@ -49,10 +49,9 @@ async def test_math_correct_answer_transitions_to_admin_totp():
         await _auth_flows.handle_math_challenge("905001234567", _msg("42"), session)
 
     assert session.get("awaiting_math_challenge") is False
-    assert session.get("awaiting_admin_totp") is True
+    assert session.get("awaiting_totp") is True
     assert session.get("pending_command") == "!shutdown"
     mock_msg.send_text.assert_awaited_once()
-    assert "Admin TOTP" in mock_msg.send_text.call_args[0][1]
 
 
 async def test_math_wrong_answer_increments_fail_count():
@@ -207,55 +206,3 @@ async def test_totp_brute_force_lockout_triggered():
     assert "🔒" in mock_msg.send_text.call_args[0][1]
 
 
-# ═══════════════════════════════════════════════════════════════════
-# handle_admin_totp
-# ═══════════════════════════════════════════════════════════════════
-
-async def test_admin_totp_correct_clears_state():
-    """Doğru admin TOTP → awaiting_admin_totp temizlenir."""
-    session = _make_session(awaiting_admin_totp=True, pending_command="!shutdown")
-    patcher_m, mock_msg = _patch_messenger()
-
-    mock_perm = MagicMock()
-    mock_perm.verify_admin_totp.return_value = True
-    with patcher_m, \
-         patch("backend.store.sqlite_store.totp_get_lockout",
-               AsyncMock(return_value=(0, None))), \
-         patch("backend.store.sqlite_store.totp_reset_lockout", AsyncMock()), \
-         patch("backend.store.sqlite_store.totp_record_failure",
-               AsyncMock(return_value=(1, None))), \
-         patch("backend.routers._auth_flows.get_perm_mgr", return_value=mock_perm), \
-         patch("backend.routers._auth_flows.cmd_registry") as mock_reg, \
-         patch("backend.routers._auth_flows.log_inbound"), \
-         patch("backend.routers._auth_flows.log_outbound"):
-        mock_cmd = MagicMock()
-        mock_cmd.execute = AsyncMock()
-        mock_reg.get.return_value = mock_cmd
-        from backend.routers import _auth_flows
-        await _auth_flows.handle_admin_totp("905001234567", _msg("123456"), session)
-
-    assert session.get("awaiting_admin_totp") is False
-    first_call = mock_msg.send_text.call_args_list[0][0][1]
-    assert "Admin doğrulandı" in first_call
-
-
-async def test_admin_totp_wrong_sends_fail_message():
-    """Yanlış admin TOTP → hata mesajı."""
-    session = _make_session(awaiting_admin_totp=True, pending_command="!shutdown")
-    patcher_m, mock_msg = _patch_messenger()
-
-    mock_perm = MagicMock()
-    mock_perm.verify_admin_totp.return_value = False
-    with patcher_m, \
-         patch("backend.store.sqlite_store.totp_get_lockout",
-               AsyncMock(return_value=(0, None))), \
-         patch("backend.store.sqlite_store.totp_record_failure",
-               AsyncMock(return_value=(1, None))), \
-         patch("backend.routers._auth_flows.get_perm_mgr", return_value=mock_perm), \
-         patch("backend.routers._auth_flows.log_inbound"), \
-         patch("backend.routers._auth_flows.log_outbound"):
-        from backend.routers import _auth_flows
-        await _auth_flows.handle_admin_totp("905001234567", _msg("000000"), session)
-
-    mock_msg.send_text.assert_awaited_once()
-    assert "Geçersiz admin TOTP" in mock_msg.send_text.call_args[0][1]

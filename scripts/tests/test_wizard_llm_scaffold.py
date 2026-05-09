@@ -298,7 +298,6 @@ async def test_generate_arch_preview_happy_path():
     assert result is not None
     assert result["description"] == payload["description"]
     assert result["stack"] == payload["stack"]
-    # get_llm().complete() gerçekten çağrıldı mı
     fake_llm.complete.assert_awaited_once()
 
 
@@ -323,19 +322,23 @@ async def test_generate_arch_preview_timeout_returns_none():
 
 
 @pytest.mark.asyncio
-async def test_generate_arch_preview_no_api_key_returns_none():
-    """Anthropic API anahtarı boşsa LLM'ye hiç gitmeden None dönmeli."""
+async def test_generate_arch_preview_no_api_key_uses_bridge():
+    """API anahtarı boşsa bridge fallback devreye girmeli."""
+    import json as _json
     from backend.features import wizard_llm_scaffold as mod
 
-    fake_llm = MagicMock()
-    fake_llm.complete = AsyncMock(return_value="ignored")
+    payload = _valid_payload()
+    llm_raw = _json.dumps(payload)
+
+    fake_bridge = MagicMock()
+    fake_bridge.complete = AsyncMock(return_value=_cr(llm_raw))
 
     with patch.object(mod, "settings", _mock_settings(api_key="")), \
-         patch.object(mod, "get_llm", return_value=fake_llm):
+         patch.object(mod, "_bridge_factory", return_value=fake_bridge):
         result = await mod.generate_arch_preview(name="X", desc="Y", lang="tr")
 
-    assert result is None
-    fake_llm.complete.assert_not_awaited()
+    assert result is not None
+    fake_bridge.complete.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -359,12 +362,10 @@ async def test_generate_arch_preview_sanitize_fail_returns_none():
     import json as _json
     from backend.features import wizard_llm_scaffold as mod
 
-    # description yok → sanitize None döner
     bad = {"stack": ["x"], "directories": ["src/"], "architecture": "m"}
-    raw = _json.dumps(bad)
 
     fake_llm = MagicMock()
-    fake_llm.complete = AsyncMock(return_value=_cr(raw))
+    fake_llm.complete = AsyncMock(return_value=_cr(_json.dumps(bad)))
 
     with patch.object(mod, "settings", _mock_settings()), \
          patch.object(mod, "get_llm", return_value=fake_llm):
@@ -431,7 +432,6 @@ async def test_regenerate_arch_preview_passes_prev_and_feedback_to_llm():
 
     assert out is not None
     assert out["description"] == "Güncellenmiş açıklama"
-    # Prompt'un kullanıcı mesaj içeriğinde prev_json alanları + feedback geçmeli
     assert "Eski açıklama" in captured_prompt["content"]
     assert "Pydantic ekle" in captured_prompt["content"]
     assert "Kullanıcı düzeltme isteği" in captured_prompt["content"]

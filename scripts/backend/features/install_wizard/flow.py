@@ -250,9 +250,8 @@ async def _finalize(chat_id: str, data: dict[str, Any], lang: str) -> None:
         await messenger.send_text(chat_id, t("install_wizard.env_write_failed", lang))
         return
 
-    # 2. Send TOTP QR codes (best-effort; falls back to text on failure).
+    # 2. Send TOTP QR code (best-effort; falls back to text on failure).
     await _send_totp_qr(chat_id, "owner", settings.totp_secret.get_secret_value(), lang)
-    await _send_totp_qr(chat_id, "admin", settings.totp_secret_admin.get_secret_value(), lang)
 
     # 3. Completion message + restart instruction.
     await messenger.send_text(chat_id, t("install_wizard.done", lang))

@@ -131,7 +131,7 @@ async def _do_restart() -> None:
 
 class RestartCommand:
     cmd_id      = "/restart"
-    perm        = Perm.OWNER_ADMIN_TOTP
+    perm        = Perm.OWNER_TOTP
     button_id   = "cmd_restart"
     label       = "Servisleri Yeniden Başlat"
     description = "Servisleri ortama göre yeniden başlatır (systemd | docker | pm2)."

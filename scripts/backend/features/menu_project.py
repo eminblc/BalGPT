@@ -152,7 +152,7 @@ async def _hp_project_delete_confirm(sender: str, project_id: str, session: dict
     if not project:
         await _get_messenger().send_text(sender, t("menu.project_not_found", session.get("lang", "tr"), id=project_id))
         return
-    session.start_admin_totp(cmd=f"/project-delete {project_id}")
+    session.start_totp(cmd=f"/project-delete {project_id}")
     await _get_messenger().send_text(
         sender,
         t("menu.project_delete_totp", session.get("lang", "tr"), name=project["name"]),

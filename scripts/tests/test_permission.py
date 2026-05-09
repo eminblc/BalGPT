@@ -122,19 +122,3 @@ def test_verify_totp_non_ascii_secret_returns_false(mgr):
         mock_secret.get_secret_value.return_value = "JBSWY3DP\u00e9HPK3PXP"
         s.totp_secret = mock_secret
         assert mgr.verify_totp("123456") is False
-
-
-# ── verify_admin_totp ─────────────────────────────────────────────
-
-def test_verify_admin_totp_no_secret_returns_false(mgr):
-    with patch("backend.guards.permission.settings") as s:
-        s.totp_secret_admin = None
-        assert mgr.verify_admin_totp("123456") is False
-
-
-def test_verify_admin_totp_empty_code_returns_false(mgr):
-    with patch("backend.guards.permission.settings") as s:
-        mock_secret = MagicMock()
-        mock_secret.get_secret_value.return_value = "JBSWY3DPEHPK3PXP"
-        s.totp_secret_admin = mock_secret
-        assert mgr.verify_admin_totp("") is False

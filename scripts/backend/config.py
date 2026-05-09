@@ -29,8 +29,7 @@ class Settings(BaseSettings):
 
     # ── API güvenliği ─────────────────────────────────────────────
     api_key: SecretStr = SecretStr("")           # X-Api-Key header
-    totp_secret: SecretStr = SecretStr("")       # Owner TOTP doğrulaması için (rutin işlemler)
-    totp_secret_admin: SecretStr = SecretStr("") # Admin TOTP — yalnızca yıkıcı komutlar için (shutdown, restart, root-reset)
+    totp_secret: SecretStr = SecretStr("")       # Owner TOTP doğrulaması için (tüm komutlar)
 
     # ── Claude Code Bridge ────────────────────────────────────────
     claude_bridge_url: str = "http://127.0.0.1:8013"
@@ -139,7 +138,7 @@ class Settings(BaseSettings):
     desktop_recording_max_mb: int = 16  # WhatsApp video boyut limiti MB; büyükse yalnızca path döner
     desktop_screenshot_max_width: int = 1280  # Screenshot'lar bu genişliğe resize edilir (0 = kapalı)
     desktop_vision_max_per_session: int = 15  # 5 dk sliding window içinde max vision_query
-    desktop_totp_ttl_seconds: int = 900  # Admin TOTP unlock TTL (saniye); süre dolunca tekrar TOTP istenir
+    desktop_totp_ttl_seconds: int = 900  # Desktop TOTP unlock TTL (saniye); süre dolunca tekrar TOTP istenir
 
     # ── Tarayıcı Otomasyonu (FEAT-13 / FEAT-15) ─────────────────
     browser_enabled:  bool = True   # False → tüm /internal/browser aksiyonları devre dışı

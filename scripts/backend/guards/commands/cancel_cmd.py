@@ -1,6 +1,6 @@
 """/cancel — aktif TOTP / doğrulama akışını, bekleyen işlemi veya Bridge sorgusunu iptal et.
 
-TOTP bekleme durumları (awaiting_totp, awaiting_admin_totp, awaiting_math_challenge,
+TOTP bekleme durumları (awaiting_totp, awaiting_math_challenge,
 awaiting_guardrail_confirm) whatsapp_router'da /cancel cancel-word olarak da
 yakalanır; bu komut ek güvence olarak residual state'leri de temizler.
 
@@ -50,7 +50,6 @@ class CancelCommand:
         # ama /cancel bu koda ulaştıysa hâlâ kalan state olabilir)
         auth_keys = (
             "awaiting_totp",
-            "awaiting_admin_totp",
             "awaiting_math_challenge",
             "awaiting_guardrail_confirm",
         )

@@ -188,7 +188,7 @@ A complete inventory of every capability built into the personal AI agent — fe
 
 **Dangerous command detection:** GUARDRAILS.md hint words + `_EXTRA_DANGEROUS` set (60+ tokens)  
 **API endpoint:** `POST /internal/terminal` (localhost-only)  
-**Restriction:** Dangerous commands require admin TOTP when invoked via `!terminal`.
+**Restriction:** Dangerous commands require owner TOTP when invoked via `!terminal`.
 
 ---
 
@@ -326,12 +326,12 @@ MIME type is auto-detected from extension: `image/*` → photo, `video/*` → vi
 | `!history` | `history_cmd.py` | OWNER | Shows recent message history |
 | `!project` | `project_focus_cmd.py` | OWNER | Sets / shows active project |
 | `!root-reset` | `root_reset_cmd.py` | OWNER | Resets Bridge session |
-| `!restart` | `restart_cmd.py` | OWNER | Restarts services (math challenge + admin TOTP) |
-| `!shutdown` | `shutdown_cmd.py` | OWNER | Stops FastAPI service (math challenge + admin TOTP) |
+| `!restart` | `restart_cmd.py` | OWNER | Restarts services (math challenge + owner TOTP) |
+| `!shutdown` | `shutdown_cmd.py` | OWNER | Stops FastAPI service (math challenge + owner TOTP) |
 | `!schedule` | `schedule_cmd.py` | OWNER | Scheduled task management (list/delete/detail) |
 | `!root-check` | `root_check_cmd.py` | OWNER | Shows last 5 lines of `root_actions.log` |
 | `!beta` | `beta_exit.py` | OWNER | Exits project beta mode |
-| `!project-delete` | `project_delete_cmd.py` | OWNER | Removes project from DB (math challenge + admin TOTP; filesystem untouched) |
+| `!project-delete` | `project_delete_cmd.py` | OWNER | Removes project from DB (math challenge + owner TOTP; filesystem untouched) |
 | `!root-project` | `root_project_cmd.py` | OWNER | Assigns active project context to root agent |
 | `!root-exit` | `root_exit_cmd.py` | OWNER | Exits root project context |
 | `!cancel` | `cancel_cmd.py` | OWNER | Cancels active TOTP flow, pending action, or in-progress Bridge query |
@@ -339,7 +339,7 @@ MIME type is auto-detected from extension: `image/*` → photo, `video/*` → vi
 | `!model` | `model_cmd.py` | OWNER | Changes LLM model at runtime (persists until restart) |
 | `!lock` | `lock_cmd.py` | OWNER | Locks the application (TOTP required); only `!unlock` works while locked |
 | `!unlock` | `unlock_cmd.py` | OWNER | Unlocks the application (TOTP required); auto-locked at service start |
-| `!terminal` | `terminal_cmd.py` | OWNER | Runs a shell command (dangerous commands require admin TOTP) |
+| `!terminal` | `terminal_cmd.py` | OWNER | Runs a shell command (dangerous commands require owner TOTP) |
 | `!timezone` | `timezone_cmd.py` | OWNER | Changes timezone (IANA format; APScheduler is reconfigured) |
 
 **Total:** 19 commands
@@ -409,7 +409,7 @@ MIME type is auto-detected from extension: `image/*` → photo, `video/*` → vi
 | `DELETE /internal/schedule/{id}` | `internal_router.py` | Delete a task |
 | `GET /internal/schedules` | `internal_router.py` | List tasks |
 | `PUT /internal/schedule/{id}` | `internal_router.py` | Update a task |
-| `POST /internal/verify-admin-totp` | `internal_router.py` | Verify admin TOTP code |
+| `POST /internal/verify-admin-totp` | `internal_router.py` | Verify owner TOTP code (URL preserved for bridge compatibility) |
 
 ### 5.2 Agent API (`X-Api-Key` header required)
 

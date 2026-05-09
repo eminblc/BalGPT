@@ -70,7 +70,7 @@ class RootLogCommand:
                 await get_messenger().send_text(sender, t("root_check.error", lang, error="Log verisi parse edilemedi"))
                 return
 
-            msg = "📋 **Root İşlem Geçmişi (Son 5)**\n\n" + "\n\n".join(formatted)
+            msg = t("root_log.header", lang) + "\n\n".join(formatted)
             await get_messenger().send_text(sender, msg)
         except Exception as e:
             await get_messenger().send_text(sender, t("root_check.error", lang, error=e))

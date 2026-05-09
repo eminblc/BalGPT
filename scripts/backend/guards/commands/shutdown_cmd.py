@@ -15,7 +15,7 @@ _PM2_APPS = ["99-bridge", "99-api"]
 
 class ShutdownCommand:
     cmd_id      = "/shutdown"
-    perm        = Perm.OWNER_ADMIN_TOTP
+    perm        = Perm.OWNER_TOTP
     button_id   = "cmd_shutdown"
     label       = "Sunucuyu Kapat"
     description = "Servisleri ortama göre durdurur (systemd | docker | pm2)."

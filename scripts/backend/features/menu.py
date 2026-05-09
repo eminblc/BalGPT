@@ -197,9 +197,14 @@ async def _h_menu_status(sender: str, session: dict) -> None:
     await _get_messenger().send_text(sender, msg)
 
 
+async def _h_noop(_sender: str, _session: dict) -> None:
+    """Section başlığı butonları — tıklanırsa sessizce yoksay."""
+
+
 # ── Exact-match dispatch table ────────────────────────────────────────────
 
 _EXACT: dict[str, Callable] = {
+    "noop":                  _h_noop,
     "menu_chat":             _h_menu_chat,
     "menu_plans":            _h_menu_plans,
     "menu_projects":         _h_menu_projects,

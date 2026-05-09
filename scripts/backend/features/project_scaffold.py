@@ -5,7 +5,19 @@ Veri erişimi yok; dosya sistemi işlemleri bu modüle aittir.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
+
+
+def _ensure_writable(path: Path) -> None:
+    """Docker: API root olarak çalışır, Bridge claude (UID 1001) olarak.
+    Yeni dizinler root:root 755 oluşturulur; Bridge yazamaz.
+    chmod 777 ile "other" yazma bitini açarak Bridge erişimini sağla.
+    """
+    try:
+        os.chmod(path, 0o777)
+    except OSError:
+        pass
 
 
 def _build_md_content(
@@ -63,19 +75,28 @@ def _scaffold_project(
     mds=[…]  → yalnızca belirtilen dosyalar.
     """
     project_dir.mkdir(parents=True, exist_ok=True)
+    _ensure_writable(project_dir)
 
     if level == "full":
-        (project_dir / "src").mkdir(exist_ok=True)
-        (project_dir / "tests").mkdir(exist_ok=True)
-        (project_dir / "outputs").mkdir(exist_ok=True)
+        for sub in ("src", "tests", "outputs"):
+            subdir = project_dir / sub
+            subdir.mkdir(exist_ok=True)
+            _ensure_writable(subdir)
         effective_mds = mds if mds is not None else ["CLAUDE.md", "AGENT.md", "BACKLOG.md", "README.md"]
 
     elif level == "minimal":
-        (project_dir / "outputs").mkdir(exist_ok=True)
+        outputs = project_dir / "outputs"
+        outputs.mkdir(exist_ok=True)
+        _ensure_writable(outputs)
         effective_mds = mds if mds is not None else ["README.md"]
 
     else:  # "none"
         effective_mds = mds if mds is not None else []
+
+    if ai_overrides:
+        for forced in ("CLAUDE.md", "README.md"):
+            if forced not in effective_mds:
+                effective_mds = list(effective_mds) + [forced]
 
     for filename in effective_mds:
         content = _build_md_content(filename, name, description, project_dir, ai_overrides)

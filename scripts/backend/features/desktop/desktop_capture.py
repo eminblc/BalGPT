@@ -95,8 +95,8 @@ def _mss_capture_to_bytes_sync(
         logger.debug("mss kurulu değil — scrot fallback kullanılacak")
         return None
 
-    # mss DISPLAY'i os.environ'dan okur; executor thread içinde güvenle set edilir
-    # (x11_lock serileştirdiğinden eşzamanlı değişiklik riski yok)
+    # mss DISPLAY/XAUTHORITY'yi yalnızca os.environ'dan okur; Display() API'si yok.
+    # x11_lock bu blok boyunca serialize ettiği için thread-safety sağlanır.
     os.environ["DISPLAY"] = display
     if xauth:
         os.environ["XAUTHORITY"] = xauth

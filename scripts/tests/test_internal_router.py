@@ -24,7 +24,7 @@ async def test_localhost_access_allowed():
     """127.0.0.1'den gelen istek → erişim izni (geçerli TOTP mock'u ile)."""
     app = _make_app()
     mock_perm = MagicMock()
-    mock_perm.verify_admin_totp.return_value = True
+    mock_perm.verify_totp.return_value = True
     with patch("backend.routers.internal_router.get_perm_mgr", return_value=mock_perm), \
          patch("backend.store.sqlite_store.totp_get_lockout", AsyncMock(return_value=(0, 0.0))), \
          patch("backend.store.sqlite_store.totp_reset_lockout", AsyncMock(return_value=None)):
@@ -86,7 +86,7 @@ async def test_no_client_blocked():
 async def test_valid_admin_totp_returns_true():
     app = _make_app()
     mock_perm = MagicMock()
-    mock_perm.verify_admin_totp.return_value = True
+    mock_perm.verify_totp.return_value = True
     with patch("backend.routers.internal_router.get_perm_mgr", return_value=mock_perm), \
          patch("backend.store.sqlite_store.totp_get_lockout", AsyncMock(return_value=(0, 0.0))), \
          patch("backend.store.sqlite_store.totp_reset_lockout", AsyncMock(return_value=None)):
@@ -102,7 +102,7 @@ async def test_valid_admin_totp_returns_true():
 async def test_invalid_admin_totp_returns_false():
     app = _make_app()
     mock_perm = MagicMock()
-    mock_perm.verify_admin_totp.return_value = False
+    mock_perm.verify_totp.return_value = False
     with patch("backend.routers.internal_router.get_perm_mgr", return_value=mock_perm), \
          patch("backend.store.sqlite_store.totp_get_lockout", AsyncMock(return_value=(0, 0.0))), \
          patch("backend.store.sqlite_store.totp_record_failure", AsyncMock(return_value=(1, None))):

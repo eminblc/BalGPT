@@ -132,25 +132,28 @@ class TelegramMessenger:
     async def send_list(self, to: str, text: str, sections: list[dict]) -> None:
         """sections'ı InlineKeyboard butonları olarak gönder.
 
-        Her bölüm başlığı ayrı bir satır butonu olarak gösterilir, ardından
-        o bölümün satır butonları gelir.
+        Section başlıkları keyboard içinde tam genişlik ayraç satırı olarak
+        gösterilir; içerik satırları 2'li gruplara yerleştirilir.
         """
         keyboard: list[list[dict]] = []
         for section in sections:
             section_title = section.get("title", "")
             if section_title:
                 keyboard.append([{"text": f"── {section_title} ──", "callback_data": "noop"}])
-            for row in section.get("rows", []):
-                btn_text = row.get("title", "")
-                callback = row.get("id", "noop")
-                keyboard.append([{"text": btn_text, "callback_data": callback}])
+            rows = section.get("rows", [])
+            for i in range(0, len(rows), 2):
+                pair = rows[i : i + 2]
+                keyboard.append([
+                    {"text": r.get("title", ""), "callback_data": r.get("id", "noop")}
+                    for r in pair
+                ])
 
         async with httpx.AsyncClient(timeout=15) as client:
             res = await client.post(
                 f"{self._base}/sendMessage",
                 json={
                     "chat_id": to,
-                    "text": text,
+                    "text": text or "​",
                     "parse_mode": "Markdown",
                     "reply_markup": {"inline_keyboard": keyboard},
                 },

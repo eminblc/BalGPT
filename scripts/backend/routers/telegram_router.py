@@ -50,11 +50,6 @@ from ..app_types import InboundMessage
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# tg_name → cmd_id haritası — ilk kullanımda lazy doldurulur.
-# setMyCommands ile kayıtlı komutların ters çevirimi için kullanılır.
-_TG_COMMAND_MAP: dict[str, str] = {}
-
-
 def _resolve_tg_command(text: str) -> str:
     """Telegram slash komutunu /komut formatına çevirir.
 
@@ -65,12 +60,10 @@ def _resolve_tg_command(text: str) -> str:
     """
     if not text.startswith("/"):
         return text
-    global _TG_COMMAND_MAP
-    if not _TG_COMMAND_MAP:
-        _TG_COMMAND_MAP = build_tg_command_map()
+    tg_map = build_tg_command_map()  # lru_cache — ilk çağrıdan sonra bedava
     parts = text[1:].split(None, 1)
     tg_name = parts[0].lower().split("@")[0]  # /cmd@botname → cmd
-    cmd_id = _TG_COMMAND_MAP.get(tg_name)
+    cmd_id = tg_map.get(tg_name)
     remainder = (" " + parts[1]) if len(parts) > 1 else ""
     if cmd_id:
         return cmd_id + remainder
@@ -177,10 +170,12 @@ async def _handle_update(
             logger.debug("Telegram update'te from.id yok, atlanıyor")
             return
 
-        msg_type = _classify_tg_message(msg)
-        text     = msg.get("text", "").strip() if msg_type == "text" else ""
-        text     = _resolve_tg_command(text)
+        msg_type   = _classify_tg_message(msg)
+        text       = msg.get("text", "").strip() if msg_type == "text" else ""
+        text       = _resolve_tg_command(text)
         extra_desc = _describe_tg_media(msg, msg_type)
+        file_id    = _extract_tg_file_id(msg, msg_type)
+        raw_payload = {**update, "tg_file_id": file_id} if file_id else update
 
         await _process(
             sender=sender,
@@ -189,7 +184,7 @@ async def _handle_update(
             text=text,
             reply_id="",
             extra_desc=extra_desc,
-            raw_payload=update,
+            raw_payload=raw_payload,
             guard_chain=guard_chain,
             s_mgr=s_mgr,
         )
@@ -280,11 +275,23 @@ def _classify_tg_message(msg: dict) -> str:
     return "unknown"
 
 
-def _describe_tg_media(msg: dict, msg_type: str) -> str:
-    """Medya içeren Telegram mesajları için açıklama metni üretir.
+def _extract_tg_file_id(msg: dict, msg_type: str) -> str | None:
+    """Telegram message nesnesinden file_id çıkar; medya olmayan tiplerde None döner."""
+    if msg_type == "image":
+        photos = msg.get("photo", [])
+        return photos[-1]["file_id"] if photos else None
+    if msg_type == "audio":
+        media_obj = msg.get("voice") or msg.get("audio")
+        return (media_obj or {}).get("file_id")
+    if msg_type == "video":
+        return (msg.get("video") or {}).get("file_id")
+    if msg_type == "document":
+        return (msg.get("document") or {}).get("file_id")
+    return None
 
-    Telegram'da medya indirme henüz desteklenmiyor; metin açıklaması Bridge'e iletilir.
-    """
+
+def _describe_tg_media(msg: dict, msg_type: str) -> str:
+    """Medya içeren Telegram mesajları için açıklama metni üretir."""
     caption = msg.get("caption", "")
     if msg_type == "image":
         return f"[Kullanıcı fotoğraf gönderdi{': ' + caption if caption else ''}]"

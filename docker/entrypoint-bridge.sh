@@ -8,9 +8,35 @@ WARN="[⚠]"
 ERR="[✗]"
 INFO="[→]"
 
+# ── 0. root ise: bind-mount'ları chown'la, sonra claude'a düş ────────────────
+# Cross-platform fix: Docker Desktop (Windows/Mac) bind-mount'larda host UID'sini
+# container'a yansıtmaz; ./data/* dizinleri claude (UID 1001) için yazılamaz olur.
+# Çözüm: root olarak chown'la, sonra gosu ile claude:claude'a exec et.
+# Claude CLI --permission-mode bypassPermissions root ile çalışmaz — drop zorunlu.
+if [ "$(id -u)" = "0" ]; then
+  echo ""
+  echo "$INFO Root olarak başladı — bind-mount sahiplikleri ayarlanıyor..."
+  # Sadece bridge'in yazdığı dizinleri chown'la (API /app/data altına ortak yazmaz).
+  # /home/claude — image içinde zaten claude:claude; bind-mount overlay'de yeniden gerekli.
+  # |true: Windows/Mac single-file mount'larda chown sessizce başarısız olabilir.
+  chown -R claude:claude \
+    /app/data/projects \
+    /app/data/media \
+    /app/data/claude_sessions \
+    /app/data/conv_history \
+    /home/claude 2>/dev/null || true
+  # .claude.json bind-mount: dosya host'ta ise chown no-op, ama yazılabilir kalır.
+  if [ -f /home/claude/.claude.json ]; then
+    chown claude:claude /home/claude/.claude.json 2>/dev/null || true
+  fi
+  echo "  $OK Sahiplikler ayarlandı (chown -> claude:claude)"
+  echo "  $INFO claude user'a düşülüyor (gosu)..."
+  exec gosu claude:claude "$0" "$@"
+fi
+
 echo ""
 echo "=================================================="
-echo "  personal-agent Bridge — başlatılıyor"
+echo "  personal-agent Bridge — başlatılıyor (UID $(id -u))"
 echo "=================================================="
 
 # ── 1. Veri dizinleri ─────────────────────────────────────────────
@@ -29,18 +55,16 @@ done
 echo "  $OK Dizinler hazır"
 
 # ── 1b. Yazma izinleri kontrolü ──────────────────────────────────
-# install.sh chown'ını atlayan ortamlarda (Docker Desktop on Mac/Windows,
-# hatalı UID eşlemesi) Claude CLI session ve conv_history yazamaz,
-# sorgular epoll_wait'te askıda kalır. Fail-fast ile erken uyar.
+# Root prelude chown'ladıktan sonra burası geçmeli. Geçmezse mount yapısı
+# beklenmedik (read-only mount, full-disk vs.) — fail-fast ile erken uyar.
 echo ""
 echo "$INFO Yazma izinleri kontrol ediliyor..."
 WRITE_OK=true
 for dir in /app/data/claude_sessions /app/data/conv_history /home/claude/.claude; do
   if ! touch "$dir/.writetest" 2>/dev/null; then
-    echo "  $ERR $dir yazılabilir değil — UID $(id -u) sahipliği yok"
-    echo "  $INFO Host'ta düzeltmek için:"
-    echo "    sudo chown -R 1001:1001 ./data/claude_sessions ./data/conv_history"
-    echo "    ~/.claude için: docker compose down && docker compose up -d (Dockerfile.bridge RUN chown ile)"
+    echo "  $ERR $dir yazılabilir değil — beklenmedik durum (root chown başarısız oldu?)"
+    echo "  $INFO Container'ı root olarak başlatın veya mount'ları kontrol edin:"
+    echo "    docker compose down && docker compose up -d --build"
     WRITE_OK=false
   else
     rm -f "$dir/.writetest"

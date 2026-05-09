@@ -957,7 +957,7 @@ async def test_terminal_dangerous_cmd_requests_totp():
         await TerminalCommand().execute("905001234567", "rm -rf /tmp/test", session_obj)
 
     session_obj.set_terminal_pending.assert_called_once_with("rm -rf /tmp/test")
-    session_obj.start_admin_totp.assert_called_once_with(cmd="/terminal")
+    session_obj.start_totp.assert_called_once_with(cmd="/terminal")
     mock_messenger.send_text.assert_awaited_once()
 
 
