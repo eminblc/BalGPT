@@ -74,8 +74,8 @@ Sistem tepsisini kontrol edin (sağ alt). Balina simgesi **"Docker Desktop is ru
 Git Bash'te:
 
 ```bash
-git clone https://github.com/your-username/99-root.git
-cd 99-root
+git clone https://github.com/eminblc/BalGPT.git
+cd BalGPT
 ```
 
 ### 3. Adım — Kurulum scriptini çalıştırın
@@ -102,7 +102,7 @@ curl -s http://localhost:8013/health
 
 | Belirti | Çözüm |
 |---------|-------|
-| `bash: install.sh: No such file or directory` | Proje klasöründe değilsiniz. Önce `cd 99-root` yazın. |
+| `bash: install.sh: No such file or directory` | Proje klasöründe değilsiniz. Önce `cd BalGPT` yazın. |
 | `Docker daemon is not running` | Docker Desktop'ı açın, balina simgesinin animasyonu durana kadar bekleyin. |
 | Sihirbaz PowerShell'de açıldı, görüntü bozuk | Script PowerShell'den çalıştırıldı. Kapatın; **Git Bash**'te açın. |
 | `python3: command not found` | Python'u python.org'dan **Add to PATH** seçeneği işaretli olarak yeniden kurun. |
@@ -138,8 +138,8 @@ bash --version | head -1
 ### 1. Adım — Projeyi indirin
 
 ```bash
-git clone https://github.com/your-username/99-root.git
-cd 99-root
+git clone https://github.com/eminblc/BalGPT.git
+cd BalGPT
 ```
 
 ### 2. Adım — Kurulum scriptini çalıştırın
@@ -217,8 +217,8 @@ docker info >/dev/null && echo "Docker OK"
 ### 2. Adım — Projeyi indirin
 
 ```bash
-git clone https://github.com/your-username/99-root.git
-cd 99-root
+git clone https://github.com/eminblc/BalGPT.git
+cd BalGPT
 ```
 
 ### 3. Adım — Kurulum scriptini çalıştırın
@@ -354,8 +354,8 @@ Sihirbaz webhook URL'ini ekrana yazdırır. Telegram + ngrok kombinasyonunda oto
 > Çoğu kullanıcı için önerilen seçenektir. Linux, macOS ve Windows'ta (Git Bash + Docker Desktop) çalışır. Host'ta sihirbazı çalıştırmak için `bash`, `python3` 3.11+ ve `curl` gerekir — bkz. [Ön Koşullar](#ön-koşullar). Node.js host'ta **gerekmez** (Bridge container içinde gelir).
 
 ```bash
-git clone https://github.com/kullanici-adin/99-root.git
-cd 99-root
+git clone https://github.com/eminblc/BalGPT.git
+cd BalGPT
 bash install.sh --docker
 ```
 
@@ -402,8 +402,8 @@ docker compose restart
 > Yerel performans ve otomatik başlatma gerektiren Linux sunucu veya Raspberry Pi kurulumları için önerilir.
 
 ```bash
-git clone https://github.com/kullanici-adin/99-root.git
-cd 99-root
+git clone https://github.com/eminblc/BalGPT.git
+cd BalGPT
 sudo bash install.sh
 ```
 
@@ -433,8 +433,8 @@ bash install.sh --reconfigure-capabilities  # yetenek sihirbazını tekrar çal�
 Systemd kullanılamıyorsa PM2 tercih edin (macOS, Windows WSL, root'suz VPS).
 
 ```bash
-git clone https://github.com/kullanici-adin/99-root.git
-cd 99-root
+git clone https://github.com/eminblc/BalGPT.git
+cd BalGPT
 bash install.sh --pm2
 ```
 
@@ -604,7 +604,7 @@ Ayrıntılar için bkz. [docs/deployment/byok.md](docs/deployment/byok.md).
 
 | Mod | Ek gereksinim |
 |-----|---------------|
-| **Docker** (Seçenek A) | Docker Engine + Docker Compose v2 (`docker compose version`); host'ta `claude` CLI (eksikse install.sh `npm` ile otomatik kurar) |
+| **Docker** (Seçenek A) | Docker Engine + Docker Compose v2 (`docker compose version`). Node.js ve `claude` CLI **Bridge container'ı içinde** çalışır — host'a kurmaya gerek yoktur. |
 | **systemd** (Seçenek B) | Node.js 18+; `sudo` erişimi; `claude` CLI |
 | **PM2** (Seçenek C) | Node.js 18+; `claude` CLI; `npm install -g pm2` (script tarafından kurulur) |
 
@@ -615,7 +615,6 @@ Ayrıntılar için bkz. [docs/deployment/byok.md](docs/deployment/byok.md).
 | `whiptail` | Sihirbaz düz metin moduna geçer (işlevsel olmaya devam eder) |
 | `qrencode` **veya** `python3-venv` | TOTP QR terminalde gösterilir. Her ikisi de yoksa online QR URL + manuel anahtar talimatı gösterilir. Debian/Ubuntu'da `python3-venv` ayrı pakettir: `sudo apt install python3-venv` |
 | `openssl` | Kriptografik rastgele anahtar üretimi için (`API_KEY`, TOTP secret). Eksikse `date +%s%N \| sha256sum` kullanılır (daha düşük entropi). |
-| `node` + `npm` (Docker modu) | `claude` CLI otomatik kurulumu için. Yoksa Bridge başlamadan önce Claude CLI manuel olarak kurulmalıdır. |
 
 ### Platform notları
 

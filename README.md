@@ -74,8 +74,8 @@ Look at the system tray (bottom right). Whale icon should say **"Docker Desktop 
 In Git Bash:
 
 ```bash
-git clone https://github.com/your-username/99-root.git
-cd 99-root
+git clone https://github.com/eminblc/BalGPT.git
+cd BalGPT
 ```
 
 ### Step 3 — Run the installer
@@ -102,7 +102,7 @@ Both `curl` commands should print JSON containing `"status":"ok"`. Then **send a
 
 | Symptom | Fix |
 |---------|-----|
-| `bash: install.sh: No such file or directory` | You're not in the project folder. Run `cd 99-root` first. |
+| `bash: install.sh: No such file or directory` | You're not in the project folder. Run `cd BalGPT` first. |
 | `Docker daemon is not running` | Open Docker Desktop and wait for the whale icon to stop animating. |
 | Wizard appears in PowerShell and looks broken | You ran the script from PowerShell. Close it; open **Git Bash** instead. |
 | `python3: command not found` | Reinstall Python from python.org with ☑ **Add to PATH** checked. |
@@ -138,8 +138,8 @@ bash --version | head -1   # 3+ on macOS is fine; install.sh handles it
 ### Step 1 — Download the project
 
 ```bash
-git clone https://github.com/your-username/99-root.git
-cd 99-root
+git clone https://github.com/eminblc/BalGPT.git
+cd BalGPT
 ```
 
 ### Step 2 — Run the installer
@@ -219,8 +219,8 @@ docker info >/dev/null && echo "Docker OK"
 ### Step 2 — Download the project
 
 ```bash
-git clone https://github.com/your-username/99-root.git
-cd 99-root
+git clone https://github.com/eminblc/BalGPT.git
+cd BalGPT
 ```
 
 ### Step 3 — Run the installer
@@ -381,8 +381,8 @@ Below sections are detailed reference for the install modes — most users don't
 > Best choice for most users. Works on Linux, macOS, and Windows (Git Bash + Docker Desktop). The host still needs `bash`, `python3` 3.11+, and `curl` to run the install wizard — see [Prerequisites](#prerequisites). Node.js is **not** needed on the host (the Bridge container ships it).
 
 ```bash
-git clone https://github.com/your-username/99-root.git
-cd 99-root
+git clone https://github.com/eminblc/BalGPT.git
+cd BalGPT
 bash install.sh --docker
 ```
 
@@ -429,8 +429,8 @@ docker compose restart
 > Best choice for a dedicated Linux server or Raspberry Pi where you want native performance and automatic startup.
 
 ```bash
-git clone https://github.com/your-username/99-root.git
-cd 99-root
+git clone https://github.com/eminblc/BalGPT.git
+cd BalGPT
 sudo bash install.sh
 ```
 
@@ -460,8 +460,8 @@ bash install.sh --reconfigure-capabilities  # re-run capability wizard and re-sy
 Use PM2 if you don't have systemd (macOS, Windows WSL, VPS without root).
 
 ```bash
-git clone https://github.com/your-username/99-root.git
-cd 99-root
+git clone https://github.com/eminblc/BalGPT.git
+cd BalGPT
 bash install.sh --pm2
 ```
 
@@ -631,7 +631,7 @@ See [docs/deployment/byok.md](docs/deployment/byok.md) for a full setup guide an
 
 | Mode | Extra requirements |
 |------|--------------------|
-| **Docker** (Option A) | Docker Engine + Docker Compose v2 (`docker compose version`); `claude` CLI on host (auto-installed via `npm` if missing) |
+| **Docker** (Option A) | Docker Engine + Docker Compose v2 (`docker compose version`). Node.js and the `claude` CLI run **inside the Bridge container** — no host install needed. |
 | **systemd** (Option B) | Node.js 18+; `sudo` access; `claude` CLI |
 | **PM2** (Option C) | Node.js 18+; `claude` CLI; `npm install -g pm2` (script handles this) |
 
@@ -642,7 +642,6 @@ See [docs/deployment/byok.md](docs/deployment/byok.md) for a full setup guide an
 | `whiptail` | Wizard falls back to plain-text prompts (still works, less friendly) |
 | `qrencode` **or** `python3-venv` | TOTP QR rendered in terminal. Without **both**, you get an online QR URL + manual key entry instructions instead. On Debian/Ubuntu `python3-venv` is a separate package: `sudo apt install python3-venv` |
 | `openssl` | Cryptographic random for `API_KEY` and TOTP secrets. Without it, falls back to `date +%s%N \| sha256sum` (lower entropy) |
-| `node` + `npm` (Docker mode) | Auto-install of `claude` CLI; without these you must install Claude CLI manually before starting Bridge |
 
 ### Platform notes
 
