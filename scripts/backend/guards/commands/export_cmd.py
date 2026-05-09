@@ -4,6 +4,7 @@ Alt komutlar:
   /export              → essential yedek (mesajlar, planlar, takvim, görevler)
   /export full         → tüm veri (medya dahil, sınır yok)
   /export media        → essential + medya dosyaları
+  /export env          → essential + ortam konfigürasyonu (token, webhook vb.)
 
 Akış:
   ExportService.create_backup(scope, /tmp/backup_YYYYMMDD.99rb)
@@ -108,6 +109,8 @@ class ExportCommand:
             return ExportScope.full()
         if sub == "media":
             return ExportScope(include_media=True)
+        if sub == "env":
+            return ExportScope(include_env_config=True)
         return None
 
 

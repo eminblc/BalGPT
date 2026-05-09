@@ -472,7 +472,8 @@
     "import_error": "❌ İçe aktarım hatası: {error}",
     "import_bad_file": "❌ .99rb uzantılı yedek dosyası bekleniyor. Geçersiz dosya.",
     "import_download_error": "❌ Dosya indirilemedi: {error}",
-    "usage": "Kullanım:\n/export — temel yedek\n/export full — tüm veri\n/export media — medya dahil\n/import — .99rb dosyası yükle",
+    "usage": "Kullanım:\n/export — temel yedek\n/export full — tüm veri\n/export media — medya dahil\n/export env — env config (token/webhook dahil)\n/import — .99rb dosyası yükle",
+    "import_env_found": "ℹ️ Ortam konfigürasyonu yedekte bulundu.\ndata/env_config.env dosyasını inceleyin ve scripts/backend/.env dosyanıza birleştirin.",
     "auto_backup_caption": "🔄 Otomatik yedek hazır: {size} KB, {tables} tablo, {files} dosya",
     "auto_backup_error": "❌ Otomatik yedekleme başarısız: {error}"
   }

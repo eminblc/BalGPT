@@ -22,6 +22,7 @@ Dışa aktarılan semboller:
 """
 from ._db_exporter import DbExporter
 from ._db_importer import DbImporter
+from ._env_exporter import EnvExporter
 from ._file_exporter import LocalFileExporter
 from ._file_importer import LocalFileImporter
 from ._manifest import BackupManifest
@@ -48,6 +49,7 @@ __all__ = [
     "DataImporter",
     "DbExporter",
     "DbImporter",
+    "EnvExporter",
     "ExportScope",
     "FileExporter",
     "FileImporter",

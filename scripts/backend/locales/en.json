@@ -472,7 +472,8 @@
     "import_error": "❌ Import error: {error}",
     "import_bad_file": "❌ Expected a .99rb backup file. Invalid file.",
     "import_download_error": "❌ Could not download file: {error}",
-    "usage": "Usage:\n/export — essential backup\n/export full — all data\n/export media — include media\n/import — upload .99rb file",
+    "usage": "Usage:\n/export — essential backup\n/export full — all data\n/export media — include media\n/export env — env config (tokens/webhook)\n/import — upload .99rb file",
+    "import_env_found": "ℹ️ Environment config found in backup.\nReview data/env_config.env and merge it into scripts/backend/.env.",
     "auto_backup_caption": "🔄 Auto-backup ready: {size} KB, {tables} tables, {files} files",
     "auto_backup_error": "❌ Auto-backup failed: {error}"
   }

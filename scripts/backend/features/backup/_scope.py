@@ -44,8 +44,22 @@ class ExportScope:
     include_project_files: bool = True
     """data/projects/ dizinini içerir (CLAUDE.md, BACKLOG.md, kaynak kod)."""
 
+    include_browser_sessions: bool = True
+    """data/browser_sessions/ dizinini içerir — Playwright cookie/oturum dosyaları."""
+
     include_media: bool = False
     """data/media/ dizinini içerir — büyük, varsayılan kapalı."""
+
+    include_env_config: bool = False
+    """Ortam konfigürasyonunu (API token, webhook, messenger ayarları) arşive ekler.
+
+    Dikkat: Bu flag, hassas secret değerleri (token, şifre vb.) yedek dosyasına yazar.
+    Şifreleme etkinse (BACKUP_ENCRYPTION_KEY) değerler AES-256-GCM ile korunur.
+    Şifreleme yoksa plain-text yer alır — dikkatli kullanın.
+
+    Import sonrası değerler data/env_config.env dosyasına yazılır;
+    scripts/backend/.env dosyasına manuel olarak birleştirilmesi gerekir.
+    """
 
     # --- Sınırlamalar ---
     messages_limit: int = 10_000
@@ -93,6 +107,8 @@ class ExportScope:
             "include_token_usage": self.include_token_usage,
             "include_conv_history": self.include_conv_history,
             "include_project_files": self.include_project_files,
+            "include_browser_sessions": self.include_browser_sessions,
             "include_media": self.include_media,
+            "include_env_config": self.include_env_config,
             "messages_limit": self.messages_limit,
         }

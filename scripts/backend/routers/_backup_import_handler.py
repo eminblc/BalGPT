@@ -79,4 +79,14 @@ async def handle_backup_bytes(
     files  = 0  # FileImporter sonucu ImportResult'ta ayrı değil; ileride eklenebilir
 
     await send(sender, t("backup.import_ok", lang, rows=rows, tables=tables, files=files))
+
+    # env_config.env yedekte varsa kullanıcıyı bilgilendir
+    try:
+        from ..config import settings as _settings
+        env_config_path = _settings.resolved_data_dir / "env_config.env"
+        if env_config_path.exists():
+            await send(sender, t("backup.import_env_found", lang))
+    except Exception:
+        pass  # bildirim opsiyonel — ana akışı etkilemez
+
     return True

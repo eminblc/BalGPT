@@ -17,6 +17,7 @@ from pathlib import Path
 
 from .backup._cipher import BackupCipher
 from .backup._db_exporter import DbExporter
+from .backup._env_exporter import EnvExporter
 from .backup._file_exporter import LocalFileExporter
 from .backup._manifest import BackupManifest
 from .backup._protocol import BackupSerializer, DataExporter, FileExporter
@@ -61,11 +62,13 @@ class ExportService:
         file_exporter: FileExporter,
         writer: BackupWriter,
         serializer: BackupSerializer,
+        env_exporter: EnvExporter | None = None,
     ) -> None:
         self._db_exporter = db_exporter
         self._file_exporter = file_exporter
         self._writer = writer
         self._serializer = serializer
+        self._env_exporter = env_exporter
 
     # ------------------------------------------------------------------
     # Public API
@@ -93,6 +96,11 @@ class ExportService:
 
         db_data = await self._db_exporter.export(scope)
         file_data = await self._file_exporter.export(scope)
+
+        if self._env_exporter is not None:
+            env_data = await self._env_exporter.export(scope)
+            if env_data:
+                file_data = {**file_data, **env_data}
 
         manifest = self._build_manifest(scope, db_data, file_data)
 
@@ -160,6 +168,7 @@ def get_export_service() -> ExportService:
         file_exporter=file_exporter,
         writer=writer,
         serializer=serializer,
+        env_exporter=EnvExporter(),
     )
 
 

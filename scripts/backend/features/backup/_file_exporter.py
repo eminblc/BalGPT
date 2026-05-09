@@ -50,8 +50,14 @@ def _resolve_data_dir() -> Path:
 _SCOPE_TO_SUBDIR: dict[str, str] = {
     "include_project_files": "projects",
     "include_conv_history": "conv_history",
+    "include_browser_sessions": "browser_sessions",
     "include_media": "media",
 }
+
+# Her zaman dışa aktarılan tekil dosyalar (varlıkları isteğe bağlı — yoksa atlanır)
+_STANDALONE_FILES: list[str] = [
+    "blacklist.json",
+]
 
 
 class LocalFileExporter:
@@ -105,11 +111,32 @@ class LocalFileExporter:
             added = len(result) - before
             logger.debug("Dizin okundu: %s → %d dosya", subdir, added)
 
+        self._read_standalone_files(result)
+
         logger.info(
             "LocalFileExporter tamamlandı: toplam %d dosya",
             len(result),
         )
         return result
+
+    def _read_standalone_files(self, result: dict[str, bytes]) -> None:
+        """_STANDALONE_FILES listesindeki tekil dosyaları result'a ekler.
+
+        Dosya yoksa sessizce atlanır — opsiyonel varlık.
+        """
+        for filename in _STANDALONE_FILES:
+            file_path = self._data_dir / filename
+            if not file_path.exists() or not file_path.is_file():
+                logger.debug("Tekil dosya yok, atlanıyor: %s", filename)
+                continue
+            if file_path.is_symlink():
+                logger.warning("Sembolik link atlandı: %s", file_path)
+                continue
+            try:
+                result[filename] = file_path.read_bytes()
+                logger.debug("Tekil dosya okundu: %s", filename)
+            except OSError as exc:
+                logger.warning("Tekil dosya okunamadı: %s — %s", filename, exc)
 
     def _read_directory(self, directory: Path, result: dict[str, bytes]) -> None:
         """Dizin altındaki tüm dosyaları result'a ekler.
