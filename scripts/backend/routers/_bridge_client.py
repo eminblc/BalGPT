@@ -27,7 +27,7 @@ from ..store.message_logger import log_bridge_call, log_outbound, _mask_phone
 from ..adapters.messenger.messenger_factory import get_messenger
 from ..i18n import t
 from ..store.sqlite_wrapper import store as _store  # DIP-V3: StoreProtocol uyumlu wrapper
-from ._bridge_helpers import sanitize_filename as _sanitize_filename, CLAUDE_MD_CACHE as _CLAUDE_MD_CACHE
+from ._bridge_helpers import sanitize_filename as _sanitize_filename
 from ..adapters.messenger import TypingMessenger
 
 logger = logging.getLogger(__name__)
@@ -238,7 +238,9 @@ async def _forward_to_main_bridge(
     """Ana mod: 99-root bridge — ConnectError'da retry."""
     from ..guards.runtime_state import get_active_model
     active_model = get_active_model() or settings.default_model
-    body: dict = {"session_id": session_id, "message": text, "init_prompt": _CLAUDE_MD_CACHE}
+    # CTX-LOSS-1: CLAUDE.md gönderilmiyor — Claude Code CLI cwd'deki CLAUDE.md'yi
+    # otomatik yüklüyor; init_prompt'a tekrar koymak çift bağlam (~6800 token/sorgu) yaratıyordu.
+    body: dict = {"session_id": session_id, "message": text, "init_prompt": ""}
     if active_model:
         body["model"] = active_model
     r: httpx.Response | None = None
