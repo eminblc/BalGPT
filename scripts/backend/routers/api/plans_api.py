@@ -16,11 +16,11 @@ _PLANS_DISABLED = HTTPException(
 
 
 class PlanRequest(BaseModel):
-    title: str = Field(..., example="API entegrasyonunu tamamla", description="Plan başlığı")
-    description: str = Field("", example="REST endpoint'leri yaz ve test et", description="Opsiyonel açıklama")
-    priority: int = Field(2, example=2, ge=1, le=4, description="Öncelik: 1=düşük, 2=orta, 3=yüksek, 4=kritik")
-    due_date: float | None = Field(None, example=1714568400.0, description="Bitiş tarihi (unix timestamp UTC), opsiyonel")
-    project_id: str | None = Field(None, example="my-project", description="Proje ID'si, opsiyonel")
+    title: str = Field(..., description="Plan başlığı", json_schema_extra={"example": "API entegrasyonunu tamamla"})
+    description: str = Field("", description="Opsiyonel açıklama", json_schema_extra={"example": "REST endpoint'leri yaz ve test et"})
+    priority: int = Field(2, ge=1, le=4, description="Öncelik: 1=düşük, 2=orta, 3=yüksek, 4=kritik", json_schema_extra={"example": 2})
+    due_date: float | None = Field(None, description="Bitiş tarihi (unix timestamp UTC), opsiyonel", json_schema_extra={"example": 1714568400.0})
+    project_id: str | None = Field(None, description="Proje ID'si, opsiyonel", json_schema_extra={"example": "my-project"})
 
 
 @router.post(

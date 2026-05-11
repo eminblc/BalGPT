@@ -97,10 +97,14 @@ async def test_restart_bridge_service_timeout_kills_process():
     mock_proc = AsyncMock()
     mock_proc.returncode = None
     mock_proc.kill = MagicMock()
-    mock_proc.communicate = AsyncMock(side_effect=asyncio.TimeoutError())
+
+    async def _raising_wait_for(coro, timeout=None):
+        # Coroutine'i temizle; await etmeden bırakmak RuntimeWarning üretir
+        coro.close()
+        raise asyncio.TimeoutError()
 
     with patch("backend.services.bridge_monitor.asyncio.create_subprocess_exec", return_value=mock_proc):
-        with patch("backend.services.bridge_monitor.asyncio.wait_for", side_effect=asyncio.TimeoutError()):
+        with patch("backend.services.bridge_monitor.asyncio.wait_for", new=_raising_wait_for):
             success, msg = await restart_bridge_service()
 
     assert success is False

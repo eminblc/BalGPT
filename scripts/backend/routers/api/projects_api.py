@@ -12,17 +12,17 @@ router = APIRouter(dependencies=COMMON_DEPS, tags=["projects"])
 
 
 class ProjectRequest(BaseModel):
-    name: str = Field(..., example="my-project", description="Proje slug adı (benzersiz)")
-    description: str = Field("", example="REST API geliştirme projesi", description="Opsiyonel açıklama")
+    name: str = Field(..., description="Proje slug adı (benzersiz)", json_schema_extra={"example": "my-project"})
+    description: str = Field("", description="Opsiyonel açıklama", json_schema_extra={"example": "REST API geliştirme projesi"})
     level: str = Field(
         "full",
-        example="full",
         description="Scaffold seviyesi: 'full' (CLAUDE.md + scripts + README), 'minimal' (sadece CLAUDE.md), 'none' (boş dizin)",
+        json_schema_extra={"example": "full"},
     )
 
 
 class BetaRequest(BaseModel):
-    sender: str = Field(..., example="905301083815", description="WhatsApp numarası veya Telegram chat_id — yetki kontrolü için")
+    sender: str = Field(..., description="WhatsApp numarası veya Telegram chat_id — yetki kontrolü için", json_schema_extra={"example": "905301083815"})
 
 
 @router.post(

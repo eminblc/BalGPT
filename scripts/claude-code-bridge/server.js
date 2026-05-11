@@ -492,7 +492,7 @@ function readActiveRootProjectInfo(ctx) {
   }
 }
 
-function buildInitPrompt(projectClaudeMd = "", convHistory = [], userMessage = "", sessionId = "") {
+function buildInitPrompt(projectClaudeMd = "", convHistory = [], userMessage = "", sessionId = "", isResumed = false) {
   const activeCtx = readActiveContext();
   const activeCtxSection = formatActiveContext(activeCtx);
   const guardrailsSection = readGuardrailHeaders();
@@ -521,6 +521,29 @@ function buildInitPrompt(projectClaudeMd = "", convHistory = [], userMessage = "
     ? `⚠️ CLAUDE.md boyutu: ${claudeMdLines} satır — eşik (${CLAUDE_MD_LINE_WARN}) aşıldı, büyümeyi yavaşlat.`
     : `CLAUDE.md boyutu: ${claudeMdLines} satır (eşik: ${CLAUDE_MD_LINE_WARN})`;
 
+  // CTX-LOSS-2: Devam eden (resumed) oturumda yalnızca dinamik bölümleri gönder.
+  // Statik bölümler (KESİN YASAKLAR, guardrails, WhatsApp talimatı, coreFiles vb.)
+  // Anthropic tarafında oturum geçmişinde zaten mevcut — tekrar göndermek token israfı.
+  if (isResumed) {
+    const dynamicDate = `# currentDate\nToday's date is ${new Date().toISOString().slice(0, 10)}.`;
+    const dynamicSize = claudeMdLines > CLAUDE_MD_LINE_WARN
+      ? `# claudeMdSize\n${claudeMdSizeNote}`
+      : "";
+    let result = [dynamicDate, dynamicSize, activeCtxSection].filter(Boolean).join("\n");
+    if (convHistorySection) result += `\n---\n${convHistorySection}`;
+    if (userMessage) {
+      const ctxHint = buildContextHint(userMessage, contextRoutesPath);
+      if (ctxHint) result += `\n---\n${ctxHint}`;
+      const bHint = buildBrowserHint(userMessage);
+      if (bHint) result += `\n---\n${bHint}`;
+    }
+    if (sessionId) {
+      const repeatWarn = buildRepeatReadWarning(sessionId);
+      if (repeatWarn) result += `\n---\n${repeatWarn}`;
+    }
+    return result;
+  }
+
   // Ajan rolü ve proje kök dizini: root proje aktifse o projenin ajanı gibi davran
   const agentIntro = hasActiveRootProject
     ? `Sen **${activeRootProject.name}** projesinin AI ajanısın. Claude Code CLI üzerinden çalışıyorsun.
@@ -542,11 +565,11 @@ Proje kök dizini: ${ROOT_DIR}`;
 - scripts/backend/       → FastAPI uygulaması
 - outputs/logs/          → Loglar`;
 
+  // CTX-LOSS-3: Sabit bölümler önce (Anthropic prefix-cache'i için), dinamik bölümler sonda.
+  // currentDate ve claudeMdSizeNote artık coreFilesSection'dan sonra — bu sayede statik
+  // prefix (agentIntro + KESİN YASAKLAR + guardrails + Kod Kalitesi + coreFiles + Bağlamı Güncelle)
+  // günlük olarak değişmez ve Anthropic tarafında önbelleğe alınabilir.
   const base = `${agentIntro}
-# currentDate
-Today's date is ${new Date().toISOString().slice(0, 10)}.
-# claudeMdSize
-${claudeMdSizeNote}
 
 ## WhatsApp Bildirimi — Yalnızca araç kullanımında
 Bash, dosya okuma/yazma gibi araç çağrıları yaparken (sohbet/soru yanıtında HAYIR):
@@ -572,14 +595,18 @@ ${guardrailsSection}
 
 ${coreFilesSection}
 
-${activeCtxSection}
-
 ## Bağlamı Güncelle (ÖNEMLİ)
 Her araç çağrısından sonra (dosya oluşturma/düzenleme/bash) ${ACTIVE_CONTEXT_PATH} dosyasını güncelle:
 - \`last_actions\`: Bu işlemi ekle → \`{ts: "ISO8601", summary: "tek cümle", tool: "Edit|Bash|Write"}\` (max 5)
 - \`last_files\`: Etkilenen dosyaları ekle → \`{path: "...", op: "created|edited", ts: "ISO8601"}\` (max 5)
 - \`session_note\`: Bir sonraki oturum için önemli not (isteğe bağlı)
 Listedeki en eski girişi çıkar, yenisini ekle.
+# currentDate
+Today's date is ${new Date().toISOString().slice(0, 10)}.
+# claudeMdSize
+${claudeMdSizeNote}
+
+${activeCtxSection}
 `;
 
   let result = base;
@@ -1107,7 +1134,9 @@ app.post("/query", authenticate, async (req, res) => {
 
   // Oturum sıfırlanmışsa (ya da ilk kez başlıyorsa) önceki konuşmayı bağlam olarak ekle.
   const convHistory = isNew ? loadConvHistory(session_id) : [];
-  const initPrompt = buildInitPrompt(init_prompt, convHistory, message, session_id);
+  // CTX-LOSS-2: Devam eden oturumda yalnızca dinamik bölümler; statik base Anthropic
+  // geçmişinde zaten mevcut. Yeni / sıfırlanmış oturumda tam init_prompt gönderilir.
+  const initPrompt = buildInitPrompt(init_prompt, convHistory, message, session_id, !isNew);
 
   // init_prompt her zaman eklenir: yeni session'da ilk kurulum, eski session'da
   // Anthropic tarafında oturum süresi dolmuşsa bağlam kaybolmasın.

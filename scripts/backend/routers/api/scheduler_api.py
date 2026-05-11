@@ -21,26 +21,26 @@ _SCHEDULER_DISABLED = HTTPException(
 
 
 class ScheduleRequest(BaseModel):
-    description: str = Field(..., example="Her sabah 9'da haber özeti", description="İş açıklaması")
+    description: str = Field(..., description="İş açıklaması", json_schema_extra={"example": "Her sabah 9'da haber özeti"})
     action_type: str = Field(
         "run_bridge",
-        example="run_bridge",
         description="'run_bridge' — mesajı Bridge'e gönder (Claude yanıtlar), 'send_message' — metni doğrudan kullanıcıya gönder",
+        json_schema_extra={"example": "run_bridge"},
     )
     message: str = Field(
         "",
-        example="Bugünkü haber özetini hazırla",
         description="Bridge'e gönderilecek prompt (run_bridge) veya kullanıcıya gönderilecek metin (send_message). Boşsa description kullanılır.",
+        json_schema_extra={"example": "Bugünkü haber özetini hazırla"},
     )
     cron_expr: Optional[str] = Field(
         None,
-        example="0 9 * * *",
         description="Cron ifadesi — yerel saat (TIMEZONE ayarına göre). cron_expr XOR run_at.",
+        json_schema_extra={"example": "0 9 * * *"},
     )
     run_at: Optional[float] = Field(
         None,
-        example=1714654800.0,
         description="Tek seferlik çalışma zamanı (Unix timestamp UTC). cron_expr XOR run_at.",
+        json_schema_extra={"example": 1714654800.0},
     )
 
 

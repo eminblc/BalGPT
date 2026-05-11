@@ -16,11 +16,11 @@ _CALENDAR_DISABLED = HTTPException(
 
 
 class EventRequest(BaseModel):
-    title: str = Field(..., example="Doktor randevusu", description="Etkinlik başlığı")
-    event_time: float = Field(..., example=1714568400.0, description="Unix timestamp (UTC)")
-    description: str = Field("", example="Kardiyoloji kontrolü", description="Opsiyonel açıklama")
-    remind_before_minutes: int = Field(30, example=30, description="Kaç dakika önce hatırlatılsın")
-    recurring: str | None = Field(None, example="daily", description="Tekrar tipi: 'daily', 'weekly', 'monthly' veya None")
+    title: str = Field(..., description="Etkinlik başlığı", json_schema_extra={"example": "Doktor randevusu"})
+    event_time: float = Field(..., description="Unix timestamp (UTC)", json_schema_extra={"example": 1714568400.0})
+    description: str = Field("", description="Opsiyonel açıklama", json_schema_extra={"example": "Kardiyoloji kontrolü"})
+    remind_before_minutes: int = Field(30, description="Kaç dakika önce hatırlatılsın", json_schema_extra={"example": 30})
+    recurring: str | None = Field(None, description="Tekrar tipi: 'daily', 'weekly', 'monthly' veya None", json_schema_extra={"example": "daily"})
 
 
 @router.post(
