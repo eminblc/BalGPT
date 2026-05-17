@@ -286,12 +286,23 @@ async def _forward_to_main_bridge(
 ) -> httpx.Response:
     """Ana mod: 99-root bridge — ConnectError'da retry."""
     from ..guards.runtime_state import get_active_model
+    from ..app_types import ACTIVE_CONTEXT_PATH
     active_model = get_active_model() or settings.default_model
     # CTX-LOSS-1: CLAUDE.md gönderilmiyor — Claude Code CLI cwd'deki CLAUDE.md'yi
     # otomatik yüklüyor; init_prompt'a tekrar koymak çift bağlam (~6800 token/sorgu) yaratıyordu.
     body: dict = {"session_id": session_id, "message": text, "init_prompt": ""}
     if active_model:
         body["model"] = active_model
+    # ROOT-PROJECT-CTX: active_context.json'dan active_root_project.path oku;
+    # /root-project komutuyla set edilen proje dizinini Bridge'e ilet.
+    try:
+        _ctx_text = ACTIVE_CONTEXT_PATH.read_text(encoding="utf-8")
+        _ctx = _json.loads(_ctx_text)
+        _project_path = (_ctx.get("active_root_project") or {}).get("path", "")
+        if _project_path:
+            body["project_path"] = _project_path
+    except Exception:
+        pass  # JSON parse hatası veya dosya yok — sessizce devam et
     r: httpx.Response | None = None
     for _attempt in range(_BRIDGE_CONNECT_RETRIES):
         try:
