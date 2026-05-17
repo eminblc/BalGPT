@@ -343,6 +343,64 @@ async def _route_interactive(sender: str, reply_id: str, session: dict) -> None:
         await _forward_interactive_to_project(sender, reply_id, session, project_id)
         return
 
+    # ── Komut-özel buton handler'ları ────────────────────────────────────
+    # /lang dil seçim butonları
+    if reply_id.startswith("lang_select_"):
+        code = reply_id[len("lang_select_"):]
+        command = cmd_registry.get("/lang")
+        if command:
+            await command.execute(sender, code, session)
+        return
+
+    # /tokens zaman aralığı butonları
+    if reply_id.startswith("tokens_"):
+        period = reply_id[len("tokens_"):]  # "24h", "7d", "30d"
+        command = cmd_registry.get("/tokens")
+        if command:
+            await command.execute(sender, period, session)
+        return
+
+    # /history mesaj sayısı butonları
+    if reply_id.startswith("history_"):
+        sub = reply_id[len("history_"):]  # "5", "10", "20", "summary"
+        command = cmd_registry.get("/history")
+        if command:
+            await command.execute(sender, sub, session)
+        return
+
+    # /export kapsam butonları
+    if reply_id.startswith("export_"):
+        scope = reply_id[len("export_"):]  # "essential", "full", "media", "env"
+        command = cmd_registry.get("/export")
+        if command:
+            # "essential" → empty arg (ExportCommand._resolve_scope treats "" as essential)
+            await command.execute(sender, "" if scope == "essential" else scope, session)
+        return
+
+    # /scan tip seçim butonları
+    if reply_id.startswith("scan_"):
+        sub = reply_id[len("scan_"):]  # "security", "bugfix", "status"
+        command = cmd_registry.get("/scan")
+        if command:
+            await command.execute(sender, sub, session)
+        return
+
+    # /timezone saat dilimi butonları
+    if reply_id.startswith("tz_"):
+        _TZ_MAP: dict[str, str] = {
+            "tz_Istanbul": "Europe/Istanbul",
+            "tz_London":   "Europe/London",
+            "tz_Berlin":   "Europe/Berlin",
+            "tz_NewYork":  "America/New_York",
+            "tz_Dubai":    "Asia/Dubai",
+        }
+        tz = _TZ_MAP.get(reply_id)
+        if tz:
+            command = cmd_registry.get("/timezone")
+            if command:
+                await command.execute(sender, tz, session)
+        return
+
     await handle_menu_reply(sender, reply_id, session)
 
 
