@@ -10,7 +10,7 @@ import time
 from collections import defaultdict
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
 from ..guards import get_perm_mgr, get_session_mgr
@@ -312,6 +312,26 @@ class ScanTriggerRequest(BaseModel):
     dry_run: bool = False
 
 
+class ScannerTriggerRequest(BaseModel):
+    scan_type: str
+    project_id: str
+    auto_review: bool = True
+    dry_run: bool = False
+
+
+class ReviewerTriggerRequest(BaseModel):
+    run_id: str
+    dry_run: bool = False
+
+
+class BacklogExecuteRequest(BaseModel):
+    project_id: str
+    prefix: str = ""
+    max_items: int = Field(default=3, ge=1, le=20)
+    parallel: int = Field(default=2, ge=1, le=5)
+    dry_run: bool = False
+
+
 @router.post(
     "/scan/trigger",
     summary="Scan pipeline'ı arka planda başlat",
@@ -362,4 +382,140 @@ async def trigger_scan(
         "status": "queued",
         "scan_type": body.scan_type,
         "project_id": body.project_id,
+    }
+
+
+# ── Scanner agent trigger ──────────────────────────────────────────
+
+
+@router.post(
+    "/scanner/trigger",
+    summary="ScannerAgent'ı arka planda başlat (auto_review destekli)",
+    response_model=dict,
+    responses={
+        200: {
+            "description": "Tarama kuyruğa alındı",
+            "content": {"application/json": {"example": {"status": "queued", "scan_type": "security", "project_id": "petekv5", "auto_review": True}}},
+        },
+        400: {"description": "Geçersiz scan_type"},
+        403: {"description": "Localhost dışı erişim engellendi"},
+    },
+)
+async def trigger_scanner(
+    request: Request,
+    body: ScannerTriggerRequest,
+    background_tasks: BackgroundTasks,
+):
+    """ScannerAgent'ı arka planda başlatır; auto_review=True ise ReviewerAgent da zincirlenir.
+
+    Yalnızca localhost erişimine açıktır; API key gerekmez.
+    Tarama BackgroundTasks ile asenkron çalışır — yanıt hemen döner.
+    """
+    from ..features.scan_pipeline.config_loader import ScanConfigLoader
+
+    _require_localhost(request)
+
+    available = ScanConfigLoader().list_available()
+    if body.scan_type not in available:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Bilinmeyen scan tipi: {body.scan_type}. Mevcut: {available}",
+        )
+
+    from ..features.scan_pipeline.scanner_agent import ScannerAgent  # lazy import
+
+    background_tasks.add_task(
+        ScannerAgent().run, body.scan_type, body.project_id, body.auto_review, body.dry_run
+    )
+    logger.info(
+        "scanner/trigger: kuyruğa alındı scan_type=%s project_id=%s auto_review=%s dry_run=%s",
+        body.scan_type, body.project_id, body.auto_review, body.dry_run,
+    )
+    return {
+        "status": "queued",
+        "scan_type": body.scan_type,
+        "project_id": body.project_id,
+        "auto_review": body.auto_review,
+    }
+
+
+# ── Reviewer agent trigger ─────────────────────────────────────────
+
+
+@router.post(
+    "/reviewer/trigger",
+    summary="ReviewerAgent'ı arka planda başlat",
+    response_model=dict,
+    responses={
+        200: {
+            "description": "Review kuyruğa alındı",
+            "content": {"application/json": {"example": {"status": "queued", "run_id": "abc123"}}},
+        },
+        403: {"description": "Localhost dışı erişim engellendi"},
+    },
+)
+async def trigger_reviewer(
+    request: Request,
+    body: ReviewerTriggerRequest,
+    background_tasks: BackgroundTasks,
+):
+    """ReviewerAgent'ı arka planda başlatır; verilen run_id'deki scan bulgularını gözden geçirir.
+
+    Yalnızca localhost erişimine açıktır; API key gerekmez.
+    Review BackgroundTasks ile asenkron çalışır — yanıt hemen döner.
+    """
+    _require_localhost(request)
+
+    from ..features.scan_pipeline.reviewer_agent import ReviewerAgent  # lazy import
+
+    background_tasks.add_task(ReviewerAgent().run, body.run_id, body.dry_run)
+    logger.info(
+        "reviewer/trigger: kuyruğa alındı run_id=%s dry_run=%s",
+        body.run_id, body.dry_run,
+    )
+    return {"status": "queued", "run_id": body.run_id}
+
+
+# ── Backlog executor trigger ───────────────────────────────────────
+
+
+@router.post(
+    "/backlog/execute",
+    summary="BacklogExecutorAgent'ı arka planda başlat",
+    response_model=dict,
+    responses={
+        200: {
+            "description": "Executor kuyruğa alındı",
+            "content": {"application/json": {"example": {"status": "queued", "project_id": "petekv5", "prefix": "", "max_items": 3}}},
+        },
+        403: {"description": "Localhost dışı erişim engellendi"},
+    },
+)
+async def execute_backlog(
+    request: Request,
+    body: BacklogExecuteRequest,
+    background_tasks: BackgroundTasks,
+):
+    """BacklogExecutorAgent'ı arka planda başlatır; BACKLOG.md öğelerini sırayla işler.
+
+    Yalnızca localhost erişimine açıktır; API key gerekmez.
+    Executor BackgroundTasks ile asenkron çalışır — yanıt hemen döner.
+    """
+    _require_localhost(request)
+
+    from ..features.backlog_executor.runner import BacklogExecutorAgent  # lazy import
+
+    background_tasks.add_task(
+        BacklogExecutorAgent().run,
+        body.project_id, body.prefix, body.max_items, body.parallel, body.dry_run,
+    )
+    logger.info(
+        "backlog/execute: kuyruğa alındı project_id=%s prefix=%r max_items=%d parallel=%d dry_run=%s",
+        body.project_id, body.prefix, body.max_items, body.parallel, body.dry_run,
+    )
+    return {
+        "status": "queued",
+        "project_id": body.project_id,
+        "prefix": body.prefix,
+        "max_items": body.max_items,
     }

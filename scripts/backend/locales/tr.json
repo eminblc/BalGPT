@@ -563,7 +563,10 @@
     "detail_no_output": "(çıktı yok)",
     "detail_not_found": "Run bulunamadı: {run_id}",
     "project_header": "📂 {project_id} — Son {count} Run",
-    "project_empty": "{project_id} projesine ait run bulunamadı."
+    "project_empty": "{project_id} projesine ait run bulunamadı.",
+    "scanner_done": "🔍 Tarama tamamlandı — {count} bulgu",
+    "reviewer_done": "📋 Review tamamlandı — {accepted} kabul / {rejected} red",
+    "executor_done": "🛠 Executor tamamlandı — {completed}/{total} madde"
   },
   "scan": {
     "select_type": "Tarama tipi seç:",

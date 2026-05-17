@@ -284,6 +284,21 @@ async def _execute_one_shot_task(task_id: str) -> None:
             dry_run_scan = payload.get("dry_run", False)
             from .scan_pipeline.runner import ScanRunner
             await ScanRunner().run(scan_type, project_id_scan, dry_run_scan)
+        elif action_type == "run_scanner":
+            scan_type = payload.get("scan_type", "security")
+            project_id_scan = payload.get("project_id", "")
+            auto_review = payload.get("auto_review", True)
+            dry_run_scan = payload.get("dry_run", False)
+            from .scan_pipeline.scanner_agent import ScannerAgent
+            await ScannerAgent().run(scan_type, project_id_scan, auto_review, dry_run_scan)
+        elif action_type == "run_backlog_executor":
+            project_id_exec = payload.get("project_id", "")
+            prefix = payload.get("prefix", "")
+            max_items = int(payload.get("max_items", 3))
+            parallel = int(payload.get("parallel", 2))
+            dry_run_exec = payload.get("dry_run", False)
+            from .backlog_executor.runner import BacklogExecutorAgent
+            await BacklogExecutorAgent().run(project_id_exec, prefix, max_items, parallel, dry_run_exec)
         await db.task_update_status(task_id, "succeeded")
         if run_id is not None:
             try:
@@ -543,6 +558,21 @@ async def _execute_task(task_id: str) -> None:
             dry_run_scan = payload.get("dry_run", False)
             from .scan_pipeline.runner import ScanRunner
             await ScanRunner().run(scan_type, project_id_scan, dry_run_scan)
+        elif action_type == "run_scanner":
+            scan_type = payload.get("scan_type", "security")
+            project_id_scan = payload.get("project_id", "")
+            auto_review = payload.get("auto_review", True)
+            dry_run_scan = payload.get("dry_run", False)
+            from .scan_pipeline.scanner_agent import ScannerAgent
+            await ScannerAgent().run(scan_type, project_id_scan, auto_review, dry_run_scan)
+        elif action_type == "run_backlog_executor":
+            project_id_exec = payload.get("project_id", "")
+            prefix = payload.get("prefix", "")
+            max_items = int(payload.get("max_items", 3))
+            parallel = int(payload.get("parallel", 2))
+            dry_run_exec = payload.get("dry_run", False)
+            from .backlog_executor.runner import BacklogExecutorAgent
+            await BacklogExecutorAgent().run(project_id_exec, prefix, max_items, parallel, dry_run_exec)
         # Cron job'lar tamamlandıktan sonra "scheduled" durumuna geri döner
         await db.task_update_status(task_id, "scheduled")
         if run_id is not None:

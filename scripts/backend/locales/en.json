@@ -563,7 +563,10 @@
     "detail_no_output": "(no output)",
     "detail_not_found": "Run not found: {run_id}",
     "project_header": "📂 {project_id} — Last {count} Runs",
-    "project_empty": "No runs found for project {project_id}."
+    "project_empty": "No runs found for project {project_id}.",
+    "scanner_done": "🔍 Scan complete — {count} findings",
+    "reviewer_done": "📋 Review complete — {accepted} accepted / {rejected} rejected",
+    "executor_done": "🛠 Executor complete — {completed}/{total} items"
   },
   "scan": {
     "select_type": "Select scan type:",
