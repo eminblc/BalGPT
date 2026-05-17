@@ -356,3 +356,18 @@ from .repositories.settings_repo import (  # noqa: E402, F401
     user_settings_get_all,
     user_setting_delete,
 )
+
+from .repositories.agent_run_repo import (  # noqa: E402, F401
+    _sync_agent_run_create,
+    _sync_agent_run_update_status,
+    _sync_agent_run_get,
+    _sync_agent_run_list,
+    _sync_agent_run_cancel,
+    _sync_agent_run_list_active,
+    agent_run_create,
+    agent_run_update_status,
+    agent_run_get,
+    agent_run_list,
+    agent_run_cancel,
+    agent_run_list_active,
+)
