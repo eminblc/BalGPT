@@ -294,13 +294,20 @@ async def _forward_to_main_bridge(
     if active_model:
         body["model"] = active_model
     # ROOT-PROJECT-CTX: active_context.json'dan active_root_project.path oku;
-    # /root-project komutuyla set edilen proje dizinini Bridge'e ilet.
+    # Bridge allowedRoots yalnızca ROOT_DIR + PROJECTS_DIR'ı kabul eder;
+    # yalnızca ROOT_DIR altındaki path'leri açıkça gönder — harici projeler
+    # için Bridge kendi active_context.json fallback'ini kullanır.
     try:
-        _ctx_text = ACTIVE_CONTEXT_PATH.read_text(encoding="utf-8")
+        from ..app_types import ACTIVE_CONTEXT_PATH as _CTX_PATH
+        _root_dir = _CTX_PATH.parent.parent  # 99-root dizini
+        _ctx_text = _CTX_PATH.read_text(encoding="utf-8")
         _ctx = _json.loads(_ctx_text)
         _project_path = (_ctx.get("active_root_project") or {}).get("path", "")
         if _project_path:
-            body["project_path"] = _project_path
+            from pathlib import Path as _Path
+            _pp = _Path(_project_path).resolve()
+            if str(_pp).startswith(str(_root_dir) + "/") or _pp == _root_dir:
+                body["project_path"] = str(_pp)
     except Exception:
         pass  # JSON parse hatası veya dosya yok — sessizce devam et
     r: httpx.Response | None = None
