@@ -118,3 +118,17 @@ async def project_update_status(project_id: str, status: str) -> None:
 
 async def project_delete(project_id: str) -> bool:
     return await run_in_thread(_sync_project_delete, project_id)
+
+
+def _sync_project_update_metadata(project_id: str, metadata: str) -> None:
+    """projects.metadata alanını ve updated_at'ı güncelle."""
+    with _conn() as con:
+        con.execute(
+            "UPDATE projects SET metadata=?, updated_at=? WHERE id=?",
+            (metadata, time.time(), project_id),
+        )
+
+
+async def project_update_metadata(project_id: str, metadata: str) -> None:
+    """projects.metadata JSON string'ini güncelle (updated_at otomatik ayarlanır)."""
+    return await run_in_thread(_sync_project_update_metadata, project_id, metadata)

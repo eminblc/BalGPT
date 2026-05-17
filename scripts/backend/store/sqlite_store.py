@@ -252,11 +252,13 @@ from .repositories.project_repo import (  # noqa: E402, F401
     _sync_project_list,
     _sync_project_update_status,
     _sync_project_delete,
+    _sync_project_update_metadata,
     project_create,
     project_get,
     project_list,
     project_update_status,
     project_delete,
+    project_update_metadata,
 )
 
 from .repositories.plan_repo import (  # noqa: E402, F401
