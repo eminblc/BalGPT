@@ -252,6 +252,25 @@ async def _execute_one_shot_task(task_id: str) -> None:
 
     logger.info("One-shot task çalıştırılıyor: %s [%s]", task_id, action_type)
 
+    # Agent run tracking — DB hatası mevcut işi bloklamasın
+    run_id: str | None = None
+    try:
+        from ..store.repositories.agent_run_repo import (
+            agent_run_create,
+            agent_run_update_status,
+        )
+        run_id = await agent_run_create(
+            "scheduler_oneshot",
+            "main",
+            project_id=task.get("project_id"),
+            task_id=task_id,
+            source="scheduler",
+            prompt=task.get("description"),
+        )
+        await agent_run_update_status(run_id, "running")
+    except Exception as _track_err:
+        logger.warning("_execute_one_shot_task: agent run kaydedilemedi: %s", _track_err)
+
     await db.task_update_status(task_id, "running")
     try:
         if action_type == "send_message":
@@ -259,9 +278,19 @@ async def _execute_one_shot_task(task_id: str) -> None:
         elif action_type == "run_bridge":
             await _run_bridge_query(message, silent=True)
         await db.task_update_status(task_id, "succeeded")
+        if run_id is not None:
+            try:
+                await agent_run_update_status(run_id, "completed")
+            except Exception as _track_err:
+                logger.warning("_execute_one_shot_task: run completed güncellenemedi: %s", _track_err)
     except Exception as e:
         logger.error("_execute_one_shot_task başarısız: %s hata=%s", task_id, e)
         await db.task_update_status(task_id, "failed")
+        if run_id is not None:
+            try:
+                await agent_run_update_status(run_id, "failed", error_msg=str(e))
+            except Exception as _track_err:
+                logger.warning("_execute_one_shot_task: run failed güncellenemedi: %s", _track_err)
         raise
     finally:
         # Tek seferlik — çalıştıktan sonra devre dışı bırak
@@ -374,6 +403,7 @@ async def _reload_all_jobs() -> None:
       - geçmiş >5dk: soft-deactivate + log (kaçırıldı)
       - gelecekte: normal DateTrigger
     - status='deleted': atla
+    - scope='project': atla (project-specific orchestrator yönetir)
     """
     import datetime
     import time as _time
@@ -383,6 +413,14 @@ async def _reload_all_jobs() -> None:
     for task in tasks:
         # Soft-deleted job'ları atla
         if task.get("status") == "deleted":
+            continue
+
+        # Project-scoped job'lar project orchestrator'a bırakılır
+        if task.get("scope") == "project":
+            logger.debug(
+                "Project-scoped job atlanıyor: %s (project=%s)",
+                task["id"], task.get("project_id"),
+            )
             continue
 
         task_id = task["id"]
@@ -464,6 +502,25 @@ async def _execute_task(task_id: str) -> None:
 
     logger.info("Task çalıştırılıyor: %s [%s]", task_id, action_type)
 
+    # Agent run tracking — DB hatası mevcut işi bloklamasın
+    run_id: str | None = None
+    try:
+        from ..store.repositories.agent_run_repo import (
+            agent_run_create,
+            agent_run_update_status,
+        )
+        run_id = await agent_run_create(
+            "scheduler_cron",
+            "main",
+            project_id=task.get("project_id"),
+            task_id=task_id,
+            source="scheduler",
+            prompt=task.get("description"),
+        )
+        await agent_run_update_status(run_id, "running")
+    except Exception as _track_err:
+        logger.warning("_execute_task: agent run kaydedilemedi: %s", _track_err)
+
     await db.task_update_status(task_id, "running")
     try:
         if action_type == "send_message":
@@ -474,9 +531,19 @@ async def _execute_task(task_id: str) -> None:
             await _run_bridge_query(message, silent=True)
         # Cron job'lar tamamlandıktan sonra "scheduled" durumuna geri döner
         await db.task_update_status(task_id, "scheduled")
+        if run_id is not None:
+            try:
+                await agent_run_update_status(run_id, "completed")
+            except Exception as _track_err:
+                logger.warning("_execute_task: run completed güncellenemedi: %s", _track_err)
     except Exception as e:
         logger.error("_execute_task başarısız: %s hata=%s", task_id, e)
         await db.task_update_status(task_id, "failed")
+        if run_id is not None:
+            try:
+                await agent_run_update_status(run_id, "failed", error_msg=str(e))
+            except Exception as _track_err:
+                logger.warning("_execute_task: run failed güncellenemedi: %s", _track_err)
         raise
 
     # last_run güncelle (BUG-A5: private _conn yerine public metot)
