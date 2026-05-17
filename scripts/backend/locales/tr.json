@@ -541,5 +541,16 @@
     "no_active_runs": "Aktif agent yok.",
     "list_header": "Tüm Projeler ({count})",
     "project_row": "• {name} [{status}] — {active_agents} aktif ajan"
+  },
+  "agents": {
+    "active_header": "📊 Aktif Agent'lar ({count})",
+    "history_header": "📋 Son Agent Run'lar ({count})",
+    "recent_header": "Son Tamamlananlar:",
+    "empty": "📭 Henüz hiç agent run kaydı yok.",
+    "cancel_usage": "⚠️ Kullanım: /agents cancel <run_id>",
+    "cancel_ok": "🛑 Run #{run_id} iptal edildi.",
+    "cancel_not_found": "⚠️ Run bulunamadı: {run_id}",
+    "cancel_ambiguous": "⚠️ '{prefix}' ile başlayan birden fazla aktif run var. Daha uzun ID gir.",
+    "cancel_not_active": "ℹ️ Run #{run_id} zaten bitti (durum: {status}). İptal edilemez."
   }
 }

@@ -541,5 +541,16 @@
     "no_active_runs": "No active agents.",
     "list_header": "All Projects ({count})",
     "project_row": "• {name} [{status}] — {active_agents} active agents"
+  },
+  "agents": {
+    "active_header": "📊 Active Agents ({count})",
+    "history_header": "📋 Recent Agent Runs ({count})",
+    "recent_header": "Recently Completed:",
+    "empty": "📭 No agent run records yet.",
+    "cancel_usage": "⚠️ Usage: /agents cancel <run_id>",
+    "cancel_ok": "🛑 Run #{run_id} cancelled.",
+    "cancel_not_found": "⚠️ Run not found: {run_id}",
+    "cancel_ambiguous": "⚠️ Multiple active runs start with '{prefix}'. Provide a longer ID.",
+    "cancel_not_active": "ℹ️ Run #{run_id} is already finished (status: {status}). Cannot cancel."
   }
 }
