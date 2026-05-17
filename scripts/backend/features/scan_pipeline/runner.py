@@ -20,7 +20,7 @@ from .scanner import ScannerOrchestrator
 logger = logging.getLogger(__name__)
 
 # Proje kök dizini göre BACKLOG yolu
-_PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+_PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.parent
 _BACKLOG_PATH = _PROJECT_ROOT / "BACKLOG.md"
 
 # Dosya başına maksimum karakter — token bütçesini korumak için

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from .models import ScanConfig
 
-_CONFIGS_DIR = Path(__file__).parent.parent.parent.parent / "data" / "scan_configs"
+_CONFIGS_DIR = Path(__file__).parent.parent.parent.parent.parent / "data" / "scan_configs"
 
 
 class ScanConfigLoader:

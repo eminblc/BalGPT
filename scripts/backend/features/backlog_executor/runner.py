@@ -176,12 +176,18 @@ class BacklogExecutorAgent:
                     "X-Api-Key": settings.api_key.get_secret_value(),
                     "Content-Type": "application/json",
                 }
-                body = {
+                # Bridge allowedRoots yalnızca ROOT_DIR altındaki yolları kabul eder.
+                # Harici projeler için project_path gönderilmez; Bridge active_context.json
+                # üzerinden active_root_project.path'i zaten kullanır.
+                _root_dir = Path(__file__).parent.parent.parent.parent.parent
+                body: dict = {
                     "session_id": f"executor_{item['item_id']}",
                     "message": prompt,
                     "init_prompt": "",
-                    "project_path": project_root,
                 }
+                _pp = Path(project_root).resolve()
+                if str(_pp).startswith(str(_root_dir.resolve()) + "/") or _pp == _root_dir.resolve():
+                    body["project_path"] = str(_pp)
                 async with httpx.AsyncClient(timeout=300.0) as client:
                     response = await client.post(url, json=body, headers=headers)
 

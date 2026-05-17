@@ -15,8 +15,8 @@ from .pipeline import ScanPipeline
 
 logger = logging.getLogger(__name__)
 
-_RUNS_DIR = Path(__file__).parent.parent.parent.parent / "data" / "scan_runs"
-_BACKLOG_PATH = Path(__file__).parent.parent.parent.parent / "BACKLOG.md"
+_RUNS_DIR = Path(__file__).parent.parent.parent.parent.parent / "data" / "scan_runs"
+_BACKLOG_PATH = Path(__file__).parent.parent.parent.parent.parent / "BACKLOG.md"
 
 
 class ReviewerAgent:

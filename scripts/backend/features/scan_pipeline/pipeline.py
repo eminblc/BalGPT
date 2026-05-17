@@ -19,7 +19,7 @@ from .reviewer import FindingReviewer
 
 logger = logging.getLogger(__name__)
 
-_RUNS_DIR = Path(__file__).parent.parent.parent.parent / "data" / "scan_runs"
+_RUNS_DIR = Path(__file__).parent.parent.parent.parent.parent / "data" / "scan_runs"
 
 
 class ScanPipeline:
