@@ -8,6 +8,7 @@ SEC-RL2: Kalıcılık katmanı eklendi.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections import OrderedDict
 
@@ -22,6 +23,11 @@ class DedupGuard:
         self._max = max_size
         self._seen: OrderedDict[str, float] = OrderedDict()
         self._db_available = False
+        # Race condition koruması: cache-check + SQLite-check + insert tek atomik blok.
+        # threading.Lock kullanılıyor: bu method sync çağrılabildiğinden
+        # asyncio.Lock uygun değil; asyncio event-loop'u tek thread olduğu için
+        # threading.Lock da güvenlidir (ve GIL ile birlikte tam atomiklik sağlar).
+        self._lock: threading.Lock = threading.Lock()
         self._load_from_db()
 
     def _load_from_db(self) -> None:
@@ -45,34 +51,35 @@ class DedupGuard:
             self._db_available = False
 
     def is_duplicate(self, message_id: str) -> bool:
-        now = time.time()
-        self._evict(now)
+        with self._lock:
+            now = time.time()
+            self._evict(now)
 
-        # Hızlı yol: bellekte varsa duplicate
-        if message_id in self._seen:
-            return True
+            # Hızlı yol: bellekte varsa duplicate
+            if message_id in self._seen:
+                return True
 
-        # SQLite yolu: atomik INSERT OR IGNORE — restart sonrası koruması
-        # _db_available False ise lazy-reconnect dene (init_db() sonradan çalışmış olabilir)
-        if not self._db_available:
-            self._load_from_db()
+            # SQLite yolu: atomik INSERT OR IGNORE — restart sonrası koruması
+            # _db_available False ise lazy-reconnect dene (init_db() sonradan çalışmış olabilir)
+            if not self._db_available:
+                self._load_from_db()
 
-        if self._db_available:
-            try:
-                from ..store.sqlite_store import _sync_dedup_is_seen
-                if _sync_dedup_is_seen(message_id, now, self._ttl):
-                    # DB'de vardı ama bellekte yoktu (restart olmuş) — belleğe ekle
-                    self._seen[message_id] = now
-                    return True
-            except Exception as exc:
-                logger.warning("DedupGuard: SQLite sorgusu başarısız, belleğe düşülüyor: %s", exc)
-                self._db_available = False
+            if self._db_available:
+                try:
+                    from ..store.sqlite_store import _sync_dedup_is_seen
+                    if _sync_dedup_is_seen(message_id, now, self._ttl):
+                        # DB'de vardı ama bellekte yoktu (restart olmuş) — belleğe ekle
+                        self._seen[message_id] = now
+                        return True
+                except Exception as exc:
+                    logger.warning("DedupGuard: SQLite sorgusu başarısız, belleğe düşülüyor: %s", exc)
+                    self._db_available = False
 
-        # Yeni mesaj — belleğe ekle
-        if len(self._seen) >= self._max:
-            self._seen.popitem(last=False)
-        self._seen[message_id] = now
-        return False
+            # Yeni mesaj — belleğe ekle
+            if len(self._seen) >= self._max:
+                self._seen.popitem(last=False)
+            self._seen[message_id] = now
+            return False
 
     def _evict(self, now: float) -> None:
         cutoff = now - self._ttl

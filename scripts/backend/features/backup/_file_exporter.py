@@ -155,9 +155,10 @@ class LocalFileExporter:
                 continue
 
             # Path traversal koruması (GUARDRAILS KAT-57)
+            # Her iki path da resolve() ile canonicalize edilir; is_relative_to()
+            # symlink / "../" içeren path'leri güvenle engeller (Python 3.9+).
             resolved = file_path.resolve()
-            data_dir_str = str(self._data_dir)
-            if not str(resolved).startswith(data_dir_str + "/") and str(resolved) != data_dir_str:
+            if not resolved.is_relative_to(self._data_dir):
                 logger.warning(
                     "Path traversal girişimi atlandı: %s → %s",
                     file_path,

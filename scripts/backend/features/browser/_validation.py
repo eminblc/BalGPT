@@ -5,16 +5,39 @@ Sorumluluk: Gelen URL/selector girdilerini doğrulamak; tehlikeli hedefleri enge
 from __future__ import annotations
 
 import urllib.parse
+from ipaddress import AddressValueError, ip_address
 from typing import Any
 
 # ── URL Doğrulama (RISK-1) ────────────────────────────────────────
 
 _BLOCKED_SCHEMES = frozenset({"file", "ftp", "javascript", "data", "chrome", "about"})
 _BLOCKED_HOSTS = frozenset({
-    "169.254.169.254",          # AWS/GCP metadata
-    "metadata.google.internal", # GCP metadata
-    "100.100.100.200",          # Alibaba metadata
+    "metadata.google.internal", # GCP metadata hostname (DNS-resolved)
 })
+
+
+def _is_ssrf_risk(host: str) -> bool:
+    """
+    IP adresi tabanlı SSRF riski kontrolü (SEC-SCAN2-D5).
+
+    Loopback (127.x.x.x, ::1), private RFC1918/RFC4193, link-local (169.254.x.x /
+    fe80::), unspecified (0.0.0.0 / ::) ve reserved adresleri engeller.
+    Hostname'ler (DNS-resolve gerektiren) bu kontrolden geçmez; yalnızca IP
+    literal'lar yakalanır.
+
+    Döner: True → SSRF riski var, False → hostname veya güvenli IP.
+    """
+    try:
+        addr = ip_address(host)
+        return (
+            addr.is_loopback
+            or addr.is_private
+            or addr.is_link_local
+            or addr.is_reserved
+            or addr.is_unspecified
+        )
+    except AddressValueError:
+        return False  # Hostname; DNS çözümlemesi sonrası değerlendirilebilir
 
 
 def _validate_url(url: str) -> str | None:
@@ -33,8 +56,11 @@ def _validate_url(url: str) -> str | None:
     host = parsed.hostname or ""
     if host in _BLOCKED_HOSTS:
         return f"Yasaklı hedef: {host}"
-    if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
-        return f"Localhost erişimi yasaklı: {host}"
+
+    # SEC-SCAN2-D5: 127.0.0.2, ::ffff:127.0.0.1, 0.0.0.0, 169.254.x.x gibi
+    # loopback/private/link-local alternatifleri ipaddress modülü ile engelle
+    if host == "localhost" or _is_ssrf_risk(host):
+        return f"Localhost/private erişimi yasaklı: {host}"
 
     return None
 

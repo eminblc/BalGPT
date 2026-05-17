@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import shlex
 import sys
 from typing import TYPE_CHECKING
 
@@ -161,8 +162,11 @@ async def atspi_find_element(role: str = "", name: str = "") -> list[dict]:
 
     import json as _json
 
-    role_escaped = role.replace("'", "\\'")
-    name_escaped = name.replace("'", "\\'")
+    # SEC-SCAN2-D12: shlex.quote() newline ve tüm özel karakterleri güvenli şekilde escape eder.
+    # shlex.quote() çıktısı zaten tek-tırnak içerir (ör. 'push button'), f-string içinde
+    # doğrudan yerleştirilebilir — ek tırnak eklenmez.
+    role_quoted = shlex.quote(str(role))
+    name_quoted = shlex.quote(str(name))
 
     script = f"""
 import sys, json
@@ -175,8 +179,8 @@ except Exception as e:
     print(json.dumps([{{"error": f"gi.repository.Atspi yüklenemedi: {{e}}"}}]))
     sys.exit(0)
 
-role_lower = '{role_escaped}'.lower().strip()
-name_lower = '{name_escaped}'.lower().strip()
+role_lower = {role_quoted}.lower().strip()
+name_lower = {name_quoted}.lower().strip()
 results = []
 
 def search(acc, path):
@@ -245,8 +249,9 @@ async def atspi_activate_element(role: str = "", name: str = "") -> str:
     if not role and not name:
         return "❌ En az 'role' veya 'name' parametrelerinden biri gerekli."
 
-    role_escaped = role.replace("'", "\\'")
-    name_escaped = name.replace("'", "\\'")
+    # SEC-SCAN2-D12: shlex.quote() ile newline ve özel karakterlere karşı güvenli escape
+    role_quoted = shlex.quote(str(role))
+    name_quoted = shlex.quote(str(name))
 
     script = f"""
 import sys, json
@@ -259,8 +264,8 @@ except Exception as e:
     print(json.dumps({{"result": f"ERROR:gi.repository.Atspi yüklenemedi: {{e}}"}}))
     sys.exit(0)
 
-role_lower = '{role_escaped}'.lower().strip()
-name_lower = '{name_escaped}'.lower().strip()
+role_lower = {role_quoted}.lower().strip()
+name_lower = {name_quoted}.lower().strip()
 found = None
 
 def search(acc):

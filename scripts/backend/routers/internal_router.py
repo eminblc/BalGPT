@@ -6,6 +6,8 @@ Kullanım: Claude Code Bridge veya Claude Code CLI'nın admin TOTP doğrulaması
 from __future__ import annotations
 
 import logging
+import time
+from collections import defaultdict
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -19,6 +21,45 @@ from ._localhost_guard import is_localhost
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/internal", tags=["internal"])
+
+# SEC-SCAN2-R10: per-IP rate limiter — /verify-admin-totp endpoint'i için.
+# OCP: mevcut TOTP lockout mekanizmasına dokunulmadı; bu bağımsız bir katman.
+_IP_RATE_WINDOW_SECONDS: int = 60   # kayan pencere süresi
+_IP_RATE_MAX_ATTEMPTS: int = 10     # pencere içinde izin verilen max deneme
+
+# {ip: [(timestamp, ...), ...]} — her IP için timestamp listesi (kayan pencere)
+_ip_attempt_times: dict[str, list[float]] = defaultdict(list)
+
+
+def _check_ip_rate_limit(ip: str) -> None:
+    """Aynı IP'den belirli sürede çok fazla deneme geliyorsa HTTP 429 fırlatır.
+
+    Kayan pencere (sliding window) algoritması: eski zaman damgaları temizlenir,
+    kalan sayı limite ulaşmışsa 429 döner.
+
+    Args:
+        ip: İstek yapan istemci IP adresi.
+
+    Raises:
+        HTTPException: 429 Too Many Requests — rate limit aşıldı.
+    """
+    now = time.monotonic()
+    window_start = now - _IP_RATE_WINDOW_SECONDS
+
+    # Eski girişleri temizle (kayan pencere)
+    _ip_attempt_times[ip] = [ts for ts in _ip_attempt_times[ip] if ts > window_start]
+
+    if len(_ip_attempt_times[ip]) >= _IP_RATE_MAX_ATTEMPTS:
+        logger.warning(
+            "internal verify-admin-totp: IP rate limit aşıldı ip=%s attempts=%d",
+            ip, len(_ip_attempt_times[ip]),
+        )
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit aşıldı. {_IP_RATE_WINDOW_SECONDS} saniye sonra tekrar deneyin.",
+        )
+
+    _ip_attempt_times[ip].append(now)
 
 
 def _require_localhost(request: Request) -> None:
@@ -227,6 +268,10 @@ async def verify_totp_internal(request: Request, body: _VerifyRequest):
     from ..store.sqlite_store import totp_get_lockout, totp_record_failure, totp_reset_lockout
 
     _require_localhost(request)
+
+    # SEC-SCAN2-R10: per-IP rate limit — mevcut TOTP lockout'undan bağımsız ek katman
+    client_ip = request.client.host if request.client else "unknown"
+    _check_ip_rate_limit(client_ip)
 
     _SENDER = "internal_cli"
     _, lockout_until = await totp_get_lockout(_SENDER, "owner")

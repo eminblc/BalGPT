@@ -34,12 +34,16 @@ class _BboxCache:
 
     Modül düzeyinde ham dict yerine bu sınıf kullanılır; global mutable
     state CLAUDE.md kuralına aykırı olduğundan encapsulation zorunludur.
+
+    SEC-SCAN2-D8: Eşzamanlı vision_query çağrılarının cache'i atlayarak
+    çift API isteği göndermesini engellemek için asyncio.Lock kullanılır.
     """
 
     TTL: float = 60.0  # saniye
 
     def __init__(self) -> None:
         self._data: dict[str, tuple[str, float]] = {}
+        self._lock: asyncio.Lock = asyncio.Lock()
 
     def make_key(
         self,
@@ -265,23 +269,26 @@ async def vision_query(
             "Vision gerektirmeden devam edebilirsin."
         )
 
-    # ── Cache kontrolü (OPT-3) ────────────────────────────────────
+    # ── Cache kontrolü (OPT-3 / SEC-SCAN2-D8) ────────────────────────────────────
+    # Lock altında kontrol + API çağrısı + yazma yapılır; böylece aynı key için
+    # eşzamanlı çağrılar çift API isteği göndermez.
     if use_cache:
         window_title = await _get_active_window_title()
         # IMP-DESK-4: session_id ile farklı session'ların çakışması engellendi
         cache_key = _bbox_cache.make_key(question, window_title, region, sid)
-        cached = _bbox_cache.get(cache_key)
-        if cached is not None:
-            cached_answer, cached_ts = cached
-            now = time.monotonic()
-            if now - cached_ts < _bbox_cache.TTL:
-                logger.info(
-                    "vision_query [CACHE HIT]: soru=%r, pencere=%r, kalan_ttl=%.1fs",
-                    question[:60], window_title[:30], _bbox_cache.TTL - (now - cached_ts),
-                )
-                return cached_answer
-            else:
-                _bbox_cache.delete(cache_key)
+        async with _bbox_cache._lock:
+            cached = _bbox_cache.get(cache_key)
+            if cached is not None:
+                cached_answer, cached_ts = cached
+                now = time.monotonic()
+                if now - cached_ts < _bbox_cache.TTL:
+                    logger.info(
+                        "vision_query [CACHE HIT]: soru=%r, pencere=%r, kalan_ttl=%.1fs",
+                        question[:60], window_title[:30], _bbox_cache.TTL - (now - cached_ts),
+                    )
+                    return cached_answer
+                else:
+                    _bbox_cache.delete(cache_key)
     else:
         window_title = ""
         cache_key = ""
@@ -356,9 +363,10 @@ async def vision_query(
         except Exception:
             pass
 
-        # Cache'e yaz (OPT-3)
+        # Cache'e yaz (OPT-3 / SEC-SCAN2-D8: Lock altında atomik yazma)
         if use_cache and cache_key:
-            _bbox_cache.set(cache_key, answer)
+            async with _bbox_cache._lock:
+                _bbox_cache.set(cache_key, answer)
             logger.debug("vision_query [CACHE WRITE]: key=%s, pencere=%r", cache_key, window_title[:30])
 
         return answer

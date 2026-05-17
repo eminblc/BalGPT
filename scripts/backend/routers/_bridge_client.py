@@ -90,19 +90,61 @@ async def send_permission_response(request_id: str, session_id: str, allowed: bo
 
 
 async def forward_locked(sender: str, text: str, session: dict) -> None:
-    """Session kilidini alarak bridge'e ilet (dışarıdan lock alınmamışsa kullan)."""
+    """Session kilidini alarak bridge'e ilet (dışarıdan lock alınmamışsa kullan).
+
+    SEC-SCAN2-R17: Bridge down olduğunda sonsuz lock bekleme önlenir.
+    Kilit alımına timeout uygulanır; süre aşılırsa hata mesajı döner.
+    """
     from ..guards import session_mgr
-    async with session_mgr.lock(sender):
+
+    # Timeout değeri olarak bridge_client_timeout'un %5'i veya min 30 saniye kullanılır.
+    lock_timeout: float = max(30.0, settings.bridge_client_timeout * 0.05)
+    lang = session.get("lang", "tr")
+
+    try:
+        lock = session_mgr.lock(sender)
+        await asyncio.wait_for(lock.acquire(), timeout=lock_timeout)
+    except asyncio.TimeoutError:
+        logger.error(
+            "forward_locked: session lock zaman aşımı sender=%s timeout=%.0fs",
+            sender[:6], lock_timeout,
+        )
+        await get_messenger().send_text(sender, t("bridge.connection_error", lang))
+        return
+
+    try:
         await forward(sender, text, session)
+    finally:
+        lock.release()
 
 
 async def forward_document_locked(
     sender: str, media_id: str, filename: str, mime: str, session: dict
 ) -> None:
-    """Yapısal belge verisini session kilidiyle ilet (injection scanner tetiklememek için)."""
+    """Yapısal belge verisini session kilidiyle ilet (injection scanner tetiklememek için).
+
+    SEC-SCAN2-R17: forward_locked ile aynı timeout koruması uygulanır.
+    """
     from ..guards import session_mgr
-    async with session_mgr.lock(sender):
+
+    lock_timeout: float = max(30.0, settings.bridge_client_timeout * 0.05)
+    lang = session.get("lang", "tr")
+
+    try:
+        lock = session_mgr.lock(sender)
+        await asyncio.wait_for(lock.acquire(), timeout=lock_timeout)
+    except asyncio.TimeoutError:
+        logger.error(
+            "forward_document_locked: session lock zaman aşımı sender=%s timeout=%.0fs",
+            sender[:6], lock_timeout,
+        )
+        await get_messenger().send_text(sender, t("bridge.connection_error", lang))
+        return
+
+    try:
         await forward_document(sender, media_id, filename, mime, session)
+    finally:
+        lock.release()
 
 
 async def forward_document(

@@ -47,7 +47,7 @@
     "error": "⚠️ An unexpected error occurred while processing your message. Please try again."
   },
   "guard": {
-    "unauthorized": "⚠️ Unauthorized message\nNumber: {sender}\n{preview}",
+    "unauthorized": "⚠️ Unauthorized access attempt\nNumber: {sender}",
     "rate_limit": "⏳ Too many requests. Please wait a minute.",
     "capability_restricted": "🚫 This capability is disabled: {capability}"
   },

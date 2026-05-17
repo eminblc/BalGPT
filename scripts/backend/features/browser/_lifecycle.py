@@ -41,6 +41,7 @@ async def _get_or_create_session(session_id: str, headless: bool = True) -> Brow
         pw = await async_playwright().start()
         browser = None
         context = None
+        page = None
         try:
             browser = await pw.chromium.launch(headless=headless)
             storage_path = _get_storage_state_path(session_id)
@@ -61,6 +62,8 @@ async def _get_or_create_session(session_id: str, headless: bool = True) -> Brow
             context = await browser.new_context(**context_kwargs)
             page = await context.new_page()
         except Exception:
+            # SEC-SCAN2-D7: Hata durumunda tüm Playwright kaynakları serbest bırakılır.
+            # _session_store.set() hiç çağrılmadığı için slot sayacı artmaz — resource exhaustion engellenir.
             if context is not None:
                 try:
                     await context.close()
@@ -77,6 +80,9 @@ async def _get_or_create_session(session_id: str, headless: bool = True) -> Brow
                 pass
             raise
 
+        # Tüm kaynaklar başarıyla oluşturuldu — artık slot'u kaydet.
+        # Bu satıra yalnızca try bloğu exception olmadan tamamlanırsa ulaşılır;
+        # böylece başarısız session'lar store sayacını etkilemez.
         sess = BrowserSession(playwright=pw, browser=browser, context=context, page=page)
         _session_store.set(session_id, sess)
         logger.info(

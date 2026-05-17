@@ -34,6 +34,10 @@ from ._text_router import _route_text, _forward_to_bridge
 
 logger = logging.getLogger(__name__)
 
+# SEC-SCAN2-R14: Çok büyük mesajların Bridge forward'ında bellek tüketmesini önlemek için
+# maksimum metin uzunluğu sınırı. Bu değeri aşan mesajlar truncate edilir.
+_MAX_MESSAGE_LENGTH: int = 32_000
+
 
 @dataclass
 class _MsgCtx:
@@ -67,11 +71,21 @@ async def handle_common_message(
         inbound:  InboundMessage — text, reply_id, extra_desc, raw_payload (REFAC-19).
     """
     inbound = inbound or {}
+
+    # SEC-SCAN2-R14: Bellek tüketimini önlemek için çok büyük metinleri truncate et.
+    raw_text: str = inbound.get("text", "")
+    if len(raw_text) > _MAX_MESSAGE_LENGTH:
+        logger.warning(
+            "Mesaj truncate edildi: sender=%s original_len=%d max=%d",
+            sender, len(raw_text), _MAX_MESSAGE_LENGTH,
+        )
+        raw_text = raw_text[:_MAX_MESSAGE_LENGTH]
+
     ctx = _MsgCtx(
         sender=sender,
         msg_id=msg_id,
         msg_type=msg_type,
-        text=inbound.get("text", ""),
+        text=raw_text,
         reply_id=inbound.get("reply_id", ""),
         extra_desc=inbound.get("extra_desc", ""),
         raw_payload=inbound.get("raw_payload"),

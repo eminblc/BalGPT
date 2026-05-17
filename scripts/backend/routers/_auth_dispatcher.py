@@ -43,11 +43,20 @@ async def _handle_math_auth(
             session.pop("pending_bridge_message", None)
         await m.send_text(sender, t("cancel.generic", lang))
         return
+    # SEC-SCAN2-R4: Lock yalnızca session state flag kontrolü için alınır.
+    # _auth_flows.handle_math_challenge lock dışında çağrılır — bu fonksiyon
+    # kendi içinde send_text ve forward_locked çağırabilir; lock içinde yapılması
+    # deadlock'a yol açar (forward_locked aynı sender için lock almaya çalışır).
+    active = False
     async with get_session_mgr().lock(sender):
-        if session.get("awaiting_math_challenge"):
+        active = bool(session.get("awaiting_math_challenge"))
+    if active:
+        try:
             await _auth_flows.handle_math_challenge(
                 sender, {"text": {"body": text}, "id": msg_id}, session
             )
+        except Exception:
+            logger.exception("handle_math_challenge hatası: sender=%s", sender[:6])
 
 
 async def _handle_totp_auth(
@@ -61,11 +70,19 @@ async def _handle_totp_auth(
             session.clear_totp()
         await m.send_text(sender, t("cancel.generic", lang))
         return
+    # SEC-SCAN2-R4: Lock yalnızca session state flag kontrolü için alınır.
+    # handle_totp lock dışında çağrılır — forward_locked aynı lock'u almaya çalışır;
+    # lock içinde çağrılması deadlock'a neden olur.
+    active = False
     async with get_session_mgr().lock(sender):
-        if session.get("awaiting_totp"):
+        active = bool(session.get("awaiting_totp"))
+    if active:
+        try:
             await _auth_flows.handle_totp(
                 sender, {"text": {"body": text}, "id": msg_id}, session
             )
+        except Exception:
+            logger.exception("handle_totp hatası: sender=%s", sender[:6])
 
 
 async def _handle_desktop_totp_auth(
@@ -87,11 +104,17 @@ async def _handle_desktop_totp_auth(
             clear_totp_request_sent()
         await m.send_text(sender, t("cancel.generic", lang))
         return
+    # SEC-SCAN2-R4: Lock yalnızca session state flag kontrolü için alınır.
+    active = False
     async with get_session_mgr().lock(sender):
-        if session.get("awaiting_desktop_totp"):
+        active = bool(session.get("awaiting_desktop_totp"))
+    if active:
+        try:
             await _auth_flows.handle_desktop_totp(
                 sender, {"text": {"body": text}, "id": msg_id}, session
             )
+        except Exception:
+            logger.exception("handle_desktop_totp hatası: sender=%s", sender[:6])
 
 
 async def _handle_guardrail_confirm(

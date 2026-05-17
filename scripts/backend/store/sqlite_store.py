@@ -173,16 +173,23 @@ def init_db() -> None:
         """)
 
 
+_MIGRATE_SCHEDULED_TASKS_COLUMNS: dict[str, str] = {
+    "status":     "TEXT DEFAULT 'scheduled'",
+    "deleted_at": "REAL",
+}
+
+
 def _migrate_scheduled_tasks(con: sqlite3.Connection) -> None:
     """scheduled_tasks tablosuna soft-delete kolonlarını ekle (idempotent)."""
-    for col, definition in [
-        ("status",     "TEXT DEFAULT 'scheduled'"),
-        ("deleted_at", "REAL"),
-    ]:
+    for col, definition in _MIGRATE_SCHEDULED_TASKS_COLUMNS.items():
+        if col not in _MIGRATE_SCHEDULED_TASKS_COLUMNS:
+            raise ValueError(f"Bilinmeyen migration kolonu: {col!r}")
+        ddl = f"ALTER TABLE scheduled_tasks ADD COLUMN {col} {definition}"  # col whitelist'te
         try:
-            con.execute(f"ALTER TABLE scheduled_tasks ADD COLUMN {col} {definition}")
-        except sqlite3.OperationalError:
-            pass  # zaten var
+            con.execute(ddl)
+        except sqlite3.OperationalError as e:
+            if "already exists" not in str(e):
+                raise  # beklenmedik hata — yutma
 
 
 def init_db_migrations() -> None:

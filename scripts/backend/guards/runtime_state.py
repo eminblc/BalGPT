@@ -5,7 +5,15 @@ Tüm paylaşılan state buradadır.
 """
 from __future__ import annotations
 
+import threading
 import time
+
+# Tüm state mutasyonlarını korumak için tek bir threading.Lock.
+# asyncio.Lock kullanılmıyor: bu fonksiyonlar hem sync hem async çağrı
+# noktalarından erişilebilir; threading.Lock asyncio event-loop içinde
+# de güvenlidir (GIL sayesinde atomik okuma/yazma zaten sağlanmıştı;
+# lock ile explicit kritik bölge tanımlanmış olur).
+_state_lock = threading.Lock()
 
 # ── Uygulama kilidi ──────────────────────────────────────────────────────────
 # Başlangıçta kilitli; /unlock + TOTP ile açılır, /lock + TOTP ile tekrar kilitlenir.
@@ -14,13 +22,15 @@ _locked: bool = True
 
 def is_locked() -> bool:
     """Uygulama kilitli mi?"""
-    return _locked
+    with _state_lock:
+        return _locked
 
 
 def set_locked(value: bool) -> None:
     """Kilit durumunu değiştir."""
     global _locked
-    _locked = value
+    with _state_lock:
+        _locked = value
 
 
 # ── Aktif LLM modeli ─────────────────────────────────────────────────────────
@@ -31,13 +41,15 @@ _active_model: str | None = None
 
 def get_active_model() -> str | None:
     """Çalışma zamanında seçilen LLM modelini döndürür; ayarlanmamışsa None."""
-    return _active_model
+    with _state_lock:
+        return _active_model
 
 
 def set_active_model(model: str | None) -> None:
     """Çalışma zamanı LLM modelini global olarak değiştirir."""
     global _active_model
-    _active_model = model
+    with _state_lock:
+        _active_model = model
 
 # Bridge son durum bildirimleri: { number: {"text": str, "ts": float} }
 _last_status: dict[str, dict] = {}
@@ -48,7 +60,7 @@ _last_cleanup: float = 0.0
 
 
 def _maybe_evict(now: float) -> None:
-    """TTL süresi geçmiş durum kayıtlarını temizle."""
+    """TTL süresi geçmiş durum kayıtlarını temizle. _state_lock tutularak çağrılmalı."""
     global _last_cleanup
     if now - _last_cleanup < _STATUS_CLEANUP_IV:
         return
@@ -61,12 +73,14 @@ def _maybe_evict(now: float) -> None:
 def record_status(number: str, text: str) -> None:
     """⚙️ ile başlayan bildirimleri kaydet, ✅/❌ ile temizle."""
     now = time.time()
-    _maybe_evict(now)
-    if text.startswith("⚙️"):
-        _last_status[number] = {"text": text, "ts": now}
-    elif text.startswith(("✅", "❌")):
-        _last_status.pop(number, None)
+    with _state_lock:
+        _maybe_evict(now)
+        if text.startswith("⚙️"):
+            _last_status[number] = {"text": text, "ts": now}
+        elif text.startswith(("✅", "❌")):
+            _last_status.pop(number, None)
 
 
 def get_last_status(number: str) -> dict | None:
-    return _last_status.get(number)
+    with _state_lock:
+        return _last_status.get(number)

@@ -153,14 +153,18 @@ async def capture_screen(
     python-mss kurulu değilse veya başarısız olursa subprocess fallback devreye girer.
 
     Args:
-        output_path: Kaydedilecek dosya yolu. None ise /tmp/wa_screenshot.png kullanılır.
+        output_path: Kaydedilecek dosya yolu. None ise /tmp içinde unique temp dosya oluşturulur (SEC-SCAN2-D2).
         region: (x, y, w, h) — yalnızca bu bölgeyi yakala. None ise tüm ekran.
                 Örnek: (0, 0, 800, 600) → sol üst 800×600 piksel.
 
     Döner: kayıt yolu (Path) veya başarısızsa None.
     """
+    _tmp_fd: Optional[int] = None
+    _tmp_path_created: Optional[str] = None
     if output_path is None:
-        output_path = "/tmp/wa_screenshot.png"
+        _tmp_fd, _tmp_path_created = tempfile.mkstemp(suffix=".png", prefix="wa_shot_", dir="/tmp")
+        os.close(_tmp_fd)
+        output_path = _tmp_path_created
 
     # 1. python-mss (in-process, X11 SHM — en hızlı)
     result = await _capture_with_mss(output_path, region)
@@ -380,7 +384,12 @@ async def capture_all_monitors(
 
     # Tek / sıfır monitör → eski davranış
     if len(monitors) <= 1:
-        out_path = "/tmp/wa_screenshot.png" if output_dir is None else f"{output_dir}/monitor_0.png"
+        if output_dir is None:
+            # SEC-SCAN2-D2: symlink attack'a karşı unique temp dosya
+            _fd, out_path = tempfile.mkstemp(suffix=".png", prefix="wa_shot_", dir="/tmp")
+            os.close(_fd)
+        else:
+            out_path = f"{output_dir}/monitor_0.png"
         shot = await capture_screen(out_path)
         if shot:
             name = monitors[0]["name"] if monitors else "primary"

@@ -47,7 +47,7 @@
     "error": "⚠️ Mesaj işlenirken beklenmedik bir hata oluştu. Lütfen tekrar dene."
   },
   "guard": {
-    "unauthorized": "⚠️ Yetkisiz mesaj\nNumara: {sender}\n{preview}",
+    "unauthorized": "⚠️ Yetkisiz erişim girişimi\nNumara: {sender}",
     "rate_limit": "⏳ Çok fazla istek. Bir dakika bekle.",
     "capability_restricted": "🚫 Bu yetenek devre dışı: {capability}"
   },

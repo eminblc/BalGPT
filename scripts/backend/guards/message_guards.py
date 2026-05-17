@@ -77,14 +77,9 @@ class OwnerPermissionGuard:
         )
         if target:
             try:
-                preview = ""
-                if ctx.msg.get("text"):
-                    preview = ctx.msg["text"].get("body", "")[:100]
-                elif ctx.msg.get("type"):
-                    preview = f"[{ctx.msg['type']}]"
                 await self._get_messenger().send_text(
                     target,
-                    t("guard.unauthorized", "tr", sender=ctx.sender, preview=preview),
+                    t("guard.unauthorized", "tr", sender=ctx.sender),
                 )
             except Exception as e:
                 logger.warning(

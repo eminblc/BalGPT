@@ -920,6 +920,12 @@ function runClaude(message, sessionFilePath, sessionId, projectDir = "", permMod
       reject(new Error(`Zaman aşımı (${TIMEOUT_MS}ms)`));
     }, TIMEOUT_MS);
 
+    // SEC-SCAN2-B9: `exit` event as safety-net cleanup — handles crashes where
+    // `close` may be delayed or not fire (e.g. pipe still open after SIGKILL).
+    proc.on("exit", () => {
+      activeProcesses.delete(sessionId);
+    });
+
     proc.on("close", (code) => {
       clearTimeout(timer);
       activeProcesses.delete(sessionId);

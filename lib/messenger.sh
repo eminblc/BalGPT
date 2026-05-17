@@ -13,7 +13,7 @@ import sys, json
 msg, owner = sys.argv[1], sys.argv[2]
 print(json.dumps({'messaging_product':'whatsapp','to':owner,'type':'text','text':{'body':msg}}))
 " "$_msg" "$_owner" 2>/dev/null)" || return 0
-  curl -s --max-time 10 \
+  curl -s --max-time 10 --connect-timeout 5 \
     -H "Authorization: Bearer $_tok" \
     -H "Content-Type: application/json" \
     -d "$_body" \
@@ -28,7 +28,7 @@ _tg_notify() {
   local _body
   _body="$("$PY" -c "import sys,json; print(json.dumps({'chat_id':int(sys.argv[1]),'text':sys.argv[2]}))" \
     "$_cid" "$_msg" 2>/dev/null)" || return 0
-  curl -s --max-time 10 \
+  curl -s --max-time 10 --connect-timeout 5 \
     -H "Content-Type: application/json" \
     -d "$_body" \
     "https://api.telegram.org/bot${_tok}/sendMessage" \
@@ -87,7 +87,7 @@ with urllib.request.urlopen(req, timeout=10) as r:
 # Answer a callback query to dismiss the loading spinner in Telegram.
 _tg_answer_callback() {
   local _tok="$1" _cb_id="$2"
-  curl -s --max-time 5 \
+  curl -s --max-time 5 --connect-timeout 5 \
     -d "callback_query_id=${_cb_id}" \
     "https://api.telegram.org/bot${_tok}/answerCallbackQuery" >/dev/null 2>&1 || true
 }

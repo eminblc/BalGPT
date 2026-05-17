@@ -268,8 +268,8 @@ async def test_non_owner_explicit_notification_target_custom():
 
 
 @pytest.mark.asyncio
-async def test_owner_permission_preview_text_body():
-    """Mesaj text içerdiğinde bildirimde body preview yer almalı."""
+async def test_owner_permission_no_content_in_notification_text():
+    """SEC-SCAN2-G11: Bildirimde mesaj içeriği (body) yer almamalı — sadece sender ID."""
     mock_perm = MagicMock()
     mock_perm.is_owner.return_value = False
     mock_settings = MagicMock()
@@ -287,12 +287,15 @@ async def test_owner_permission_preview_text_body():
 
     call_args = mock_messenger.send_text.call_args
     notification_text = call_args[0][1]
-    assert "gizli bilgi burada" in notification_text
+    # Mesaj içeriği (gizli veri) bildirimde yer almamalı (bilgi sızıntısı önleme)
+    assert "gizli bilgi burada" not in notification_text
+    # Sadece gönderici kimliği iletilmeli
+    assert "905559999999" in notification_text
 
 
 @pytest.mark.asyncio
-async def test_owner_permission_preview_type_only():
-    """Mesaj text içermiyorsa (image vb.) bildirimde tip etiketi yer almalı."""
+async def test_owner_permission_no_type_tag_in_notification():
+    """SEC-SCAN2-G11: Bildirimde mesaj tipi etiketi de yer almamalı."""
     mock_perm = MagicMock()
     mock_perm.is_owner.return_value = False
     mock_settings = MagicMock()
@@ -310,7 +313,10 @@ async def test_owner_permission_preview_type_only():
 
     call_args = mock_messenger.send_text.call_args
     notification_text = call_args[0][1]
-    assert "[image]" in notification_text
+    # Mesaj tipi de bildirimde yer almamalı
+    assert "[image]" not in notification_text
+    # Sadece gönderici kimliği iletilmeli
+    assert "905559999999" in notification_text
 
 
 # ── Tam zincir entegrasyonu ───────────────────────────────────────

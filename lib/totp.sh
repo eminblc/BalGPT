@@ -54,6 +54,7 @@ step_show_totp() {
     fi
     local _qr_script
     _qr_script="$(mktemp /tmp/qr_XXXXXX.py 2>/dev/null || echo /tmp/qr_print.py)"
+    chmod 600 "$_qr_script" 2>/dev/null || true
     cat > "$_qr_script" <<'PYEOF'
 import sys, qrcode
 uri = sys.argv[1]

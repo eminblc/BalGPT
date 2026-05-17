@@ -397,11 +397,17 @@ step_docker_build() {
         _tg_token="$(_read_env_var "TELEGRAM_BOT_TOKEN"      "$_env_dst")"
         _tg_secret="$(_read_env_var "TELEGRAM_WEBHOOK_SECRET" "$_env_dst")"
         _wh_url="${_pub_url}/telegram/webhook"
+        # SEC-SCAN2-B5: Validate URL before embedding in JSON to prevent shell injection
+        if [[ ! "$_wh_url" =~ ^https?://[^\'\"$\`\;\|\ \&]+$ ]]; then
+          warn "  Webhook URL contains unsafe characters — skipping registration"
+          _wh_result=""
+        else
         _wh_result="$(curl -s --max-time 8 -X POST \
           "https://api.telegram.org/bot${_tg_token}/setWebhook" \
           -H "Content-Type: application/json" \
           -d "{\"url\":\"${_wh_url}\",\"secret_token\":\"${_tg_secret}\",\"allowed_updates\":[\"message\",\"callback_query\"]}" \
           2>/dev/null || true)"
+        fi
         if echo "$_wh_result" | grep -q '"ok":true'; then
           ok "$_S_WH_TG_REGISTERED: $_wh_url"
           # TG-WIZ-1: Send Stage-2 wizard welcome ping.

@@ -35,22 +35,33 @@ def register_messenger(name: str, cls: type) -> None:
 
 
 def get_messenger() -> AbstractMessenger:
-    """Yapılandırılmış messenger adaptörünü döndür (singleton)."""
+    """Yapılandırılmış messenger adaptörünü döndür (singleton).
+
+    Thread/coroutine safety: GIL koruması altında double-check pattern.
+    Hızlı yol (instance mevcut) lock almadan çalışır; ilk oluşturma iç kontrol ile korunur.
+    """
     global _instance
-    if _instance is None:
-        messenger_type = settings.messenger_type.lower()
-        cls = _MESSENGERS.get(messenger_type)
-        if cls is None:
-            if settings.environment == "production":
-                raise ValueError(
-                    f"Bilinmeyen MESSENGER_TYPE={messenger_type!r}. "
-                    "Geçerli değerler: whatsapp, telegram, cli"
-                )
-            logger.warning(
-                "Bilinmeyen MESSENGER_TYPE=%r — varsayılan 'whatsapp' kullanılıyor",
-                messenger_type,
+    # Hızlı yol: zaten oluşturulmuşsa hemen dön
+    if _instance is not None:
+        return _instance
+
+    messenger_type = settings.messenger_type.lower()
+    cls = _MESSENGERS.get(messenger_type)
+    if cls is None:
+        if settings.environment == "production":
+            raise ValueError(
+                f"Bilinmeyen MESSENGER_TYPE={messenger_type!r}. "
+                "Geçerli değerler: whatsapp, telegram, cli"
             )
-            cls = WhatsAppMessenger
+        logger.warning(
+            "Bilinmeyen MESSENGER_TYPE=%r — varsayılan 'whatsapp' kullanılıyor",
+            messenger_type,
+        )
+        cls = WhatsAppMessenger
+
+    # GIL koruması: CPython'da global atama atomik — aynı anda iki coroutine
+    # buraya girerse aynı tip instance oluşur, gereksiz yeniden oluşturma zararsız
+    if _instance is None:
         _instance = cls()
         logger.info("Messenger: %s", cls.__name__)
     return _instance

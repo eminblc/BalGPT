@@ -309,6 +309,22 @@ async def _handle_is_locked(body: DesktopRequest) -> dict:
 async def _handle_sudo_exec(body: DesktopRequest) -> dict:
     if not body.sudo_cmd:
         return {"ok": False, "message": "sudo_exec aksiyonu için 'sudo_cmd' (komut listesi) gerekli."}
+
+    # SEC-SCAN2-R15: sudo_cmd whitelist kontrolü.
+    # settings.sudo_cmd_whitelist boşsa tüm komutlara izin verilir (geriye dönük uyumlu).
+    # Dolu ise yalnızca listede yer alan komutlar kabul edilir.
+    whitelist = settings.sudo_cmd_whitelist
+    cmd_name = body.sudo_cmd[0]
+    if whitelist and cmd_name not in whitelist:
+        logger.warning(
+            "desktop/sudo_exec: whitelist'e dahil olmayan komut reddedildi cmd=%s whitelist=%s",
+            cmd_name, whitelist,
+        )
+        return {
+            "ok": False,
+            "message": f"❌ '{cmd_name}' komutu sudo whitelist'inde değil. İzin verilen komutlar: {', '.join(whitelist)}",
+        }
+
     from ..features.desktop import sudo_exec
     code, output = await sudo_exec(body.sudo_cmd, timeout=body.timeout)
     ok = code == 0

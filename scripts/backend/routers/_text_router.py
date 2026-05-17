@@ -13,7 +13,7 @@ import logging
 import random
 from typing import Awaitable, Callable
 
-from ..guards import get_perm_mgr, Perm
+from ..guards import get_perm_mgr, get_session_mgr, Perm
 from ..guards.commands import registry as cmd_registry
 from ..store.message_logger import log_outbound
 from ..adapters.messenger.messenger_factory import get_messenger
@@ -180,10 +180,18 @@ async def _route_text(sender: str, text: str, session: dict) -> None:
         return
 
     # ── Wizard / pending state dispatch (OCP-V2: registry tabanlı) ──────────
-    for session_key, handler in _WIZ_REGISTRY.items():
-        if session.get(session_key):
-            await handler(sender, text, session)
-            return
+    # SEC-SCAN2-R12: Eşzamanlı iki istek için TOCTOU race condition önleme.
+    # Session flag okunması lock altında atomik yapılır; handler I/O yaptığından
+    # lock dışında çağrılır (deadlock önlemi).
+    matched_handler = None
+    async with get_session_mgr().lock(sender):
+        for session_key, handler in _WIZ_REGISTRY.items():
+            if session.get(session_key):
+                matched_handler = handler
+                break
+    if matched_handler is not None:
+        await matched_handler(sender, text, session)
+        return
 
     # Doğal dil → yönetim komutu tespiti
     nl_cmd = await _intent_classifier.classify_admin_intent(text)

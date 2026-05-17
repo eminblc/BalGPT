@@ -239,7 +239,12 @@ async def _execute_one_shot_task(task_id: str) -> None:
 
     try:
         payload = json.loads(task.get("action_payload") or "{}")
-    except Exception:
+    except (json.JSONDecodeError, ValueError) as _json_err:
+        logger.warning(
+            "Scheduler: one-shot task %s için action_payload geçersiz JSON — boş dict kullanılıyor: %s",
+            task_id,
+            _json_err,
+        )
         payload = {}
 
     action_type = task.get("action_type", "send_message")
@@ -446,7 +451,12 @@ async def _execute_task(task_id: str) -> None:
 
     try:
         payload = json.loads(task.get("action_payload") or "{}")
-    except Exception:
+    except (json.JSONDecodeError, ValueError) as _json_err:
+        logger.warning(
+            "Scheduler: task %s için action_payload geçersiz JSON — boş dict kullanılıyor: %s",
+            task_id,
+            _json_err,
+        )
         payload = {}
 
     action_type = task.get("action_type", "send_message")
@@ -599,10 +609,79 @@ async def _run_auto_backup() -> None:
 # ── Yardımcı ─────────────────────────────────────────────────────
 
 def _parse_cron(expr: str) -> dict:
-    """5-alan cron string'ini APScheduler CronTrigger kwargs'ına çevirir."""
+    """5-alan cron string'ini APScheduler CronTrigger kwargs'ına çevirir.
+
+    Geçerli alan aralıkları:
+      dakika:     0-59
+      saat:       0-23
+      ay-gün:     1-31
+      ay:         1-12
+      hafta-gün:  0-7  (0 ve 7 = Pazar)
+
+    Desteklenen formatlar: *, */n, n, n-m, n,m (virgüllü liste)
+    Geçersiz değer → ValueError.
+    """
+    import re
+
     parts = expr.strip().split()
     if len(parts) != 5:
         raise ValueError(f"Geçersiz cron ifadesi (5 alan gerekli): {expr!r}")
+
+    # (alan_adı, min_değer, max_değer)
+    _FIELD_RANGES: tuple[tuple[str, int, int], ...] = (
+        ("minute",      0, 59),
+        ("hour",        0, 23),
+        ("day",         1, 31),
+        ("month",       1, 12),
+        ("day_of_week", 0,  7),
+    )
+
+    # Tek bir cron token'ını doğrula (*,  */n, n, n-m, n,m,n)
+    _TOKEN_RE = re.compile(
+        r"^\*$"                   # *
+        r"|^\*/(\d+)$"            # */n
+        r"|^(\d+)$"               # n
+        r"|^(\d+)-(\d+)$"         # n-m
+        r"|^(\d+(?:,\d+)+)$"      # n,m,...
+    )
+
+    def _check_token(token: str, lo: int, hi: int, field: str) -> None:
+        m = _TOKEN_RE.match(token)
+        if m is None:
+            raise ValueError(
+                f"Geçersiz cron alanı {field!r}: {token!r} tanınan formatlarda değil"
+            )
+        # */n — n > 0 ve aralıkta
+        if m.group(1) is not None:
+            n = int(m.group(1))
+            if n == 0:
+                raise ValueError(f"Geçersiz cron alanı {field!r}: */0 geçersiz adım")
+        # tek sayı
+        elif m.group(2) is not None:
+            n = int(m.group(2))
+            if not (lo <= n <= hi):
+                raise ValueError(
+                    f"Geçersiz cron alanı {field!r}: {n} aralık dışı [{lo}-{hi}]"
+                )
+        # n-m aralığı
+        elif m.group(3) is not None:
+            a, b = int(m.group(3)), int(m.group(4))
+            if not (lo <= a <= hi and lo <= b <= hi and a <= b):
+                raise ValueError(
+                    f"Geçersiz cron alanı {field!r}: {a}-{b} geçersiz aralık [{lo}-{hi}]"
+                )
+        # virgüllü liste
+        elif m.group(5) is not None:
+            for val_str in m.group(5).split(","):
+                v = int(val_str)
+                if not (lo <= v <= hi):
+                    raise ValueError(
+                        f"Geçersiz cron alanı {field!r}: {v} aralık dışı [{lo}-{hi}]"
+                    )
+
+    for part, (field_name, lo, hi) in zip(parts, _FIELD_RANGES):
+        _check_token(part, lo, hi, field_name)
+
     keys = ("minute", "hour", "day", "month", "day_of_week")
     return dict(zip(keys, parts))
 

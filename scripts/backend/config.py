@@ -134,6 +134,10 @@ class Settings(BaseSettings):
     # ── Desktop Otomasyon ────────────────────────────────────────
     desktop_enabled:  bool = True   # False → tüm /internal/desktop aksiyonları devre dışı
     system_psswrd: SecretStr = SecretStr("")  # sudo -S ve ekran kilidi açma için (loglara yazılmaz)
+    # SEC-SCAN2-R15: sudo_exec whitelist — boş liste = tümüne izin ver (geriye dönük uyumlu).
+    # Dolu ise yalnızca listedeki komutlara izin verilir.
+    # Örn: SUDO_CMD_WHITELIST=apt,dpkg,systemctl
+    sudo_cmd_whitelist: list[str] = []
     desktop_recording: bool = False     # True → record_screen aksiyonu etkin (FEAT-DESK-REC-1)
     desktop_recording_max_mb: int = 16  # WhatsApp video boyut limiti MB; büyükse yalnızca path döner
     desktop_screenshot_max_width: int = 1280  # Screenshot'lar bu genişliğe resize edilir (0 = kapalı)

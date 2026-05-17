@@ -107,7 +107,12 @@ def is_dangerous(cmd_str: str) -> bool:
 
 
 def _sudo_stdin(cmd_str: str) -> bytes | None:
-    """sudo komutu için SYSTEM_PSSWRD'yi döndürür; yoksa veya sudo yoksa None."""
+    """sudo komutu için SYSTEM_PSSWRD'yi döndürür; yoksa veya sudo yoksa None.
+
+    Güvenlik (SEC-SCAN2-D19): Parola string referansı try/finally bloğunda `del`
+    ile kaldırılır; Python GC'nin nesneyi mümkün olan en kısa sürede toplaması sağlanır.
+    bytearray kullanımı bellekten sıfırlama imkânı tanır.
+    """
     try:
         import shlex
         tokens = shlex.split(cmd_str)
@@ -117,7 +122,21 @@ def _sudo_stdin(cmd_str: str) -> bytes | None:
         return None
     from ..config import settings
     pw = settings.system_psswrd.get_secret_value()
-    return (pw + "\n").encode() if pw else None
+    if not pw:
+        return None
+    try:
+        # bytearray ile oluştur; kullanım sonrası sıfırlanabilir
+        pw_bytes = bytearray((pw + "\n").encode())
+        result = bytes(pw_bytes)
+        return result
+    finally:
+        # Parola string referansını bellekten kaldır
+        del pw
+        # bytearray içeriğini sıfırla (en iyi çaba — Python tam garanti vermez)
+        try:
+            pw_bytes[:] = b"\x00" * len(pw_bytes)
+        except Exception:
+            pass
 
 
 def _inject_sudo_s(cmd_str: str) -> str:

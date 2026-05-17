@@ -55,5 +55,15 @@ _load_strings() {
   if [ $_rc -ne 0 ] || [ -z "$_generated" ]; then
     echo "[install] FATAL: locale load failed" >&2; exit 1
   fi
+  # SEC-SCAN2-B12: Validate generated output before eval to prevent code injection.
+  # Python uses shlex.quote() so every value is already shell-safe. We add a
+  # defence-in-depth check: every generated line must be a valid _S_KEY=value
+  # assignment produced by Python. Any line that doesn't start with _S_<KEY>=
+  # indicates tampered output — abort before eval.
+  local _bad_line
+  _bad_line="$(printf '%s\n' "$_generated" | { grep -Ev "^_S_[A-Z0-9_]+=" || true; } | head -1)"
+  if [[ -n "$_bad_line" ]]; then
+    echo "[install] FATAL: Unsafe locale data detected — aborting" >&2; exit 1
+  fi
   eval "$_generated"
 }
