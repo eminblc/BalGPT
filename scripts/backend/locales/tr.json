@@ -552,5 +552,22 @@
     "cancel_not_found": "⚠️ Run bulunamadı: {run_id}",
     "cancel_ambiguous": "⚠️ '{prefix}' ile başlayan birden fazla aktif run var. Daha uzun ID gir.",
     "cancel_not_active": "ℹ️ Run #{run_id} zaten bitti (durum: {status}). İptal edilemez."
+  },
+  "scan": {
+    "select_type": "Tarama tipi seç:",
+    "btn_security": "🔒 Güvenlik",
+    "btn_bugfix": "🐛 Bug Taraması",
+    "btn_status": "📊 Durum",
+    "no_root_project": "⚠️ Önce bir root proje seç: /root-project <proje-adı>",
+    "invalid_type": "⚠️ Geçersiz tarama tipi: {type}. Mevcut: {available}",
+    "starting": "🔍 {name} başlatıldı\nProje: {project}\nMod: {mode}\n\n/agents ile ilerlemeyi takip et.",
+    "mode_dry": "Sadece analiz (BACKLOG güncellenmez)",
+    "mode_full": "Analiz + BACKLOG güncelleme",
+    "status_none": "Henüz tarama yapılmadı.",
+    "status_header": "📊 Son Tarama",
+    "status_row": "{scan_type} | {status} | {accepted} kabul / {total} bulgu",
+    "history_header": "📋 Son Taramalar",
+    "history_row": "• {scan_type} — {status} ({accepted}✅ {rejected}❌ {duplicate}♻️)",
+    "history_empty": "Geçmiş tarama bulunamadı."
   }
 }

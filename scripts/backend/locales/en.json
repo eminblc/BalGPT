@@ -552,5 +552,22 @@
     "cancel_not_found": "⚠️ Run not found: {run_id}",
     "cancel_ambiguous": "⚠️ Multiple active runs start with '{prefix}'. Provide a longer ID.",
     "cancel_not_active": "ℹ️ Run #{run_id} is already finished (status: {status}). Cannot cancel."
+  },
+  "scan": {
+    "select_type": "Select scan type:",
+    "btn_security": "🔒 Security",
+    "btn_bugfix": "🐛 Bug Scan",
+    "btn_status": "📊 Status",
+    "no_root_project": "⚠️ Set a root project first: /root-project <project-name>",
+    "invalid_type": "⚠️ Invalid scan type: {type}. Available: {available}",
+    "starting": "🔍 {name} started\nProject: {project}\nMode: {mode}\n\nTrack progress with /agents.",
+    "mode_dry": "Analysis only (BACKLOG not updated)",
+    "mode_full": "Analysis + BACKLOG update",
+    "status_none": "No scans run yet.",
+    "status_header": "📊 Last Scan",
+    "status_row": "{scan_type} | {status} | {accepted} accepted / {total} findings",
+    "history_header": "📋 Recent Scans",
+    "history_row": "• {scan_type} — {status} ({accepted}✅ {rejected}❌ {duplicate}♻️)",
+    "history_empty": "No scan history found."
   }
 }

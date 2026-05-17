@@ -34,5 +34,6 @@ from . import wizard_cmd            # noqa: F401, E402
 from . import export_cmd            # noqa: F401, E402
 from . import import_cmd            # noqa: F401, E402
 from . import agents_cmd            # noqa: F401, E402
+from . import scan_cmd              # noqa: F401, E402
 
 __all__ = ["registry", "Command"]

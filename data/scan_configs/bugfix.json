@@ -1,0 +1,24 @@
+{
+  "type": "bugfix",
+  "name": "Bug Taraması",
+  "scanner_prompt": "Aşağıdaki bug kategorilerini ara:\n- Null/undefined dereferencing (optional chaining eksik)\n- Array out-of-bounds / empty array assumption\n- Async/await hataları (unhandled promise, missing await)\n- Type mismatch (TS any/unknown unsafe cast)\n- Memory leak (event listener temizlenmemiyor, subscription unsubscribe yok)\n- Error handling eksikliği (catch bloğu boş veya sadece console.log)\n- Off-by-one hatalar\n- Yanlış koşul (=== vs == karışıklığı, ters mantık)\n- Dead code (çağrılmayan fonksiyon, erişilemeyen branch)\nSadece kod mantığındaki gerçek bugları raporla.",
+  "target_patterns": [
+    "apps/api/src/**/*.ts",
+    "apps/web/src/**/*.ts",
+    "apps/web/src/**/*.tsx",
+    "apps/mobile/src/**/*.ts",
+    "apps/mobile/src/**/*.tsx"
+  ],
+  "exclude_patterns": [
+    "*.spec.ts",
+    "*.test.ts",
+    "*.e2e-spec.ts",
+    "node_modules",
+    "dist",
+    ".next",
+    "*.d.ts"
+  ],
+  "reviewer_prompt": "Her bulguyu değerlendir:\n- accepted: Gerçek bug, production'da hata üretebilir, mevcut BACKLOG'da yok\n- rejected: Kasıtlı tasarım kararı, test ortamında zaten yakalanıyor, veya framework handle ediyor\n- duplicate: BACKLOG'da zaten var veya bu taramada zaten raporlandı",
+  "backlog_prefix": "BUG",
+  "max_findings_per_agent": 20
+}
