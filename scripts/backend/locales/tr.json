@@ -603,5 +603,16 @@
     "prefix_all": "tümü",
     "status_header": "📊 Son Backlog Executor Run'ları",
     "status_empty": "Henüz backlog executor çalışmadı."
+  },
+  "nl_schedule": {
+    "confirm_header": "📅 Şunu anlıyorum — onaylıyor musun?",
+    "confirm_project": "Proje: {project}",
+    "confirm_frequency": "Sıklık: {human} ({cron})",
+    "confirm_auto_review": "Otomatik review: {icon}",
+    "btn_confirm": "✅ Oluştur",
+    "btn_cancel": "❌ İptal",
+    "cancelled": "❌ Zamanlama oluşturma iptal edildi.",
+    "created": "✅ Zamanlama oluşturuldu!\nID: `{id}` · Cron: `{cron}`\n{desc}",
+    "create_error": "❌ Zamanlama oluşturulamadı. Lütfen tekrar dene."
   }
 }

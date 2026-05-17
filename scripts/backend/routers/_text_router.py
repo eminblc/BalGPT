@@ -40,6 +40,17 @@ _MATH_CHALLENGE_CMDS: frozenset[str] = frozenset({"/shutdown", "/restart", "/pro
 # Key: session flag → async handler(sender, text, session) -> None
 # Yeni wizard adımı: handler fonksiyonu yaz + _WIZ_REGISTRY'ye ekle.
 
+async def _wiz_terminal_cmd(sender: str, text: str, session: dict) -> None:
+    """Terminal girişi akışı — kullanıcının yazdığı komutu çalıştır (TG-UX-1)."""
+    context_id = session.get("active_context", "main")
+    session.clear_terminal_input()
+    from ..guards.commands import registry as _cmd_registry
+    cmd = _cmd_registry.get("/terminal")
+    if cmd:
+        await cmd.execute(sender, text, session)
+    log_outbound(sender, "text", "wiz_terminal_cmd", context_id=context_id)
+
+
 async def _wiz_project_name(sender: str, text: str, session: dict) -> None:
     lang = session.get("lang", "tr")
     context_id = session.get("active_context", "main")
@@ -111,6 +122,7 @@ async def _wiz_pending_pdf(sender: str, text: str, session: dict) -> None:  # no
 
 # Sıra önemlidir: ilk eşleşen handler çalışır.
 _WIZ_REGISTRY: dict[str, Callable[[str, str, dict], Awaitable[None]]] = {
+    "awaiting_terminal_cmd":        _wiz_terminal_cmd,
     "awaiting_project_name":        _wiz_project_name,
     "awaiting_project_description": _wiz_project_description,
     "awaiting_arch_edit":           _wiz_arch_edit,
@@ -217,8 +229,56 @@ async def _route_text(sender: str, text: str, session: dict) -> None:
         log_outbound(sender, "text", "guardrail_confirm_prompt", context_id=context_id)
         return
 
+    # ── Doğal dil zamanlama tespiti ─────────────────────────────────────────
+    # Keyword ön filtresi geçerse LLM ile parse et; onay butonu göster.
+    # Lazy import: nl_scheduler paketi henüz yoksa ImportError fırlatmaz.
+    try:
+        from ..features.nl_scheduler.parser import NLScheduleParser
+        _nl_parser = NLScheduleParser()
+        if _nl_parser.is_schedule_intent(text):
+            params = await _nl_parser.parse(text)
+            if params:
+                session["pending_nl_schedule"] = {"params": params, "original_text": text}
+                await _send_schedule_confirmation(sender, params, session)
+                log_outbound(sender, "interactive", "nl_schedule_confirm", context_id=context_id)
+                return
+    except ImportError:
+        pass  # nl_scheduler henüz mevcut değil — normal akış devam eder
+
     # Düz metin → Bridge
     await _forward_to_bridge(sender, text, session)
+
+
+async def _send_schedule_confirmation(sender: str, params: dict, session: dict) -> None:
+    """NL zamanlama onay mesajını butonlarla gönderir."""
+    lang = session.get("lang", "tr")
+    messenger = get_messenger()
+
+    action_icon = "🔍" if params.get("action_type") == "run_scanner" else "🛠"
+    action_label = (
+        f"{params.get('scan_type', '')} taraması"
+        if params.get("action_type") == "run_scanner"
+        else "backlog executor"
+    )
+
+    lines = [
+        t("nl_schedule.confirm_header", lang),
+        f"{action_icon} {action_label}",
+        t("nl_schedule.confirm_project", lang, project=params.get("project_id", "?")),
+        t("nl_schedule.confirm_frequency", lang,
+          human=params.get("human_readable", "?"),
+          cron=params.get("cron_expr", "?")),
+    ]
+    if params.get("action_type") == "run_scanner":
+        review_icon = "✅" if params.get("auto_review", True) else "❌"
+        lines.append(t("nl_schedule.confirm_auto_review", lang, icon=review_icon))
+
+    body = "\n".join(lines)
+    buttons = [
+        {"id": "nlsched_confirm", "title": t("nl_schedule.btn_confirm", lang)},
+        {"id": "nlsched_cancel",  "title": t("nl_schedule.btn_cancel", lang)},
+    ]
+    await messenger.send_buttons(sender, body, buttons)
 
 
 async def _forward_to_bridge(sender: str, text: str, session: dict) -> None:

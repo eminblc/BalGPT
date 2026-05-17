@@ -603,5 +603,16 @@
     "prefix_all": "all",
     "status_header": "📊 Recent Backlog Executor Runs",
     "status_empty": "No backlog executor runs yet."
+  },
+  "nl_schedule": {
+    "confirm_header": "📅 Here's what I understood — do you confirm?",
+    "confirm_project": "Project: {project}",
+    "confirm_frequency": "Frequency: {human} ({cron})",
+    "confirm_auto_review": "Auto review: {icon}",
+    "btn_confirm": "✅ Create",
+    "btn_cancel": "❌ Cancel",
+    "cancelled": "❌ Schedule creation cancelled.",
+    "created": "✅ Schedule created!\nID: `{id}` · Cron: `{cron}`\n{desc}",
+    "create_error": "❌ Could not create schedule. Please try again."
   }
 }

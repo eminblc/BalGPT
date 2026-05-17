@@ -311,6 +311,70 @@ _MSG_TYPE_HANDLERS: dict[str, _HandlerFn] = {
 }
 
 
+# ── NL Zamanlama buton handler ────────────────────────────────────
+
+async def _handle_nl_schedule_reply(sender: str, reply_id: str, session: dict) -> None:
+    """Doğal dil zamanlama onay veya iptal butonunu işler."""
+    from ..i18n import t
+    from ..adapters.messenger.messenger_factory import get_messenger
+
+    lang = session.get("lang", "tr")
+    messenger = get_messenger()
+
+    pending = session.pop("pending_nl_schedule", None)
+
+    if reply_id == "nlsched_cancel" or not pending:
+        await messenger.send_text(sender, t("nl_schedule.cancelled", lang))
+        return
+
+    params = pending.get("params", {})
+    project_id  = params.get("project_id", "")
+    action_type = params.get("action_type", "")
+    cron_expr   = params.get("cron_expr", "")
+    description = params.get("description", f"{action_type} — {project_id}")
+
+    if not project_id or not action_type or not cron_expr:
+        await messenger.send_text(sender, t("nl_schedule.create_error", lang))
+        return
+
+    try:
+        from ..store import sqlite_store as db
+        from ..features.scheduler import add_cron_job
+
+        # action_payload oluştur
+        if action_type == "run_scanner":
+            payload = {
+                "scan_type":   params.get("scan_type", "security"),
+                "project_id":  project_id,
+                "auto_review": params.get("auto_review", True),
+                "dry_run":     params.get("dry_run", False),
+            }
+        else:  # run_backlog_executor
+            payload = {
+                "project_id": project_id,
+                "prefix":     params.get("prefix", ""),
+                "max_items":  params.get("max_items", 3),
+                "parallel":   2,
+                "dry_run":    params.get("dry_run", False),
+            }
+
+        task = await db.task_create(
+            description=description,
+            action_type=action_type,
+            action_payload=payload,
+            cron_expr=cron_expr,
+        )
+        await add_cron_job(task["id"], cron_expr, description, action_type, payload)
+        await messenger.send_text(
+            sender,
+            t("nl_schedule.created", lang,
+              id=task["id"][:6], cron=cron_expr, desc=description),
+        )
+    except Exception as exc:
+        logger.error("nl_schedule oluşturma hatası: %s", exc)
+        await messenger.send_text(sender, t("nl_schedule.create_error", lang))
+
+
 # ── Interactive yönlendirme ───────────────────────────────────────
 
 async def _route_interactive(sender: str, reply_id: str, session: dict) -> None:
@@ -411,6 +475,11 @@ async def _route_interactive(sender: str, reply_id: str, session: dict) -> None:
             command = cmd_registry.get("/timezone")
             if command:
                 await command.execute(sender, tz, session)
+        return
+
+    # Doğal dil zamanlama onay/iptal butonları
+    if reply_id in ("nlsched_confirm", "nlsched_cancel"):
+        await _handle_nl_schedule_reply(sender, reply_id, session)
         return
 
     await handle_menu_reply(sender, reply_id, session)
