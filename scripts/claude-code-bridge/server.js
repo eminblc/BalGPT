@@ -554,30 +554,9 @@ function buildInitPrompt(projectClaudeMd = "", convHistory = [], userMessage = "
     ? `⚠️ CLAUDE.md boyutu: ${claudeMdLines} satır — eşik (${CLAUDE_MD_LINE_WARN}) aşıldı, büyümeyi yavaşlat.`
     : `CLAUDE.md boyutu: ${claudeMdLines} satır (eşik: ${CLAUDE_MD_LINE_WARN})`;
 
-  // CTX-LOSS-2: Devam eden (resumed) oturumda yalnızca dinamik bölümleri gönder.
-  // Statik bölümler (KESİN YASAKLAR, guardrails, WhatsApp talimatı, coreFiles vb.)
-  // Anthropic tarafında oturum geçmişinde zaten mevcut — tekrar göndermek token israfı.
-  if (isResumed) {
-    const dynamicDate = `# currentDate\nToday's date is ${new Date().toISOString().slice(0, 10)}.`;
-    const dynamicSize = claudeMdLines > CLAUDE_MD_LINE_WARN
-      ? `# claudeMdSize\n${claudeMdSizeNote}`
-      : "";
-    let result = [dynamicDate, dynamicSize, activeCtxSection].filter(Boolean).join("\n");
-    if (convHistorySection) result += `\n---\n${convHistorySection}`;
-    if (userMessage) {
-      const ctxHint = buildContextHint(userMessage, contextRoutesPath);
-      if (ctxHint) result += `\n---\n${ctxHint}`;
-      const bHint = buildBrowserHint(userMessage);
-      if (bHint) result += `\n---\n${bHint}`;
-    }
-    if (sessionId) {
-      const repeatWarn = buildRepeatReadWarning(sessionId);
-      if (repeatWarn) result += `\n---\n${repeatWarn}`;
-    }
-    return result;
-  }
-
   // Ajan rolü ve proje kök dizini: root proje aktifse o projenin ajanı gibi davran
+  // (Bu bölüm isResumed bloğundan önce hesaplanıyor; resumed + hasActiveRootProject
+  //  durumunda agentIntro yeniden enjekte edilmesi gerektiği için.)
   const agentIntro = hasActiveRootProject
     ? `Sen **${activeRootProject.name}** projesinin AI ajanısın. Claude Code CLI üzerinden çalışıyorsun.
 Proje kök dizini: ${workDir}
@@ -597,6 +576,35 @@ Proje kök dizini: ${ROOT_DIR}`;
 - GUARDRAILS.md          → Yasak komutlar listesi
 - scripts/backend/       → FastAPI uygulaması
 - outputs/logs/          → Loglar`;
+
+  // CTX-LOSS-2: Devam eden (resumed) oturumda yalnızca dinamik bölümleri gönder.
+  // Statik bölümler (KESİN YASAKLAR, guardrails, WhatsApp talimatı, coreFiles vb.)
+  // Anthropic tarafında oturum geçmişinde zaten mevcut — tekrar göndermek token israfı.
+  // İSTİSNA: active_root_project set edilmişse agentIntro + coreFilesSection yenilenir;
+  // çünkü proje kök dizini kısıtlaması cwd değişimlerinde garantilenmelidir (CTX-LOSS-2 root-project sızıntısı).
+  if (isResumed) {
+    const dynamicDate = `# currentDate\nToday's date is ${new Date().toISOString().slice(0, 10)}.`;
+    const dynamicSize = claudeMdLines > CLAUDE_MD_LINE_WARN
+      ? `# claudeMdSize\n${claudeMdSizeNote}`
+      : "";
+    let result = [dynamicDate, dynamicSize, activeCtxSection].filter(Boolean).join("\n");
+    if (convHistorySection) result += `\n---\n${convHistorySection}`;
+    if (userMessage) {
+      const ctxHint = buildContextHint(userMessage, contextRoutesPath);
+      if (ctxHint) result += `\n---\n${ctxHint}`;
+      const bHint = buildBrowserHint(userMessage);
+      if (bHint) result += `\n---\n${bHint}`;
+    }
+    if (sessionId) {
+      const repeatWarn = buildRepeatReadWarning(sessionId);
+      if (repeatWarn) result += `\n---\n${repeatWarn}`;
+    }
+    // hasActiveRootProject ise proje kök dizini kısıtlaması resumed'da da tekrarlan
+    if (hasActiveRootProject) {
+      result = `${agentIntro}\n\n${coreFilesSection}\n---\n${result}`;
+    }
+    return result;
+  }
 
   // CTX-LOSS-3: Sabit bölümler önce (Anthropic prefix-cache'i için), dinamik bölümler sonda.
   // currentDate ve claudeMdSizeNote artık coreFilesSection'dan sonra — bu sayede statik
