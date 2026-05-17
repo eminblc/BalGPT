@@ -69,9 +69,32 @@ def init_db() -> None:
             action_payload TEXT DEFAULT '{}'
         );
 
+        CREATE TABLE IF NOT EXISTS agent_runs (
+            id              TEXT PRIMARY KEY,
+            agent_type      TEXT NOT NULL,
+            project_id      TEXT REFERENCES projects(id),
+            session_id      TEXT NOT NULL,
+            task_id         TEXT REFERENCES scheduled_tasks(id),
+            source          TEXT DEFAULT 'internal',
+            sender          TEXT,
+            prompt          TEXT,
+            status          TEXT DEFAULT 'pending',
+            started_at      REAL,
+            completed_at    REAL,
+            duration_ms     INTEGER,
+            output          TEXT,
+            error_msg       TEXT,
+            exit_code       INTEGER,
+            metadata        TEXT DEFAULT '{}',
+            created_at      REAL NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_plans_status   ON work_plans(status);
         CREATE INDEX IF NOT EXISTS idx_events_time    ON calendar_events(event_time);
         CREATE INDEX IF NOT EXISTS idx_tasks_active   ON scheduled_tasks(active, next_run);
+        CREATE INDEX IF NOT EXISTS idx_agent_runs_project ON agent_runs(project_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_agent_runs_session ON agent_runs(session_id, status);
+        CREATE INDEX IF NOT EXISTS idx_agent_runs_status  ON agent_runs(status, started_at DESC);
 
         -- ── Mesaj geçmişi ─────────────────────────────────────────
         CREATE TABLE IF NOT EXISTS messages (
@@ -174,8 +197,12 @@ def init_db() -> None:
 
 
 _MIGRATE_SCHEDULED_TASKS_COLUMNS: dict[str, str] = {
-    "status":     "TEXT DEFAULT 'scheduled'",
-    "deleted_at": "REAL",
+    "status":       "TEXT DEFAULT 'scheduled'",
+    "deleted_at":   "REAL",
+    "project_id":   "TEXT",
+    "scope":        "TEXT DEFAULT 'global'",
+    "output":       "TEXT",
+    "error_detail": "TEXT",
 }
 
 
@@ -188,7 +215,8 @@ def _migrate_scheduled_tasks(con: sqlite3.Connection) -> None:
         try:
             con.execute(ddl)
         except sqlite3.OperationalError as e:
-            if "already exists" not in str(e):
+            msg = str(e)
+            if "already exists" not in msg and "duplicate column name" not in msg:
                 raise  # beklenmedik hata — yutma
 
 

@@ -71,6 +71,8 @@ class SessionState(dict):
         "awaiting_task",
         "pending_pdf",
         "_terminal_pending_cmd",
+        # Serbest terminal girişi bekleme durumu
+        "awaiting_terminal_cmd",
         # Backup import akışı (BACKUP-7)
         "pending_backup_import",
         # Wizard step flow-control (SOLID-v2-5)
@@ -189,6 +191,14 @@ class SessionState(dict):
     def set_terminal_pending(self, cmd: str) -> None:
         """Tehlikeli terminal komutunu admin TOTP onayı için sakla."""
         dict.__setitem__(self, "_terminal_pending_cmd", cmd)
+
+    def start_terminal_input(self) -> None:
+        """Serbest terminal girişi bekleme durumunu başlat."""
+        dict.__setitem__(self, "awaiting_terminal_cmd", True)
+
+    def clear_terminal_input(self) -> None:
+        """Serbest terminal girişi bekleme durumunu kapat."""
+        self.pop("awaiting_terminal_cmd", None)
 
     # ── Wizard state geçiş metotları (SOLID-v2-5) ─────────────────────
 
@@ -394,3 +404,24 @@ class ScheduledTask(TypedDict):
     active: bool
     action_type: str     # "send_message" | "run_bridge"
     action_payload: dict
+
+
+class AgentRun(TypedDict, total=False):
+    """Agent çalıştırma kaydı — agent_runs tablosuna karşılık gelir."""
+    id: str
+    agent_type: str       # 'scheduler_cron' | 'scheduler_oneshot' | 'manual_bridge' | 'project_task'
+    project_id: str | None
+    session_id: str
+    task_id: str | None
+    source: str           # 'internal' | 'whatsapp' | 'telegram' | 'http'
+    sender: str | None
+    prompt: str | None
+    status: str           # 'pending' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+    started_at: float | None
+    completed_at: float | None
+    duration_ms: int | None
+    output: str | None
+    error_msg: str | None
+    exit_code: int | None
+    metadata: str
+    created_at: float
