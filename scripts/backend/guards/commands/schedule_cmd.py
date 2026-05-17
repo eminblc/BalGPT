@@ -51,7 +51,7 @@ class ScheduleCommand:
             await self._add(sender, rest, "run_bridge", lang, _send)
         elif sub == "mesaj":
             await self._add(sender, rest, "send_message", lang, _send)
-        elif sub == "tarama":
+        elif sub in ("scan", "tarama"):
             await self._add_scanner(sender, rest, lang, _send)
         elif sub == "backlog":
             await self._add_backlog(sender, rest, lang, _send)

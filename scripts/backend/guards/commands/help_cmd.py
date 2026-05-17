@@ -100,6 +100,14 @@ class HelpCommand:
                             {"id": "cmd_import",        "title": t("help.row_import",        lang)},
                         ],
                     },
+                    {
+                        "title": t("help.section_intelligence", lang),
+                        "rows": [
+                            {"id": "cmd_scan",    "title": t("help.row_scan",    lang)},
+                            {"id": "cmd_backlog", "title": t("help.row_backlog", lang)},
+                            {"id": "cmd_agents",  "title": t("help.row_agents",  lang)},
+                        ],
+                    },
                 ],
             )
         except Exception as e:
