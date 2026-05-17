@@ -4,7 +4,9 @@ Alt komutlar:
   /agents           — aktif run'lar + son 5 tamamlanan
   /agents active    — sadece aktif (pending + running) run'lar
   /agents history   — son 20 run
-  /agents cancel <run_id> — run'ı iptal et
+  /agents cancel <run_id>  — run'ı iptal et
+  /agents detail <run_id>  — run detayını göster (çıktı, hata, süre)
+  /agents project <id>     — projeye ait son 10 run
 """
 from __future__ import annotations
 
@@ -109,6 +111,38 @@ def _build_active_section(runs: list[dict], lang: str) -> list[str]:
     return lines
 
 
+def _format_detail(run: dict, lang: str) -> str:
+    """Tek run için detay metni oluştur."""
+    from ...i18n import t
+    rid = _short_id(run.get("id", "??????"))
+    lines = [
+        t("agents.detail_header", lang, run_id=rid),
+        t("agents.detail_type", lang, agent_type=run.get("agent_type", "?")),
+    ]
+    if run.get("project_id"):
+        lines.append(t("agents.detail_project", lang, project_id=run["project_id"]))
+    else:
+        lines.append(t("agents.detail_session", lang, session_id=run.get("session_id", "?")))
+
+    started_at = run.get("started_at") or run.get("created_at")
+    if started_at:
+        lines.append(t("agents.detail_started", lang, elapsed=_elapsed(started_at)))
+    if run.get("duration_ms") is not None:
+        lines.append(t("agents.detail_duration", lang, duration=_duration(run["duration_ms"])))
+
+    output = (run.get("output") or "").strip()
+    if output:
+        output_preview = output[:300] + ("…" if len(output) > 300 else "")
+        lines.append(t("agents.detail_output", lang, output=output_preview))
+    else:
+        lines.append(t("agents.detail_no_output", lang))
+
+    if run.get("error_msg"):
+        lines.append(t("agents.detail_error", lang, error=run["error_msg"][:200]))
+
+    return "\n".join(lines)
+
+
 class AgentsCommand:
     """Agent run'larını listele ve yönet (/agents komutu)."""
 
@@ -153,6 +187,18 @@ class AgentsCommand:
             for run in runs:
                 lines.append(_format_completed_run(run, lang))
             await messenger.send_text(sender, "\n".join(lines))
+            return
+
+        # ── /agents detail <run_id> ──────────────────────────────────
+        if sub.startswith("detail "):
+            run_id_prefix = sub.removeprefix("detail ").strip()
+            await self._handle_detail(sender, run_id_prefix, agent_run_repo, messenger, lang)
+            return
+
+        # ── /agents project <project_id> ─────────────────────────────
+        if sub.startswith("project "):
+            project_id = sub.removeprefix("project ").strip()
+            await self._handle_project(sender, project_id, agent_run_repo, messenger, lang)
             return
 
         # ── /agents (default: aktif + son 5) ─────────────────────────
@@ -221,6 +267,52 @@ class AgentsCommand:
         await agent_run_repo.agent_run_cancel(run_id)
         logger.info("AgentsCommand: run %s iptal edildi.", run_id)
         await messenger.send_text(sender, t("agents.cancel_ok", lang, run_id=_short_id(run_id)))
+
+    async def _handle_detail(
+        self,
+        sender: str,
+        run_id_prefix: str,
+        agent_run_repo,  # type: ignore[annotation-unchecked]
+        messenger,       # type: ignore[annotation-unchecked]
+        lang: str,
+    ) -> None:
+        """Prefix ile eşleşen run'ın detayını göster."""
+        from ...i18n import t
+
+        run = await agent_run_repo.agent_run_get(run_id_prefix)
+        if run is None:
+            # prefix ile aktif run'larda ara
+            active_runs = await agent_run_repo.agent_run_list_active()
+            matches = [r for r in active_runs if r["id"].startswith(run_id_prefix)]
+            if len(matches) == 1:
+                run = matches[0]
+            else:
+                await messenger.send_text(sender, t("agents.detail_not_found", lang, run_id=run_id_prefix))
+                return
+
+        await messenger.send_text(sender, _format_detail(run, lang))
+
+    async def _handle_project(
+        self,
+        sender: str,
+        project_id: str,
+        agent_run_repo,  # type: ignore[annotation-unchecked]
+        messenger,       # type: ignore[annotation-unchecked]
+        lang: str,
+    ) -> None:
+        """Projeye ait son 10 run'ı listele."""
+        from ...i18n import t
+
+        runs = await agent_run_repo.agent_run_list_by_project(project_id, limit=10)
+        if not runs:
+            await messenger.send_text(sender, t("agents.project_empty", lang, project_id=project_id))
+            return
+
+        header = t("agents.project_header", lang, project_id=project_id, count=len(runs))
+        lines = [header, ""]
+        for run in runs:
+            lines.append(_format_completed_run(run, lang))
+        await messenger.send_text(sender, "\n".join(lines))
 
 
 registry.register(AgentsCommand())
