@@ -12,6 +12,10 @@ module.exports = {
       restart_delay: 3000,
       max_restarts: 10,
       watch: false,
+      error_file: "../outputs/logs/pm2-api-error.log",
+      out_file: "../outputs/logs/pm2-api-out.log",
+      log_date_format: "YYYY-MM-DD HH:mm:ss",
+      max_memory_restart: "500M",
     },
     {
       name: "99-bridge",
@@ -22,6 +26,10 @@ module.exports = {
       restart_delay: 3000,
       max_restarts: 10,
       watch: false,
+      error_file: "../../outputs/logs/pm2-bridge-error.log",
+      out_file: "../../outputs/logs/pm2-bridge-out.log",
+      log_date_format: "YYYY-MM-DD HH:mm:ss",
+      max_memory_restart: "500M",
     },
   ],
 };

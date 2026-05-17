@@ -20,6 +20,12 @@ services:
       - ./data:/app/data
       - ./outputs/logs:/app/outputs/logs
       - ./reports:/app/reports
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     depends_on:
       99-bridge:
         condition: service_healthy
@@ -47,6 +53,12 @@ services:
       - SESSIONS_DIR=/app/data/claude_sessions
       - CONV_HISTORY_DIR=/app/data/conv_history
       - ACTIVE_CONTEXT_PATH=/app/data/active_context.json
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8013/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     volumes:
       - ./data:/app/data
       - ./outputs/logs:/app/outputs/logs

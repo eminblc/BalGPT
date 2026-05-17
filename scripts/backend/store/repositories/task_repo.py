@@ -23,12 +23,16 @@ def _sync_task_create(description: str, action_type: str, action_payload: dict,
 
 
 def _sync_task_get(task_id: str) -> dict | None:
+    # Expected keys: id, description, cron_expr, next_run, active, action_type, action_payload,
+    #                status, last_run, deleted_at
     with _conn() as con:
         row = con.execute("SELECT * FROM scheduled_tasks WHERE id=?", (task_id,)).fetchone()
         return dict(row) if row else None
 
 
 def _sync_task_list_active() -> list[dict]:
+    # Expected keys per row: id, description, cron_expr, next_run, active, action_type,
+    #                        action_payload, status, last_run, deleted_at
     with _conn() as con:
         rows = con.execute(
             "SELECT * FROM scheduled_tasks WHERE active=1 ORDER BY next_run",

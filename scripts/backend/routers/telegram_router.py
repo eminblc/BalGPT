@@ -121,8 +121,10 @@ async def receive_webhook(
 
     try:
         payload = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Geçersiz JSON")
+    except Exception as exc:
+        logger.warning("Telegram webhook JSON parse hatası: %s", exc)
+        # Telegram 200 dışı yanıt alırsa güncellemeyi yeniden gönderir — 200 dönerek retry önle.
+        return {"ok": True}
 
     try:
         await _handle_update(payload, guard_chain=guard_chain, s_mgr=s_mgr)
@@ -312,13 +314,16 @@ def _describe_tg_media(msg: dict, msg_type: str) -> str:
     return ""
 
 
+_ANSWER_CALLBACK_TIMEOUT = httpx.Timeout(5.0)
+
+
 async def _answer_callback(callback_query_id: str) -> None:
     """Telegram'a callback query yanıtı gönder; buton yüklenme animasyonunu kaldırır."""
     token = settings.telegram_bot_token.get_secret_value()
     if not token or not callback_query_id:
         return
     try:
-        async with httpx.AsyncClient(timeout=5) as client:
+        async with httpx.AsyncClient(timeout=_ANSWER_CALLBACK_TIMEOUT) as client:
             await client.post(
                 f"https://api.telegram.org/bot{token}/answerCallbackQuery",
                 json={"callback_query_id": callback_query_id},

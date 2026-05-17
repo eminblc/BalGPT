@@ -425,23 +425,32 @@ async def forward_media_message(
     media_type: str,
     caption: str = "",
     filename: str = "file",
-) -> dict | None:
+) -> dict:
     """Gelen medyayı aynı kullanıcıya geri ilet (echo veya onay amacıyla).
 
+    IMP-ADAP-6: Başarı/hata durumunu açıkça belirten dict döndürür.
+    Çağırıcılar `result["ok"]` ile sonucu kontrol edebilir.
+
     media_type: image | audio | document | video
+
+    Returns:
+        {"ok": True, ...}   — başarılı Meta API yanıtı (messages[0].id vs.)
+        {"ok": False, "error": str(exc)}  — gönderim başarısız
     """
     try:
         if media_type == "image":
-            return await send_image_by_id(to, media_id, caption)
+            result = await send_image_by_id(to, media_id, caption)
         elif media_type == "document":
-            return await send_document_by_id(to, media_id, filename, caption)
+            result = await send_document_by_id(to, media_id, filename, caption)
         elif media_type == "audio":
-            return await send_audio_by_id(to, media_id)
+            result = await send_audio_by_id(to, media_id)
         elif media_type == "video":
-            return await send_video_by_id(to, media_id, caption)
+            result = await send_video_by_id(to, media_id, caption)
         else:
             logger.warning("forward_media_message: bilinmeyen tip %s", media_type)
-            return None
+            return {"ok": False, "error": f"bilinmeyen media_type: {media_type}"}
+        # Meta API yanıtına ok=True ekle (mevcut dict yapısı korunur)
+        return {"ok": True, **result}
     except Exception as exc:
         logger.error("forward_media_message başarısız: %s", exc)
-        return None
+        return {"ok": False, "error": str(exc)}

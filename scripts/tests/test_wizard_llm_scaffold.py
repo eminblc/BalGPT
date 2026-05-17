@@ -456,7 +456,7 @@ def test_build_md_content_claude_md_without_overrides():
 
     assert out.startswith("# Foo\n")
     assert "Bir proje." in out
-    assert "## Proje Kök Dizini" in out
+    assert "## Project Root Directory" in out
     assert "/tmp/foo" in out
     # AI bölümleri yok
     assert "## Stack" not in out
@@ -531,7 +531,7 @@ def test_build_md_content_claude_md_full_ai_overrides():
     )
     # Statik başlık + yol KORUNMALI (WIZ-LLM-5 kuralı)
     assert out.startswith("# Foo\n")
-    assert "## Proje Kök Dizini" in out
+    assert "## Project Root Directory" in out
     # Üç blok da var ve statik sonrası ekli
     assert "## Stack\n- python\n" in out
     assert "## Klasör Yapısı\n- `src/`\n" in out

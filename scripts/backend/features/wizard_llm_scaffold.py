@@ -45,8 +45,8 @@ logger = logging.getLogger(__name__)
 
 # ── Sabitler ─────────────────────────────────────────────────────────
 
-_LLM_TIMEOUT_SECONDS: float = 60.0
-_LLM_MAX_TOKENS: int = 2048
+_LLM_TIMEOUT_SECONDS: float = 120.0
+_LLM_MAX_TOKENS: int = 4096
 
 # JSON bomb ve kaynak tükenmesi koruması (KATEGORİ 56)
 _MAX_DESCRIPTION_LEN: int = 2000
@@ -62,6 +62,8 @@ _ALLOWED_KEYS: frozenset[str] = frozenset(
 # JSON bloğu çıkarma — markdown code fence veya ham {...} destekler
 _JSON_BLOCK_RE = re.compile(r"\{[\s\S]*\}")
 _CODE_FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
+# // satır yorumları (LLM çıktısında görülebilir — JSON geçersiz kılar)
+_JSON_LINE_COMMENT_RE = re.compile(r"//[^\n]*")
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -301,7 +303,7 @@ class WizardBridgeAdapter:
             "",
         )
         session_id = f"{_BRIDGE_SESSION_PREFIX}{uuid.uuid4().hex[:8]}"
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=150.0) as client:
             r = await client.post(
                 f"{self._bridge_url}/query",
                 headers={"X-Api-Key": self._api_key},
@@ -431,8 +433,13 @@ class WizardLLMScaffoldService:
         try:
             parsed = json.loads(block)
         except json.JSONDecodeError as exc:
-            logger.warning("wizard_llm_scaffold: JSON parse hatası: %s", exc)
-            return None
+            # // yorum satırları varsa sil ve yeniden dene
+            stripped = _JSON_LINE_COMMENT_RE.sub("", block).strip()
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError:
+                logger.warning("wizard_llm_scaffold: JSON parse hatası: %s", exc)
+                return None
 
         sanitized = self._sanitizer.sanitize(parsed)
         if sanitized is None:

@@ -66,10 +66,15 @@ class ExportCommand:
         try:
             service  = get_export_service()
             manifest = await service.create_backup(scope, tmp_path)
-        except Exception as exc:
-            logger.exception("Export komutu hatası: %s", exc)
+        except Exception:
+            logger.exception("Export komutu hatası")
             tmp_path.unlink(missing_ok=True)
-            await send(sender, t("backup.export_error", lang, error=str(exc)))
+            await send(sender, t("backup.export_error", lang))
+            return
+
+        if not tmp_path.exists():
+            logger.error("Export dosyası oluşturuldu ancak bulunamadı: %s", tmp_path)
+            await send(sender, t("backup.export_error", lang))
             return
 
         size_kb  = tmp_path.stat().st_size // 1024
@@ -82,9 +87,12 @@ class ExportCommand:
         if isinstance(messenger, MediaMessenger):
             try:
                 await messenger.send_document(sender, str(tmp_path), tmp_path.name, caption)
-            except Exception as exc:
-                logger.exception("Export dosyası gönderilemedi: %s", exc)
-                await send(sender, t("backup.export_send_error", lang, error=str(exc)))
+            except FileNotFoundError:
+                logger.exception("Export dosyası gönderim öncesi kayboldu: %s", tmp_path)
+                await send(sender, t("backup.export_send_error", lang))
+            except Exception:
+                logger.exception("Export dosyası gönderilemedi: %s", tmp_path)
+                await send(sender, t("backup.export_send_error", lang))
         else:
             # Medya desteği yok — en azından özet gönder
             await send(sender, caption)

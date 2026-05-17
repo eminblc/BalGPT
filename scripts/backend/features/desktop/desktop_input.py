@@ -26,6 +26,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import time
 
 from .desktop_common import (
@@ -132,14 +133,19 @@ def _xlib_type_sync(text: str, delay_ms: int, display_str: str, xauth: str) -> t
                     d.sync()
                     keycode = scratch
 
-                xtestmod.fake_input(d, X.KeyPress, keycode)
-                d.flush()
-                xtestmod.fake_input(d, X.KeyRelease, keycode)
-                d.flush()
-
-                if needs_remap:
-                    d.change_keyboard_mapping(scratch, [[0, 0]])
+                # IMP-DESK-11: remap yapıldıysa exception durumunda da geri al (try/finally)
+                try:
+                    xtestmod.fake_input(d, X.KeyPress, keycode)
                     d.flush()
+                    xtestmod.fake_input(d, X.KeyRelease, keycode)
+                    d.flush()
+                finally:
+                    if needs_remap:
+                        try:
+                            d.change_keyboard_mapping(scratch, [[0, 0]])
+                            d.flush()
+                        except Exception:
+                            pass
 
                 if delay_ms > 0:
                     time.sleep(delay_s)
@@ -265,6 +271,13 @@ async def xdotool_type(text: str, delay_ms: int = 12, window_id: str | None = No
         return "❌ Metin çok uzun (max 2000 karakter)."
 
     preview = text[:60] + ("…" if len(text) > 60 else "")
+
+    # BUG-DESK-4: window_id hex format doğrulaması — geçersiz değer subprocess'e geçmez
+    if window_id is not None and not re.match(r'^0x[0-9a-fA-F]+$', window_id):
+        raise ValueError(
+            f"Geçersiz window_id formatı: {window_id!r}. "
+            "Beklenen format: '0x' ile başlayan hex (ör. '0x05000003')."
+        )
 
     # ── window_id verilmişse: xdotool --window ile hedefli yaz ───────────
     # XTEST odak bağımlıdır; pencere hedeflemesi için xdotool zorunlu.

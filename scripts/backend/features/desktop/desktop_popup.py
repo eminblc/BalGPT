@@ -316,3 +316,29 @@ def list_watch_popups() -> list[dict]:
             }
             for wid, entry in _watchers.items()
         ]
+
+
+def shutdown_all_watchers(join_timeout: float = 2.0) -> int:
+    """
+    IMP-DESK-6: Uygulama kapanışında tüm popup watcher thread'lerini düzgün durdurur.
+
+    Tüm stop_event'leri set eder ve thread'lerin bitmesini join_timeout kadar bekler.
+    daemon=True olduğu için SIGTERM'de JVM/CPython otomatik öldürür; ancak bu fonksiyon
+    application lifespan shutdown hook'unda çağrılırsa Display temiz kapanır.
+
+    Döner: durdurulan watcher sayısı.
+    """
+    with _watchers_lock:
+        entries = list(_watchers.items())
+
+    count = 0
+    for wid, entry in entries:
+        entry["stop"].set()
+        count += 1
+
+    # Thread'lerin bitişini kısa süre bekle (blocking — shutdown context'inde OK)
+    for _wid, entry in entries:
+        entry["thread"].join(timeout=join_timeout)
+
+    logger.info("shutdown_all_watchers: %d popup watcher durduruldu", count)
+    return count

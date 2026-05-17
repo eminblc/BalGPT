@@ -72,10 +72,15 @@ async def internal_create_schedule(request: Request, body: _ScheduleRequest):
             raise HTTPException(status_code=400, detail="Geçersiz cron ifadesi")
     else:
         import time
+        # run_at UTC unix timestamp olmalı (time.time() ile üretilmeli).
+        # Örnek: time.time() + 900  → 15 dakika sonra
         if body.run_at < time.time():
             raise HTTPException(
                 status_code=400,
-                detail="run_at geçmişte — gelecek bir zaman olmalı",
+                detail=(
+                    "run_at geçmişte — gelecek bir UTC unix timestamp olmalı. "
+                    "Örnek: time.time() + 900 (15 dakika sonra)"
+                ),
             )
         from ..features.scheduler import create_one_shot_task
         task = await create_one_shot_task(

@@ -64,12 +64,14 @@ def _sync_project_create(
 
 
 def _sync_project_get(project_id: str) -> dict | None:
+    # Expected keys: id, name, description, status, path, created_at, updated_at, source_pdf, metadata
     with _conn() as con:
         row = con.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
         return dict(row) if row else None
 
 
 def _sync_project_list() -> list[dict]:
+    # Expected keys per row: id, name, description, status, path, created_at, updated_at, source_pdf, metadata
     with _conn() as con:
         rows = con.execute("SELECT * FROM projects ORDER BY updated_at DESC").fetchall()
         return [dict(r) for r in rows]

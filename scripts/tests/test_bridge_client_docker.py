@@ -129,8 +129,8 @@ async def test_forward_to_main_bridge_succeeds_on_second_attempt():
 # 4. ConnectError olmayan exception → retry yapılmaz, doğrudan fırlatılır
 # ---------------------------------------------------------------------------
 
-async def test_forward_to_main_bridge_non_connect_error_no_retry():
-    """httpx.TimeoutException retry yapılmaz — tek denemede exception fırlatılır."""
+async def test_forward_to_main_bridge_timeout_retries():
+    """httpx.TimeoutException (TransportError alt sınıfı) 3 kez denenir, sonra fırlatılır."""
     timeout_err = httpx.TimeoutException("timed out")
 
     mock_client = AsyncMock()
@@ -155,8 +155,9 @@ async def test_forward_to_main_bridge_non_connect_error_no_retry():
         with pytest.raises(httpx.TimeoutException):
             await _forward_to_main_bridge(mock_client, "main", "test")
 
-    mock_client.post.assert_called_once()
-    assert sleep_calls == []  # retry sleep olmadı
+    # IMP-ROUTER-9: TransportError (Timeout dahil) artık 3 kez deneniyor
+    assert mock_client.post.call_count == 3
+    assert len(sleep_calls) == 2  # 2 retry arası sleep
 
 
 # ---------------------------------------------------------------------------

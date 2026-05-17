@@ -134,10 +134,13 @@ class TestExportCommandExecute:
             cmd = ExportCommand()
             await cmd.execute("sender", "", session)
 
-        # İlk: export_start, ikinci: hata mesajı
+        # İlk: export_start, ikinci: hata mesajı (hassas detay kullanıcıya gösterilmez)
         assert mock_messenger.send_text.call_count == 2
         error_msg = mock_messenger.send_text.call_args_list[-1][0][1]
-        assert "disk full" in error_msg
+        # Ham exception mesajı kullanıcıya gösterilmemeli (IMP-GUARD-13)
+        assert "disk full" not in error_msg
+        # Hata mesajı genel bir i18n anahtarına dayanmalı
+        assert error_msg  # boş değil
 
 
 class TestExportCommandRegistration:

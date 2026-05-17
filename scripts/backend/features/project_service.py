@@ -154,7 +154,12 @@ async def start_project_services(project_id: str, sender: str, lang: str = "tr")
         window, cmd, work_dir = validated
         await asyncio.to_thread(_tmux_start_service, tmux_session, window, cmd, work_dir)
 
-    await db.project_update_status(project_id, "running")
+    # IMP-FEAT-4: status güncellemesi asyncio.to_thread sonrası race condition olabilir;
+    # hata durumunda logla ama kullanıcı mesajını engelleme.
+    try:
+        await db.project_update_status(project_id, "running")
+    except Exception as exc:
+        logger.error("start_project_services: status güncellenemedi: project_id=%s exc=%s", project_id, exc)
     await messenger.send_text(sender, t("project_svc.started", lang, name=project["name"]))
     logger.info("start_project_services: %s", project_id)
 

@@ -10,7 +10,7 @@
 
 import express from "express";
 import { spawn } from "child_process";
-import { appendFileSync, existsSync, unlinkSync, readFileSync, writeFileSync, mkdirSync, lstatSync, realpathSync } from "fs";
+import { appendFileSync, existsSync, unlinkSync, readFileSync, writeFileSync, mkdirSync, lstatSync, realpathSync, statSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
@@ -48,6 +48,12 @@ const CLAUDE_MD_LINE_WARN = 1000; // PERF-OPT-3: bu eşiği aşarsa BACKLOG'a uy
 const CONV_MAX_TURNS      = 8;  // saklanacak max tur (kullanıcı + asistan çifti)
 const CONV_SUMMARY_TURNS  = 3;  // FEAT-14: init_prompt'a eklenecek özet tur sayısı
 const CONV_SUMMARY_CHARS  = 300; // FEAT-14: özet turda mesaj başına max karakter
+
+// IMP-BRIDGE-7: CLAUDE.md satır sayısını cache'le; 60sn'de bir güncelle
+let _claudeMdLineCache = { count: 0, mtime: 0 };
+
+// IMP-BRIDGE-8: .claude-routes.json'u cache'le; dosya değişince otomatik yenile (mtime)
+let _routesCache = { routes: null, mtime: 0, path: "" };
 
 // G2: API key yoksa servis başlangıcında uyar
 if (!INTERNAL_API_KEY) {
@@ -147,7 +153,10 @@ function loadConvHistory(sessionId) {
     const p = convHistoryPath(sessionId);
     if (!existsSync(p)) return [];
     const raw = JSON.parse(readFileSync(p, "utf-8"));
-    return Array.isArray(raw) ? raw : [];
+    if (!Array.isArray(raw)) return [];
+    // BUG-BRIDGE-2: ilk save'den önce de limiti enforce et
+    const maxItems = CONV_MAX_TURNS * 2;
+    return raw.length > maxItems ? raw.slice(-maxItems) : raw;
   } catch (err) {
     console.error(`[bridge] loadConvHistory parse hatası (${sessionId}):`, err.message);
     return [];
@@ -193,8 +202,10 @@ function saveConvTurn(sessionId, userMsg, assistantMsg) {
     const maxItems = CONV_MAX_TURNS * 2;
     const trimmed = history.length > maxItems ? history.slice(-maxItems) : history;
     writeFileSync(p, JSON.stringify(trimmed));
+    return true; // IMP-BRIDGE-5: başarı bildir
   } catch (err) {
     console.error(`[saveConvTurn] Konuşma geçmişi kaydedilemedi (session: ${sessionId}):`, err);
+    return false; // IMP-BRIDGE-5: başarısızlık bildir
   }
 }
 
@@ -277,11 +288,28 @@ function readGuardrailHeaders() {
 function buildContextHint(userMessage, routesPath = ROUTES_PATH) {
   try {
     if (!existsSync(routesPath)) return "";
-    const routes = JSON.parse(readFileSync(routesPath, "utf-8")).routes;
+    // IMP-BRIDGE-8: routes JSON'unu cache'le — her çağrıda diskten okuma yapma
+    let routes;
+    try {
+      const mtime = statSync(routesPath).mtimeMs;
+      if (_routesCache.path !== routesPath || mtime !== _routesCache.mtime || !_routesCache.routes) {
+        const parsed = JSON.parse(readFileSync(routesPath, "utf-8"));
+        _routesCache = { routes: parsed.routes || null, mtime, path: routesPath };
+      }
+      routes = _routesCache.routes;
+    } catch {
+      routes = null;
+    }
     if (!routes) return "";
     const lower = userMessage.toLowerCase();
+    // IMP-BRIDGE-2: tam kelime eşleşmesi — substring çakışmasını önle
+    const wordMatch = (msg, kw) =>
+      msg === kw ||
+      msg.startsWith(kw + " ") ||
+      msg.endsWith(" " + kw) ||
+      msg.includes(" " + kw + " ");
     const matchedRoutes = Object.values(routes).filter(r =>
-      Array.isArray(r.keywords) && r.keywords.some(kw => lower.includes(kw))
+      Array.isArray(r.keywords) && r.keywords.some(kw => wordMatch(lower, kw))
     );
     if (!matchedRoutes.length) return "";
     const allFiles = [...new Set(matchedRoutes.flatMap(r => r.files))];
@@ -441,11 +469,16 @@ function checkClaudeMdSize() {
   }
 }
 
-/** Mevcut CLAUDE.md satır sayısını döndürür (init_prompt için). Dosya yoksa 0. */
+/** Mevcut CLAUDE.md satır sayısını döndürür (init_prompt için). Dosya yoksa 0.
+ *  IMP-BRIDGE-7: sonuç 60sn cache'lenir — her query'de diskten okuma yapılmaz. */
 function getClaudeMdLineCount() {
   try {
     if (!existsSync(CLAUDE_MD_PATH)) return 0;
-    return readFileSync(CLAUDE_MD_PATH, "utf-8").split("\n").length;
+    const mtime = statSync(CLAUDE_MD_PATH).mtimeMs;
+    if (mtime === _claudeMdLineCache.mtime) return _claudeMdLineCache.count;
+    const count = readFileSync(CLAUDE_MD_PATH, "utf-8").split("\n").length;
+    _claudeMdLineCache = { count, mtime };
+    return count;
   } catch {
     return 0;
   }
@@ -873,8 +906,14 @@ function runClaude(message, sessionFilePath, sessionId, projectDir = "", permMod
 
     proc.stderr.on("data", (c) => { stderr += c.toString(); });
 
+    // BUG-BRIDGE-1: double-kill önlemi
+    let procKilled = false;
     const timer = setTimeout(() => {
-      proc.kill();
+      if (!procKilled) {
+        procKilled = true;
+        proc.kill();
+        proc.unref(); // BUG-BRIDGE-1: event loop'u bloklamaması için unref
+      }
       activeProcesses.delete(sessionId);
       // PERF-OPT-6: Timeout hatalarını bridge.log'a yaz
       _logBridgeError(sessionId, "TIMEOUT", `Zaman aşımı (${TIMEOUT_MS}ms)`, Date.now() - _runStart);
@@ -1046,6 +1085,8 @@ app.post("/cancel", authenticate, async (req, res) => {
   if (active) {
     cancelledSessions.add(session_id);
     try { active.proc.kill("SIGTERM"); } catch (_) {}
+    // IMP-BRIDGE-4: memory leak önlemi — sessionReadCounts temizle
+    sessionReadCounts.delete(session_id);
     return res.json({ ok: true, reason: "process_killed" });
   }
 
@@ -1054,6 +1095,8 @@ app.post("/cancel", authenticate, async (req, res) => {
   if (pending) {
     cancelledSessions.add(session_id);
     pending.reject(new Error("Kullanıcı iptal etti"));
+    // IMP-BRIDGE-4: memory leak önlemi — sessionReadCounts temizle
+    sessionReadCounts.delete(session_id);
     return res.json({ ok: true, reason: "approval_cancelled" });
   }
 
@@ -1155,9 +1198,11 @@ app.post("/query", authenticate, async (req, res) => {
   const progressStart = Date.now();
   let progressInterval = null;
   if (!silent && PROGRESS_INTERVAL_MS > 0) {
-    progressInterval = setInterval(async () => {
+    progressInterval = setInterval(() => {
       const elapsedMin = Math.round((Date.now() - progressStart) / 60000);
-      await sendWhatsAppNotification(`⏳ Hâlâ çalışıyor... (${elapsedMin} dk)`);
+      // IMP-BRIDGE-3: rejected promise yakalanıyor — unhandled rejection önlemi
+      sendWhatsAppNotification(`⏳ Hâlâ çalışıyor... (${elapsedMin} dk)`)
+        .catch(err => console.error("[bridge] progress bildirimi hatası:", err.message));
     }, PROGRESS_INTERVAL_MS);
   }
 
@@ -1194,7 +1239,8 @@ app.post("/query", authenticate, async (req, res) => {
       const retryPrompt = buildInitPrompt(init_prompt, retryHistory, message, session_id);
       const retryMessage = retryPrompt + "\n\n" + safeMessage;
       try {
-        const { answer } = await runClaude(retryMessage, null, session_id, safeProjectPath, perm_mode, model);
+        // IMP-BRIDGE-6: retry'da sessionFile path'ini geçir — UUID diske yazılsın
+        const { answer } = await runClaude(retryMessage, sessionFile, session_id, safeProjectPath, perm_mode, model);
         saveConvTurn(session_id, message, answer);
         return res.json({ answer, session_id });
       } catch (retryErr) {

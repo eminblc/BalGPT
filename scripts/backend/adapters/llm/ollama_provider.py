@@ -7,6 +7,7 @@ Bağımlılıklar:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 
 import httpx
@@ -15,6 +16,9 @@ from ...config import settings
 from .result import CompletionResult
 
 logger = logging.getLogger(__name__)
+
+_MAX_RETRIES = 3
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
 class OllamaProvider:
@@ -52,16 +56,55 @@ class OllamaProvider:
             "options": {"num_predict": max_tokens},
         }
 
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            resp = await client.post(url, json=payload)
+        last_exc: Exception | None = None
+        for attempt in range(_MAX_RETRIES):
+            try:
+                async with httpx.AsyncClient(timeout=self._timeout) as client:
+                    resp = await client.post(url, json=payload)
 
-        if not resp.is_success:
-            logger.error(
-                "OllamaProvider hata: status=%s body=%.200s",
-                resp.status_code,
-                resp.text,
-            )
-            resp.raise_for_status()
+                if resp.is_success:
+                    break
+
+                if resp.status_code not in _RETRYABLE_STATUS:
+                    logger.error(
+                        "OllamaProvider hata: status=%s body=%.200s",
+                        resp.status_code,
+                        resp.text,
+                    )
+                    resp.raise_for_status()
+
+                logger.warning(
+                    "OllamaProvider geçici hata (deneme %d/%d): status=%d",
+                    attempt + 1, _MAX_RETRIES, resp.status_code,
+                )
+                if attempt < _MAX_RETRIES - 1:
+                    await asyncio.sleep(2 ** attempt)
+                else:
+                    resp.raise_for_status()
+
+            except httpx.TimeoutException as exc:
+                last_exc = exc
+                logger.warning(
+                    "OllamaProvider timeout (deneme %d/%d): %s",
+                    attempt + 1, _MAX_RETRIES, exc,
+                )
+                if attempt < _MAX_RETRIES - 1:
+                    await asyncio.sleep(2 ** attempt)
+                else:
+                    raise
+            except httpx.ConnectError as exc:
+                last_exc = exc
+                logger.warning(
+                    "OllamaProvider bağlantı hatası (deneme %d/%d): %s",
+                    attempt + 1, _MAX_RETRIES, exc,
+                )
+                if attempt < _MAX_RETRIES - 1:
+                    await asyncio.sleep(2 ** attempt)
+                else:
+                    raise
+
+        if last_exc is not None:
+            raise last_exc
 
         data = resp.json()
         try:

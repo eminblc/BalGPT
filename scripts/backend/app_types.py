@@ -184,7 +184,6 @@ class SessionState(dict):
 
     def clear_backup_import(self) -> None:
         """Backup import akışını sonlandır."""
-        dict.__setitem__(self, "pending_backup_import", False)
         self.pop("pending_backup_import", None)
 
     def set_terminal_pending(self, cmd: str) -> None:

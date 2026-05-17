@@ -164,7 +164,14 @@ async def forward(sender: str, text: str, session: dict) -> None:
             r = await _forward_to_main_bridge(_http_pool, session_id, text)
 
         r.raise_for_status()
-        data   = r.json()
+        try:
+            data = r.json()
+        except (ValueError, Exception) as json_exc:
+            logger.error(
+                "Bridge JSON parse hatası: sender=%s body=%s error=%s",
+                _mask_phone(sender), r.text[:200], json_exc,
+            )
+            raise
         answer = data.get("answer", "")
 
         latency_ms = int((time.monotonic() - t0) * 1000)
@@ -252,12 +259,13 @@ async def _forward_to_main_bridge(
                 json=body,
             )
             return r
-        except httpx.ConnectError:
+        except httpx.TransportError as transport_exc:
+            # TransportError: ConnectError, TimeoutException, ReadError ve diğer aktarım hatalarını kapsar.
             if _attempt < _BRIDGE_CONNECT_RETRIES - 1:
                 wait = _BRIDGE_RETRY_WAITS[min(_attempt, len(_BRIDGE_RETRY_WAITS) - 1)]
                 logger.warning(
-                    "Bridge ConnectError — %ds sonra tekrar deneniyor (deneme %d/%d)",
-                    wait, _attempt + 1, _BRIDGE_CONNECT_RETRIES,
+                    "Bridge %s — %ds sonra tekrar deneniyor (deneme %d/%d)",
+                    type(transport_exc).__name__, wait, _attempt + 1, _BRIDGE_CONNECT_RETRIES,
                 )
                 await asyncio.sleep(wait)
             else:

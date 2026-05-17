@@ -86,8 +86,11 @@ class OwnerPermissionGuard:
                     target,
                     t("guard.unauthorized", "tr", sender=ctx.sender, preview=preview),
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "OwnerPermissionGuard bildirim gönderilemedi: sender=%s err=%s",
+                    ctx.sender[:6] + "***", e,
+                )
         return GuardResult(passed=False, reason="unauthorized")
 
 
@@ -104,6 +107,9 @@ class RateLimitMessageGuard:
         try:
             await self._get_messenger().send_text(ctx.sender, t("guard.rate_limit", ctx.lang))
             log_outbound(ctx.sender, "text", "rate_limit", context_id="system")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                "RateLimitMessageGuard bildirim gönderilemedi: sender=%s err=%s",
+                ctx.sender[:6] + "***", e,
+            )
         return GuardResult(passed=False, reason="rate_limited")

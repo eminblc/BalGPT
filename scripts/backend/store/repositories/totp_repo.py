@@ -21,30 +21,28 @@ def _sync_totp_get_lockout(sender: str, totp_type: str) -> tuple[int, float]:
 def _sync_totp_record_failure(sender: str, totp_type: str, lockout_duration: float = 900.0) -> tuple[int, float]:
     """Başarısız deneme sayısını artır. 3. denemede 15 dk kilit koy.
 
-    Tek atomik SQL işlemi — SELECT + UPDATE race condition'ını önler.
+    Tek atomik SQL işlemi — TOCTOU race condition'ını önler.
+    INSERT + tek UPDATE ile hem sayaç hem kilit aynı transaction'da güncellenir.
     Returns: (yeni fail_count, locked_until) — locked_until=0 kilit yok demek.
     """
     now = time.time()
+    locked_until = now + lockout_duration
     with _conn() as con:
         con.execute(
             """INSERT INTO totp_lockouts (sender, totp_type, fail_count, locked_until)
                VALUES (?, ?, 1, 0)
                ON CONFLICT(sender, totp_type) DO UPDATE SET
-                 fail_count = fail_count + 1""",
-            (sender, totp_type),
+                 fail_count = fail_count + 1,
+                 locked_until = CASE WHEN fail_count + 1 >= 3 THEN :locked_until ELSE 0 END""",
+            {"sender": sender, "totp_type": totp_type, "locked_until": locked_until},
         )
         row = con.execute(
-            "SELECT fail_count FROM totp_lockouts WHERE sender=? AND totp_type=?",
+            "SELECT fail_count, locked_until FROM totp_lockouts WHERE sender=? AND totp_type=?",
             (sender, totp_type),
         ).fetchone()
-        fail_count = row["fail_count"] if row else 1
-        locked_until = (now + lockout_duration) if fail_count >= 3 else 0.0
-        if locked_until:
-            con.execute(
-                "UPDATE totp_lockouts SET locked_until=? WHERE sender=? AND totp_type=?",
-                (locked_until, sender, totp_type),
-            )
-    return (fail_count, locked_until)
+    if row:
+        return (row["fail_count"], row["locked_until"])
+    return (1, 0.0)
 
 
 def _sync_totp_reset_lockout(sender: str, totp_type: str) -> None:

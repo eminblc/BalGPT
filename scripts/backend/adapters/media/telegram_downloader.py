@@ -20,6 +20,8 @@ class TelegramMediaDownloader:
         from ...config import settings
 
         token = settings.telegram_bot_token.get_secret_value()
+        # IMP-ADAP-3: token URL'ye gömülü olduğundan log'da maskelenir
+        _masked = token[:6] + "***" if len(token) > 6 else "***"
         base = f"https://api.telegram.org/bot{token}"
 
         async with httpx.AsyncClient(timeout=30) as client:
@@ -31,7 +33,10 @@ class TelegramMediaDownloader:
             raise ValueError(f"Telegram getFile başarısız: {data.get('description', data)}")
 
         file_path: str = data["result"]["file_path"]
-        logger.debug("TelegramMediaDownloader: file_id=%s → path=%s", file_id, file_path)
+        logger.debug(
+            "TelegramMediaDownloader: file_id=%s → path=%s (token=%s)",
+            file_id, file_path, _masked,
+        )
 
         async with httpx.AsyncClient(timeout=60) as client:
             dl = await client.get(

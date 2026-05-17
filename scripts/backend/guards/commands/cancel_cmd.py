@@ -16,8 +16,23 @@ from ..permission import Perm
 logger = logging.getLogger(__name__)
 
 
-async def _cancel_bridge_query(session: dict) -> bool:
-    """Bridge'deki aktif sorguyu iptal et. Başarılıysa True döner."""
+class _BridgeCancelResult:
+    """Bridge cancel sonucunu temsil eder."""
+    __slots__ = ("cancelled", "error")
+
+    def __init__(self, cancelled: bool, error: bool = False) -> None:
+        self.cancelled = cancelled  # True → Bridge aktif sorguyu durdurdu
+        self.error     = error      # True → Bridge'e ulaşılamadı
+
+
+async def _cancel_bridge_query(session: dict) -> _BridgeCancelResult:
+    """Bridge'deki aktif sorguyu iptal et.
+
+    Dönüş değerleri:
+    - cancelled=True  → Bridge sorguyu başarıyla durdurdu.
+    - cancelled=False, error=False → Bridge'de iptal edilecek aktif sorgu yoktu.
+    - cancelled=False, error=True  → Bridge'e bağlanılamadı / hata oluştu.
+    """
     import httpx
     from ...config import settings
 
@@ -32,10 +47,10 @@ async def _cancel_bridge_query(session: dict) -> bool:
                 json={"session_id": session_id},
             )
             data = r.json()
-            return bool(data.get("ok", False))
+            return _BridgeCancelResult(cancelled=bool(data.get("ok", False)))
     except Exception as exc:
         logger.warning("Bridge cancel isteği başarısız: %s", exc)
-        return False
+        return _BridgeCancelResult(cancelled=False, error=True)
 
 
 class CancelCommand:
@@ -98,9 +113,12 @@ class CancelCommand:
             return
 
         # FEAT-18: Auth akışı yoksa → Bridge'de aktif sorgu olup olmadığını kontrol et
-        bridge_cancelled = await _cancel_bridge_query(session)
-        if bridge_cancelled:
+        result = await _cancel_bridge_query(session)
+        if result.cancelled:
             await get_messenger().send_text(sender, t("cancel.bridge_ok", lang))
+            return
+        if result.error:
+            await get_messenger().send_text(sender, t("cancel.bridge_error", lang))
             return
 
         await get_messenger().send_text(sender, t("cancel.nothing", lang))

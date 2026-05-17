@@ -168,7 +168,13 @@ async def health():
         async with httpx.AsyncClient(timeout=3.0) as client:
             r = await client.get(f"{settings.claude_bridge_url}/health")
         bridge_ok = r.status_code == 200
-        bridge_detail = r.json().get("status") if bridge_ok else f"http_{r.status_code}"
+        if bridge_ok:
+            try:
+                bridge_detail = r.json().get("status")
+            except (ValueError, Exception):
+                bridge_detail = "parse_error"
+        else:
+            bridge_detail = f"http_{r.status_code}"
     except Exception as exc:
         bridge_detail = str(exc)[:80]
 

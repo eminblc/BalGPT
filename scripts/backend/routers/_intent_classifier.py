@@ -11,6 +11,7 @@ Her iki sınıflandırıcı da:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from ..adapters.llm.llm_factory import get_llm
@@ -79,32 +80,39 @@ async def classify_admin_intent(text: str) -> str | None:
         logger.warning("LLM API anahtarı tanımlı değil — admin niyet analizi devre dışı")
         return None
 
-    try:
-        llm = get_llm()
-        completion = await llm.complete(
-            messages=[
-                {"role": "system", "content": _ADMIN_INTENT_SYSTEM},
-                {"role": "user",   "content": t},
-            ],
-            model=_CLASSIFY_MODEL,
-            max_tokens=16,
-        )
+    for _attempt in range(2):
         try:
-            await token_stat_repo.add_usage(
-                completion.model_id, completion.model_name, completion.backend,
-                completion.input_tokens, completion.output_tokens,
-                context="intent_classifier",
+            llm = get_llm()
+            completion = await llm.complete(
+                messages=[
+                    {"role": "system", "content": _ADMIN_INTENT_SYSTEM},
+                    {"role": "user",   "content": t},
+                ],
+                model=_CLASSIFY_MODEL,
+                max_tokens=16,
             )
-        except Exception:
-            pass
-        stripped = completion.text.strip()
-        if not stripped:
+            try:
+                await token_stat_repo.add_usage(
+                    completion.model_id, completion.model_name, completion.backend,
+                    completion.input_tokens, completion.output_tokens,
+                    context="intent_classifier",
+                )
+            except Exception:
+                pass
+            stripped = completion.text.strip()
+            if not stripped:
+                return None
+            cmd = stripped.split()[0]
+            if cmd in ("/shutdown", "/restart", "/root-reset"):
+                return cmd
             return None
-        cmd = stripped.split()[0]
-        if cmd in ("/shutdown", "/restart", "/root-reset"):
-            return cmd
-    except Exception as exc:
-        logger.warning("Admin intent sınıflandırma hatası: %s", exc)
+        except Exception as exc:
+            logger.warning(
+                "Admin intent sınıflandırma hatası, atlanıyor (deneme %d/2): %s",
+                _attempt + 1, exc,
+            )
+            if _attempt == 0:
+                await asyncio.sleep(1)
     return None
 
 
@@ -148,29 +156,35 @@ async def classify_destructive_intent(text: str) -> bool:
         logger.warning("LLM API anahtarı tanımlı değil — yıkıcı niyet analizi devre dışı")
         return False
 
-    try:
-        llm = get_llm()
-        completion = await llm.complete(
-            messages=[
-                {"role": "system", "content": _DESTRUCTIVE_INTENT_SYSTEM},
-                {"role": "user",   "content": t},
-            ],
-            model=_CLASSIFY_MODEL,
-            max_tokens=8,
-        )
+    for _attempt in range(2):
         try:
-            await token_stat_repo.add_usage(
-                completion.model_id, completion.model_name, completion.backend,
-                completion.input_tokens, completion.output_tokens,
-                context="intent_classifier",
+            llm = get_llm()
+            completion = await llm.complete(
+                messages=[
+                    {"role": "system", "content": _DESTRUCTIVE_INTENT_SYSTEM},
+                    {"role": "user",   "content": t},
+                ],
+                model=_CLASSIFY_MODEL,
+                max_tokens=8,
             )
-        except Exception:
-            pass
-        stripped = completion.text.strip()
-        if not stripped:
-            return False
-        answer = stripped.lower().split()[0]
-        return answer == "evet"
-    except Exception as exc:
-        logger.warning("Yıkıcı niyet sınıflandırma hatası: %s", exc)
+            try:
+                await token_stat_repo.add_usage(
+                    completion.model_id, completion.model_name, completion.backend,
+                    completion.input_tokens, completion.output_tokens,
+                    context="intent_classifier",
+                )
+            except Exception:
+                pass
+            stripped = completion.text.strip()
+            if not stripped:
+                return False
+            answer = stripped.lower().split()[0]
+            return answer == "evet"
+        except Exception as exc:
+            logger.warning(
+                "Yıkıcı niyet sınıflandırma hatası, atlanıyor (deneme %d/2): %s",
+                _attempt + 1, exc,
+            )
+            if _attempt == 0:
+                await asyncio.sleep(1)
     return False

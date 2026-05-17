@@ -81,8 +81,10 @@ def is_dangerous(cmd_str: str) -> bool:
     try:
         tokens = shlex.split(cmd_str)
     except ValueError:
-        # Kapanmamış tırnak vb. — güvenli tarafta kal
-        tokens = cmd_str.split()
+        # IMP-FEAT-13: Kapanmamış tırnak vb. shell parse hatası → tehlikeli say.
+        # cmd_str.split() fallback atlatma vektörü oluşturabilir; güvenli tarafta kal.
+        logger.debug("is_dangerous: shlex.split başarısız (muhtemelen kapanmamış tırnak) → tehlikeli sayılıyor")
+        return True
 
     if not tokens:
         return False
@@ -191,10 +193,11 @@ async def execute_command(
 
     out = stdout_bytes.decode(errors="replace") if stdout_bytes else ""
     err = stderr_bytes.decode(errors="replace") if stderr_bytes else ""
-    # sudo şifre prompt satırlarını gizle
+    # IMP-DESK-2: sudo şifre prompt satırlarını gizle — büyük/küçük harf bağımsız
+    # 'password', '[sudo]', 'sudo' içeren tüm satırlar filtrelenir (parola sızdırma önlemi)
     err_clean = "\n".join(
         line for line in err.splitlines()
-        if "password" not in line.lower() and "[sudo]" not in line
+        if not any(kw in line.lower() for kw in ("password", "[sudo]", "sudo"))
     )
     raw = (out + ("\n" + err_clean if err_clean else "")).strip()
     output = _truncate_output(raw)
@@ -207,9 +210,13 @@ async def execute_command(
 
 
 def _truncate_output(text: str) -> str:
-    """Çıktıyı TERMINAL_MAX_OUTPUT_CHARS ile sınırlandırır; uzunsa uyarı ekler."""
+    """Çıktıyı TERMINAL_MAX_OUTPUT_CHARS ile sınırlandırır; uzunsa uyarı ekler.
+
+    IMP-FEAT-7: Yalnızca kuyruk yerine başlangıç + son stratejisi — hata başlığı kaybolmaz.
+    İlk N/2 karakter + [KIRPILDI] + son N/2 karakter.
+    """
     if len(text) <= TERMINAL_MAX_OUTPUT_CHARS:
         return text
-    truncated = text[-TERMINAL_MAX_OUTPUT_CHARS:]
-    prefix = f"[⚠️ Çıktı uzun — son {TERMINAL_MAX_OUTPUT_CHARS} karakter gösteriliyor]\n\n"
-    return prefix + truncated
+    half = TERMINAL_MAX_OUTPUT_CHARS // 2
+    separator = f"\n\n[⚠️ Çıktı uzun — {len(text)} karakter, başı ve sonu gösteriliyor]\n\n"
+    return text[:half] + separator + text[-half:]

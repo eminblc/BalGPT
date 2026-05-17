@@ -11,6 +11,7 @@ import logging
 import os
 import re
 import shutil
+import signal
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,33 @@ def _detect_display() -> str:
         return env_val
 
     return ":0"
+
+
+def _check_x11_available() -> None:
+    """
+    IMP-DESK-10: X11 socket varlığını kontrol eder.
+
+    /tmp/.X11-unix/ altında hiç X11 soket yoksa ve DISPLAY env de boşsa
+    açıklayıcı RuntimeError fırlatır — Wayland-only ortamlarda generic
+    "xdotool başarısız" hatası yerine anlamlı mesaj verir.
+
+    Bu fonksiyon ağır bir desktop işlemi başlamadan önce çağrılabilir.
+    """
+    x11_dir = "/tmp/.X11-unix"
+    has_socket = False
+    try:
+        entries = os.listdir(x11_dir)
+        has_socket = any(e.startswith("X") and e[1:].isdigit() for e in entries)
+    except OSError:
+        pass
+
+    if not has_socket and not os.environ.get("DISPLAY", "").strip():
+        raise RuntimeError(
+            "X11 display bulunamadı. "
+            "Wayland ortamında Desktop API kullanılamaz. "
+            "Çözüm: Xvfb başlat (`Xvfb :99 -screen 0 1920x1080x24 &`) "
+            "ve DISPLAY=:99 ayarla, ya da X11 oturumu aç."
+        )
 
 
 def _detect_xauthority() -> str:
@@ -109,24 +137,35 @@ def _xdotool_available() -> bool:
     return bool(shutil.which("xdotool"))
 
 
+def _kill_process_group(proc: asyncio.subprocess.Process) -> None:
+    """IMP-DESK-8: Timeout sonrası ana süreç + alt süreçleri (grandchildren) öldürür."""
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except (ProcessLookupError, OSError):
+        # Süreç zaten bitmişse veya pgid alınamazsa tek işlemi öldür
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            pass
+
+
 async def _xdotool(*args: str, timeout: int = 5) -> tuple[int, str]:
     """
     xdotool komutunu çalıştırır.
     Döner: (returncode, stderr_mesajı).
     """
+    # IMP-DESK-8: start_new_session=True → ayrı process group → timeout'ta tüm alt süreçler öldürülür
     proc = await asyncio.create_subprocess_exec(
         "xdotool", *args,
         env=_env(),
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.PIPE,
+        start_new_session=True,
     )
     try:
         _, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except asyncio.TimeoutError:
-        try:
-            proc.kill()
-        except ProcessLookupError:
-            pass
+        _kill_process_group(proc)
         return -1, f"xdotool zaman aşımı ({timeout}s)"
 
     err = stderr.decode(errors="replace")[:300] if stderr else ""
@@ -138,19 +177,18 @@ async def _wmctrl(*args: str, timeout: int = 10) -> tuple[int, str]:
     wmctrl komutunu çalıştırır.
     Döner: (returncode, stderr_mesajı).
     """
+    # IMP-DESK-8: start_new_session=True → ayrı process group → timeout'ta tüm alt süreçler öldürülür
     proc = await asyncio.create_subprocess_exec(
         "wmctrl", *args,
         env=_env(),
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.PIPE,
+        start_new_session=True,
     )
     try:
         _, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except asyncio.TimeoutError:
-        try:
-            proc.kill()
-        except ProcessLookupError:
-            pass
+        _kill_process_group(proc)
         return -1, f"wmctrl zaman aşımı ({timeout}s)"
     err = stderr.decode(errors="replace")[:300] if stderr else ""
     return proc.returncode, err

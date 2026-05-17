@@ -135,16 +135,29 @@ class BridgeMonitor:
             await self._auto_restart()
 
     async def _auto_restart(self) -> None:
-        """ERR-1: Bridge'i systemctl üzerinden otomatik olarak yeniden başlat (REFAC-11)."""
+        """ERR-1: Bridge'i systemctl üzerinden otomatik olarak yeniden başlat (REFAC-11).
+
+        IMP-ADAP-2: Art arda başarısız restart'larda exponential backoff uygulanır
+        (restart_streak sayısına göre: 1s, 2s, 4s, … maks 60s).
+        """
+        self._restart_streak = getattr(self, "_restart_streak", 0)
+        backoff = min(2 ** self._restart_streak, 60)
         self._fail_streak = 0
         logger.error(
-            "Bridge %d kez yanıtsız — otomatik restart tetikleniyor",
+            "Bridge %d kez yanıtsız — otomatik restart tetikleniyor (backoff=%ds)",
             self._auto_restart_after,
+            backoff,
         )
+        if backoff > 1:
+            logger.info("BridgeMonitor restart backoff: %d saniye bekleniyor", backoff)
+            await asyncio.sleep(backoff)
+
         await self._notify(_t("bridge_monitor.auto_restart", "tr"))
         success, msg = await restart_bridge_service()
         if success:
             logger.info(msg)
+            self._restart_streak = 0
         else:
+            self._restart_streak += 1
             logger.error(msg)
             await self._notify(_t("bridge_monitor.auto_restart_failed", "tr", msg=msg))

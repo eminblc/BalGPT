@@ -3,10 +3,13 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import logging
 import time as _time
 
 from .registry import registry
 from ..permission import Perm
+
+logger = logging.getLogger(__name__)
 
 
 def _fmt_time(ts: float) -> str:
@@ -63,8 +66,9 @@ class RootCheckCommand:
 
         try:
             data = await asyncio.to_thread(_sync_get_summary)
-        except Exception as e:
-            await get_messenger().send_text(sender, t("root_check.error", lang, error=e))
+        except Exception:
+            logger.exception("root-check: DB sorgusu başarısız")
+            await get_messenger().send_text(sender, t("root_check.db_error", lang))
             return
 
         last_in  = data["last_in"]

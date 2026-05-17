@@ -7,6 +7,7 @@ Bağımlılıklar:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 
 import httpx
@@ -16,6 +17,10 @@ from ...constants import LLM_MAX_TOKENS_DEFAULT
 from .result import CompletionResult
 
 logger = logging.getLogger(__name__)
+
+_MAX_RETRIES = 3
+# HTTP durum kodları — geçici hatalar için yeniden deneme yapılır
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 _API_URL = "https://api.anthropic.com/v1/messages"
 _API_VERSION = "2023-06-01"
@@ -78,24 +83,63 @@ class AnthropicProvider:
         if system_parts:
             payload["system"] = "\n\n".join(system_parts)
 
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            resp = await client.post(
-                _API_URL,
-                headers={
-                    "x-api-key": self._api_key,
-                    "anthropic-version": _API_VERSION,
-                    "content-type": "application/json",
-                },
-                json=payload,
-            )
+        last_exc: Exception | None = None
+        for attempt in range(_MAX_RETRIES):
+            try:
+                async with httpx.AsyncClient(timeout=self._timeout) as client:
+                    resp = await client.post(
+                        _API_URL,
+                        headers={
+                            "x-api-key": self._api_key,
+                            "anthropic-version": _API_VERSION,
+                            "content-type": "application/json",
+                        },
+                        json=payload,
+                    )
 
-        if not resp.is_success:
-            logger.error(
-                "AnthropicProvider hata: status=%s body=%.200s",
-                resp.status_code,
-                resp.text,
-            )
-            resp.raise_for_status()
+                if resp.is_success:
+                    break
+
+                if resp.status_code not in _RETRYABLE_STATUS:
+                    logger.error(
+                        "AnthropicProvider hata: status=%s body=%.200s",
+                        resp.status_code,
+                        resp.text,
+                    )
+                    resp.raise_for_status()
+
+                logger.warning(
+                    "AnthropicProvider geçici hata (deneme %d/%d): status=%d",
+                    attempt + 1, _MAX_RETRIES, resp.status_code,
+                )
+                if attempt < _MAX_RETRIES - 1:
+                    await asyncio.sleep(2 ** attempt)
+                else:
+                    resp.raise_for_status()
+
+            except httpx.TimeoutException as exc:
+                last_exc = exc
+                logger.warning(
+                    "AnthropicProvider timeout (deneme %d/%d): %s",
+                    attempt + 1, _MAX_RETRIES, exc,
+                )
+                if attempt < _MAX_RETRIES - 1:
+                    await asyncio.sleep(2 ** attempt)
+                else:
+                    raise
+            except httpx.ConnectError as exc:
+                last_exc = exc
+                logger.warning(
+                    "AnthropicProvider bağlantı hatası (deneme %d/%d): %s",
+                    attempt + 1, _MAX_RETRIES, exc,
+                )
+                if attempt < _MAX_RETRIES - 1:
+                    await asyncio.sleep(2 ** attempt)
+                else:
+                    raise
+
+        if last_exc is not None:
+            raise last_exc
 
         data = resp.json()
         try:

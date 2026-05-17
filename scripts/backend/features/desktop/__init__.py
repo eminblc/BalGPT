@@ -68,6 +68,7 @@ from .desktop_popup import (
     start_watch_popup as _start_watch_popup,
     stop_watch_popup as _stop_watch_popup,
     list_watch_popups as _list_watch_popups,
+    shutdown_all_watchers as _shutdown_all_watchers,
 )
 from .desktop_system import (
     open_path,
@@ -119,6 +120,7 @@ __all__ = [
     "start_watch_popup",
     "stop_watch_popup",
     "list_watch_popups",
+    "shutdown_all_watchers",
     # Common helpers re-exported for external use
     "is_screen_locked",
     # Recording
@@ -377,3 +379,12 @@ def list_watch_popups() -> list[dict]:
     except Exception as exc:
         logger.error("list_watch_popups hatası: %s", exc, exc_info=True)
         return []
+
+
+def shutdown_all_watchers(join_timeout: float = 2.0) -> int:
+    """IMP-DESK-6: Uygulama kapanışında tüm popup watcher thread'lerini düzgün durdurur."""
+    try:
+        return _shutdown_all_watchers(join_timeout=join_timeout)
+    except Exception as exc:
+        logger.error("shutdown_all_watchers hatası: %s", exc, exc_info=True)
+        return 0

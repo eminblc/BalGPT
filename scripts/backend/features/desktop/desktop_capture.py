@@ -269,47 +269,47 @@ async def ocr_screen() -> str:
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False, dir="/tmp") as f:
         tmp_img = f.name
 
-    screenshot = await capture_screen(tmp_img)
-
-    if screenshot is None:
-        Path(tmp_img).unlink(missing_ok=True)
-        return (
-            "❌ Ekran görüntüsü alınamadı.\n\n"
-            f"DISPLAY={_detect_display()}\n"
-            "Kontrol:\n"
-            "  • X11 oturumu açık mı?\n"
-            "  • `pip install mss` veya `sudo apt install scrot` kurulu mu?\n"
-            "  • SSH üzerindeysen: `export DISPLAY=:1`"
-        )
-
-    if not shutil.which("tesseract"):
-        return (
-            f"❌ Tesseract kurulu değil.\n"
-            "Kurulum: `sudo apt install tesseract-ocr tesseract-ocr-tur`\n\n"
-            f"(Görüntü kaydedildi: {screenshot})"
-        )
-
+    # BUG-DESK-1 / IMP-DESK-9: Tüm temp dosyaları try/finally ile temizle
     ocr_base = tmp_img.replace(".png", "_ocr")
-    proc = await asyncio.create_subprocess_exec(
-        "tesseract", str(screenshot), ocr_base, "-l", "tur+eng",
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    try:
-        await asyncio.wait_for(proc.wait(), timeout=30)
-    except asyncio.TimeoutError:
-        Path(tmp_img).unlink(missing_ok=True)
-        return "❌ OCR zaman aşımı (30s)."
-
-    Path(tmp_img).unlink(missing_ok=True)
-
     ocr_txt = Path(ocr_base + ".txt")
-    if ocr_txt.exists():
-        text = ocr_txt.read_text(encoding="utf-8").strip()
-        ocr_txt.unlink(missing_ok=True)
-        return text if text else "(Ekranda okunabilir metin bulunamadı)"
+    try:
+        screenshot = await capture_screen(tmp_img)
 
-    return "❌ OCR başarısız — çıktı dosyası oluşturulamadı."
+        if screenshot is None:
+            return (
+                "❌ Ekran görüntüsü alınamadı.\n\n"
+                f"DISPLAY={_detect_display()}\n"
+                "Kontrol:\n"
+                "  • X11 oturumu açık mı?\n"
+                "  • `pip install mss` veya `sudo apt install scrot` kurulu mu?\n"
+                "  • SSH üzerindeysen: `export DISPLAY=:1`"
+            )
+
+        if not shutil.which("tesseract"):
+            return (
+                f"❌ Tesseract kurulu değil.\n"
+                "Kurulum: `sudo apt install tesseract-ocr tesseract-ocr-tur`\n\n"
+                f"(Görüntü kaydedildi: {screenshot})"
+            )
+
+        proc = await asyncio.create_subprocess_exec(
+            "tesseract", str(screenshot), ocr_base, "-l", "tur+eng",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=30)
+        except asyncio.TimeoutError:
+            return "❌ OCR zaman aşımı (30s)."
+
+        if ocr_txt.exists():
+            text = ocr_txt.read_text(encoding="utf-8").strip()
+            return text if text else "(Ekranda okunabilir metin bulunamadı)"
+
+        return "❌ OCR başarısız — çıktı dosyası oluşturulamadı."
+    finally:
+        Path(tmp_img).unlink(missing_ok=True)
+        ocr_txt.unlink(missing_ok=True)
 
 
 async def list_monitors() -> list[dict]:

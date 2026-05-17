@@ -27,7 +27,7 @@ _SUPPORTED   = frozenset({"tr", "en"})
 _FALLBACK    = "tr"
 
 
-@lru_cache(maxsize=None)
+@lru_cache(maxsize=10)
 def _load(lang: str) -> dict:
     """Locale JSON'ını yükler ve cache'e alır (uygulama ömrü boyunca tek seferlik)."""
     path = _LOCALE_DIR / f"{lang}.json"

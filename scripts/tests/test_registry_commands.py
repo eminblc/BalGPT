@@ -288,10 +288,11 @@ async def test_cancel_no_pending_tries_bridge():
     mock_messenger = AsyncMock()
     session = {"lang": "tr", "active_context": "main"}
 
+    from backend.guards.commands.cancel_cmd import _BridgeCancelResult
     with patch("backend.adapters.messenger.get_messenger",
                return_value=mock_messenger), \
          patch("backend.guards.commands.cancel_cmd._cancel_bridge_query",
-               AsyncMock(return_value=False)):
+               AsyncMock(return_value=_BridgeCancelResult(cancelled=False))):
         from backend.guards.commands.cancel_cmd import CancelCommand
         await CancelCommand().execute("905001234567", "", session)
 
@@ -303,10 +304,11 @@ async def test_cancel_bridge_ok():
     mock_messenger = AsyncMock()
     session = {"lang": "tr", "active_context": "main"}
 
+    from backend.guards.commands.cancel_cmd import _BridgeCancelResult
     with patch("backend.adapters.messenger.get_messenger",
                return_value=mock_messenger), \
          patch("backend.guards.commands.cancel_cmd._cancel_bridge_query",
-               AsyncMock(return_value=True)):
+               AsyncMock(return_value=_BridgeCancelResult(cancelled=True))):
         from backend.guards.commands.cancel_cmd import CancelCommand
         await CancelCommand().execute("905001234567", "", session)
 

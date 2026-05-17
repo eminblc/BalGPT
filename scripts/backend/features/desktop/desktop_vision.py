@@ -46,12 +46,19 @@ class _BboxCache:
         question: str,
         window_title: str,
         region: Optional[tuple[int, int, int, int]],
+        session_id: Optional[str] = None,
     ) -> str:
-        """Cache anahtarı: soru hash'i + pencere başlığı + region."""
+        """Cache anahtarı: soru hash'i + pencere başlığı + region + session_id.
+
+        IMP-DESK-4: session_id dahil edilerek farklı session'ların aynı cache
+        entry'sini paylaşması engellenir. Boş window_title durumunda da çakışma olmaz.
+        """
         q_hash = hashlib.md5(question.lower().strip().encode()).hexdigest()[:8]
-        title_slug = re.sub(r"[^a-z0-9]", "_", window_title.lower())[:30]
+        # Boş window_title → cache'i devre dışı bırakmak yerine session_id ile ayırt et
+        title_slug = re.sub(r"[^a-z0-9]", "_", window_title.lower())[:30] if window_title else "_notitle"
         region_str = f"_{region[0]}_{region[1]}_{region[2]}_{region[3]}" if region else ""
-        return f"{q_hash}_{title_slug}{region_str}"
+        sid_slug = f"_s{hashlib.md5((session_id or 'default').encode()).hexdigest()[:6]}"
+        return f"{q_hash}_{title_slug}{region_str}{sid_slug}"
 
     def get(self, key: str) -> tuple[str, float] | None:
         return self._data.get(key)
@@ -132,39 +139,43 @@ class _VisionLimiter:
     def __init__(self) -> None:
         # session_id → list[timestamp]
         self._hits: dict[str, list[float]] = {}
+        # BUG-DESK-2: asyncio.Lock ile thread-safe erişim
+        self._lock: asyncio.Lock = asyncio.Lock()
 
-    def check_and_record(self, session_id: str, max_per_window: int) -> tuple[bool, int]:
+    async def check_and_record(self, session_id: str, max_per_window: int) -> tuple[bool, int]:
         """
         Aşıldı mı kontrol et, aşılmadıysa +1 kaydet.
         Döner: (izin_ver, pencere_içi_sayaç)
         """
-        now = time.monotonic()
-        hits = [t for t in self._hits.get(session_id, []) if now - t < self.WINDOW_SEC]
-        if len(hits) >= max_per_window:
+        async with self._lock:
+            now = time.monotonic()
+            hits = [t for t in self._hits.get(session_id, []) if now - t < self.WINDOW_SEC]
+            if len(hits) >= max_per_window:
+                self._hits[session_id] = hits
+                return False, len(hits)
+            hits.append(now)
             self._hits[session_id] = hits
-            return False, len(hits)
-        hits.append(now)
-        self._hits[session_id] = hits
-        return True, len(hits)
+            return True, len(hits)
 
-    def reset(self, session_id: str | None = None) -> None:
-        if session_id is None:
-            self._hits.clear()
-        else:
-            self._hits.pop(session_id, None)
+    async def reset(self, session_id: str | None = None) -> None:
+        async with self._lock:
+            if session_id is None:
+                self._hits.clear()
+            else:
+                self._hits.pop(session_id, None)
 
 
 _vision_limiter = _VisionLimiter()
 
 
-def reset_vision_limiter(session_id: str | None = None) -> None:
+async def reset_vision_limiter(session_id: str | None = None) -> None:
     """Vision limiter sayacını sıfırlar (test ve manuel reset için)."""
-    _vision_limiter.reset(session_id)
+    await _vision_limiter.reset(session_id)
 
 
-def _bbox_cache_key(question: str, window_title: str, region: Optional[tuple[int, int, int, int]]) -> str:
+def _bbox_cache_key(question: str, window_title: str, region: Optional[tuple[int, int, int, int]], session_id: Optional[str] = None) -> str:
     """Cache anahtarı: soru hash'i + pencere başlığı + region. (Geriye dönük uyumluluk için)"""
-    return _bbox_cache.make_key(question, window_title, region)
+    return _bbox_cache.make_key(question, window_title, region, session_id)
 
 
 def clear_bbox_cache() -> int:
@@ -230,7 +241,8 @@ async def vision_query(
     # ── Session rate limit (5 dk sliding window) ─────────────────
     _settings = get_settings()
     sid = session_id or "default"
-    allowed, count = _vision_limiter.check_and_record(sid, _settings.desktop_vision_max_per_session)
+    # BUG-DESK-2: check_and_record artık async (Lock korumalı)
+    allowed, count = await _vision_limiter.check_and_record(sid, _settings.desktop_vision_max_per_session)
     if not allowed:
         logger.warning(
             "vision_query limit aşıldı: session=%s, sayaç=%d/%d",
@@ -256,7 +268,8 @@ async def vision_query(
     # ── Cache kontrolü (OPT-3) ────────────────────────────────────
     if use_cache:
         window_title = await _get_active_window_title()
-        cache_key = _bbox_cache.make_key(question, window_title, region)
+        # IMP-DESK-4: session_id ile farklı session'ların çakışması engellendi
+        cache_key = _bbox_cache.make_key(question, window_title, region, sid)
         cached = _bbox_cache.get(cache_key)
         if cached is not None:
             cached_answer, cached_ts = cached
@@ -290,12 +303,25 @@ async def vision_query(
 
     try:
         img_bytes = _Path(str(screenshot)).read_bytes()
-        img_b64 = base64.standard_b64encode(img_bytes).decode("ascii")
     except OSError as exc:
         _Path(tmp_img).unlink(missing_ok=True)
         return f"❌ Ekran görüntüsü okunamadı: {exc}"
     finally:
         _Path(tmp_img).unlink(missing_ok=True)
+
+    # IMP-DESK-7: Vision API boyut limiti kontrolü (~4.5 MB base64 ≈ 3.375 MB raw)
+    from .desktop_capture import _resize_png_bytes as _resize
+    _MAX_BYTES = 3_500_000  # ~4.67 MB base64; Claude API limiti ~5 MB
+    img_bytes = _resize(img_bytes, _settings.desktop_screenshot_max_width)
+    if len(img_bytes) > _MAX_BYTES:
+        # Agresif küçültme: yarı genişlik
+        img_bytes = _resize(img_bytes, _settings.desktop_screenshot_max_width // 2)
+        logger.warning(
+            "vision_query: görüntü boyutu hâlâ büyük (%d bytes), yarı genişliğe küçültüldü",
+            len(img_bytes),
+        )
+
+    img_b64 = base64.standard_b64encode(img_bytes).decode("ascii")
 
     try:
         llm = get_llm(backend="anthropic")

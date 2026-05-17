@@ -16,6 +16,10 @@ from ..config import settings
 
 logger = logging.getLogger(__name__)
 
+# Adjust for clock skew: her iki yönde kabul edilecek 30 saniyelik TOTP penceresi sayısı.
+# 1 = mevcut + önceki + sonraki pencere (±30 sn). Saat kayması sorununda 2'ye çıkar.
+_TOTP_VALID_WINDOW = 1
+
 
 class Perm(str, Enum):
     PUBLIC          = "public"       # Herkese açık (şu an sadece owner var, ilerisi için)
@@ -57,7 +61,7 @@ class PermissionManager:
             logger.error("TOTP secret ASCII olmayan karakter içeriyor — .env dosyasını kontrol et")
             return False
         totp = pyotp.TOTP(secret)
-        result = totp.verify(code, valid_window=1)
+        result = totp.verify(code, valid_window=_TOTP_VALID_WINDOW)
         if not result:
             import time as _time
             now = int(_time.time())

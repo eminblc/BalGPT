@@ -76,8 +76,9 @@ class TerminalCommand:
         from ...features.terminal import execute_command
         from ...i18n import t
 
-        logger.info("/terminal çalıştırılıyor: %r", cmd_str[:80])
-        result = await execute_command(cmd_str)
+        from ...constants import TERMINAL_CMD_TIMEOUT
+        logger.info("/terminal çalıştırılıyor: %r (timeout=%ds)", cmd_str[:80], TERMINAL_CMD_TIMEOUT)
+        result = await execute_command(cmd_str, timeout=TERMINAL_CMD_TIMEOUT)
 
         if result.timed_out:
             text = t("terminal.timeout", lang)

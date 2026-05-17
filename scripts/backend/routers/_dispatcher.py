@@ -191,6 +191,8 @@ async def _handle_media(ctx: _MsgCtx) -> None:
             return
         except Exception as exc:
             logger.warning("Telegram medya indirme hatası type=%s: %s", ctx.msg_type, exc)
+            await get_messenger().send_text(ctx.sender, t("media.download_error", ctx.lang))
+            return
 
     # Fallback: metin açıklamasıyla Bridge'e ilet
     await _forward_to_bridge(ctx.sender, ctx.extra_desc, ctx.session)
@@ -350,5 +352,9 @@ async def _forward_interactive_to_project(
                 json={"sender": sender, "text": "", "reply_id": reply_id},
             )
             r.raise_for_status()
-    except Exception:
+    except Exception as exc:
+        logger.exception(
+            "_forward_interactive_to_project hatası: sender=%s project_id=%s error=%s",
+            sender, project_id, exc,
+        )
         await get_messenger().send_text(sender, t("dispatcher.project_connect_error", lang))

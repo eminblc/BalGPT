@@ -45,9 +45,24 @@ class DesktopTotpGate:
     def ttl_seconds(self) -> float:
         return self._ttl
 
+    # IMP-DESK-5: Maksimum unlock süresi — saat geri giderse kalıcı kilit oluşmaz.
+    # TTL 900 sn; normal kalan süre en fazla 900 sn olabilir.
+    # Saat geriye giderse unlock_until - now anormal biçimde büyür (binlerce sn).
+    # Eşik: 4 × TTL = 3600 sn → test ortamında kasıtlı 3600 sn değeri de geçerli sayılır,
+    # ancak gerçek saat geri gitme (NTP) durumunda günler/saatler fark oluşur.
+    _MAX_UNLOCK_SECONDS: float = 86_400.0  # 1 gün — bu kadar büyük kalan süre anormal
+
     def is_unlocked(self, *, now: Optional[float] = None) -> bool:
         if now is None:
             now = time.time()
+        # NTP düzeltmesiyle saat çok büyük miktarda geri gittiyse sıfırla
+        if self._unlock_until - now > self._MAX_UNLOCK_SECONDS:
+            logger.warning(
+                "desktop_totp_gate: anormal lockout_until tespiti (%.0f sn kaldı > %.0f sn max), sıfırlanıyor",
+                self._unlock_until - now, self._MAX_UNLOCK_SECONDS,
+            )
+            self._unlock_until = 0.0
+            return False
         return now < self._unlock_until
 
     def remaining_seconds(self, *, now: Optional[float] = None) -> int:

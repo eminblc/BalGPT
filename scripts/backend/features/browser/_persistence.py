@@ -4,6 +4,7 @@ Sorumluluk: Playwright storage state (cookies + localStorage) dosya sisteminde y
 """
 from __future__ import annotations
 
+import json
 import logging
 
 from ._session_store import _session_store
@@ -22,6 +23,17 @@ async def browser_save_session(session_id: str = "default") -> tuple[bool, str]:
         storage_path = _get_storage_state_path(session_id)
         try:
             await context.storage_state(path=str(storage_path))
+            # IMP-DESK-3: Disk full / truncated write tespiti — yazılan JSON'u doğrula
+            try:
+                with open(storage_path, encoding="utf-8") as _f:
+                    json.load(_f)
+            except (json.JSONDecodeError, OSError) as json_err:
+                logger.error(
+                    "browser/save_session: yazılan storage state bozuk, siliniyor: session=%r, hata=%s",
+                    session_id, json_err,
+                )
+                storage_path.unlink(missing_ok=True)
+                return False, f"❌ Oturum kaydı bozuk (disk dolu?): {json_err}"
             size = storage_path.stat().st_size
             logger.info(
                 "browser/save_session: session=%r → %s (%d bytes)",

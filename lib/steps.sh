@@ -51,7 +51,7 @@ step_npm() {
 
 step_proxy_binary() {
   local _proxy
-  _proxy="$(_read_env_var "WEBHOOK_PROXY" "$ENV_FILE")"
+  _proxy="$(_read_env_var "WEBHOOK_PROXY" "${ENV_FILE:-$BACKEND_DIR/.env}")"
   [[ "$_proxy" != "cloudflared" ]] && return 0
 
   if command -v cloudflared &>/dev/null; then

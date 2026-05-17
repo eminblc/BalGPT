@@ -8,7 +8,8 @@ import mimetypes
 
 from ...whatsapp import cloud_api
 
-_DEFAULT_LIST_LABEL = "Seçenekler"
+# IMP-ADAP-5: Bilingual fallback — çağırıcı t("menu.options_label", lang) ile override edebilir
+_DEFAULT_LIST_LABEL = "Options / Seçenekler"
 
 
 class WhatsAppMessenger:
@@ -27,13 +28,20 @@ class WhatsAppMessenger:
     async def send_typing(self, to: str) -> None:
         """WhatsApp Cloud API'de native typing action yok — no-op."""
 
-    async def send_list(self, to: str, text: str, sections: list[dict]) -> None:
+    async def send_list(
+        self,
+        to: str,
+        text: str,
+        sections: list[dict],
+        label: str | None = None,
+    ) -> None:
         """WhatsApp açılır liste menüsü olarak gönder.
 
         sections: [{"title": "Bölüm", "rows": [{"id": "...", "title": "...", "description": "..."}]}]
-        Buton etiketi sabit "Seçenekler" olarak kullanılır; platform sözleşmesinde yer almaz.
+        label: Buton etiketi; verilmezse _DEFAULT_LIST_LABEL kullanılır.
+               Çağırıcılar t("menu.options_label", lang) ile dil uyumlu etiket geçebilir.
         """
-        await cloud_api.send_list(to, text, _DEFAULT_LIST_LABEL, sections)
+        await cloud_api.send_list(to, text, label or _DEFAULT_LIST_LABEL, sections)
 
     async def send_image(self, to: str, source: str, caption: str = "") -> None:
         """Görsel gönder. source: yerel yol veya https:// URL."""

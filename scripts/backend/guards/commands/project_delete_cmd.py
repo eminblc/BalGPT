@@ -9,6 +9,8 @@ from ..permission import Perm
 
 logger = logging.getLogger(__name__)
 
+_LIST_LIMIT = 8  # WhatsApp mesaj okunabilirliği için tek seferde gösterilen maksimum proje sayısı
+
 
 class ProjectDeleteCommand:
     cmd_id      = "/project-delete"
@@ -33,9 +35,13 @@ class ProjectDeleteCommand:
             if not projects:
                 await get_messenger().send_text(sender, t("project_delete.empty", lang))
             else:
+                total = len(projects)
+                visible = projects[:_LIST_LIMIT]
                 lines = [t("project_delete.list_header", lang)]
-                for p in projects:
+                for p in visible:
                     lines.append(f"  • {p['id']}  →  {p['name']}")
+                if total > _LIST_LIMIT:
+                    lines.append(t("project_delete.list_truncated", lang, shown=_LIST_LIMIT, total=total))
                 lines.append(t("project_delete.list_footer", lang))
                 await get_messenger().send_text(sender, "\n".join(lines))
             return

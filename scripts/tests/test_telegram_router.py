@@ -173,8 +173,8 @@ def _make_app_with_chain(guard_chain):
     return app
 
 
-async def test_webhook_post_invalid_json_returns_400():
-    """Geçerli secret, bozuk JSON gövde → 400."""
+async def test_webhook_post_invalid_json_returns_200():
+    """Geçerli secret, bozuk JSON gövde → 200 (Telegram retry loop önlenir)."""
     app = _make_app()
     with patch("backend.routers.telegram_router.settings",
                _mock_settings(secret="my-secret", env="development")):
@@ -188,7 +188,8 @@ async def test_webhook_post_invalid_json_returns_400():
                     "Content-Type": "application/json",
                 },
             )
-    assert resp.status_code == 400
+    # IMP-ROUTER-2: Bozuk JSON 200 döndürür; Telegram 400'de tekrar denemez
+    assert resp.status_code == 200
 
 
 async def test_webhook_guard_rejects_dispatcher_not_called():

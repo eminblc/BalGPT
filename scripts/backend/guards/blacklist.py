@@ -49,5 +49,9 @@ class BlacklistManager:
         logger.warning("Blacklist'e eklendi: %s — %s", number, reason)
 
     def remove(self, number: str) -> None:
+        # Not: add() async iken remove() sync'tir — remove yalnızca admin komutlarından
+        # (senkron bağlam) çağrıldığı için kasıtlı asimetri; event loop'u bloklamaz
+        # çünkü JSON yazma işlemi milisaniye düzeyindedir.
         self._blocked.discard(number)
         self._save()
+        logger.info("Blacklist'ten çıkarıldı: %s", number[:6] + "***")

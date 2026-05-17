@@ -24,12 +24,16 @@ def _sync_event_create(title: str, event_time: float, description: str = "",
 
 
 def _sync_event_get(event_id: str) -> dict | None:
+    # Expected keys: id, title, description, event_time, remind_before_minutes, recurring,
+    #                notified, created_at
     with _conn() as con:
         row = con.execute("SELECT * FROM calendar_events WHERE id=?", (event_id,)).fetchone()
         return dict(row) if row else None
 
 
 def _sync_event_list_upcoming(limit: int = 10) -> list[dict]:
+    # Expected keys per row: id, title, description, event_time, remind_before_minutes,
+    #                        recurring, notified, created_at
     now = time.time()
     with _conn() as con:
         rows = con.execute(

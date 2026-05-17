@@ -1,9 +1,12 @@
 """/root-log komutu — root_actions.log son 5 satırını insan okunur formatta göster."""
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from .registry import registry
 from ..permission import Perm
+
+logger = logging.getLogger(__name__)
 
 _LOG_PATH = Path(__file__).parent.parent.parent.parent.parent / "outputs" / "logs" / "root_actions.log"
 
@@ -52,28 +55,32 @@ class RootLogCommand:
         from ...i18n import t
 
         lang = session.get("lang", "tr")
-        if not _LOG_PATH.exists():
-            await get_messenger().send_text(sender, t("root_check.not_found", lang))
-            return
 
         try:
             lines = _LOG_PATH.read_text(encoding="utf-8", errors="replace").splitlines()
-            last = [l for l in lines if l.strip()][-5:]
+        except FileNotFoundError:
+            await get_messenger().send_text(sender, t("root_check.not_found", lang))
+            return
+        except Exception:
+            logger.exception("root-log: log dosyası okunamadı: %s", _LOG_PATH)
+            await get_messenger().send_text(sender, t("root_check.db_error", lang))
+            return
 
-            formatted = []
-            for line in last:
-                entry = _fmt_log_entry(line)
-                if entry:
-                    formatted.append(entry)
+        last = [l for l in lines if l.strip()][-5:]
 
-            if not formatted:
-                await get_messenger().send_text(sender, t("root_check.error", lang, error="Log verisi parse edilemedi"))
-                return
+        formatted = []
+        for line in last:
+            entry = _fmt_log_entry(line)
+            if entry:
+                formatted.append(entry)
 
-            msg = t("root_log.header", lang) + "\n\n".join(formatted)
-            await get_messenger().send_text(sender, msg)
-        except Exception as e:
-            await get_messenger().send_text(sender, t("root_check.error", lang, error=e))
+        if not formatted:
+            logger.warning("root-log: log verisi parse edilemedi: %s", _LOG_PATH)
+            await get_messenger().send_text(sender, t("root_check.db_error", lang))
+            return
+
+        msg = t("root_log.header", lang) + "\n\n".join(formatted)
+        await get_messenger().send_text(sender, msg)
 
 
 registry.register(RootLogCommand())

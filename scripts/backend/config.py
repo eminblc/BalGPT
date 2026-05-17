@@ -229,7 +229,12 @@ class Settings(BaseSettings):
 
         # TOTP secret — rutin komutlar
         if not self.totp_secret.get_secret_value():
-            _logger.warning("GÜVENLIK: totp_secret tanımlı değil — TOTP koruması devre dışı!")
+            msg = "totp_secret tanımlı değil — TOTP koruması devre dışı!"
+            if is_prod:
+                # Production'da TOTP korumasız çalışmak kritik güvenlik açığıdır
+                _logger.warning("GÜVENLIK [KRITIK]: %s", msg)
+            else:
+                _logger.warning("GÜVENLIK: %s", msg)
 
         # WhatsApp HMAC
         if not self.whatsapp_app_secret.get_secret_value():

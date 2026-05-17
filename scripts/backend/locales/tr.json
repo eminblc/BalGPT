@@ -30,7 +30,8 @@
     "ok": "❌ Aktif işlem iptal edildi.",
     "nothing": "ℹ️ İptal edilecek aktif işlem yok.",
     "generic": "❌ İşlem iptal edildi.",
-    "bridge_ok": "⛔ Devam eden Bridge sorgusu iptal edildi."
+    "bridge_ok": "⛔ Devam eden Bridge sorgusu iptal edildi.",
+    "bridge_error": "⚠️ Bridge'e bağlanılamadı — iptal isteği gönderilemedi."
   },
   "cmd": {
     "unknown": "❓ Bilinmeyen komut: {cmd}\n/help ile komutları gör.",
@@ -159,6 +160,7 @@
     "empty": "📋 Henüz kayıtlı proje yok.",
     "list_header": "📋 Mevcut projeler:\n",
     "list_footer": "\nSilmek için: /project-delete <id>",
+    "list_truncated": "ℹ️ İlk {shown} proje gösteriliyor ({total} toplam). Silmek için ID'yi doğrudan yaz: /project-delete <id>",
     "not_found": "❌ Proje bulunamadı: {id}",
     "delete_failed": "❌ Proje silinemedi: {id}",
     "ok": "🗑 Proje silindi: *{name}* (`{id}`)\n📁 Dizin silinmedi: `{path}`\nDosyaları manuel olarak kaldırabilirsin."
@@ -166,6 +168,7 @@
   "root_check": {
     "not_found": "⚠️ root_actions.log bulunamadı.",
     "error": "❌ Veri okunamadı: {error}",
+    "db_error": "❌ Veri okunamadı. Detaylar için loglara bak.",
     "idle_no_history": "⚫ Root şu an çalışmıyor.",
     "idle_with_history": "⚫ Root şu an çalışmıyor.\nSon istek: {time} ({ago} önce)",
     "active_header": "🟢 Root aktif — {duration} süredir çalışıyor",
@@ -223,6 +226,7 @@
     "bridge_api_error": "⚠️ Ajan geçici bir hatayla karşılaştı. Lütfen tekrar dene."
   },
   "wizard": {
+    "description_required": "⚠️ Proje açıklaması boş bırakılamaz. Lütfen bir açıklama gir (atlamak için '-' yaz):",
     "ask_description": "*{name}* projesinin genel amacını açıkla:\n_(Dosya başlıklarına ve CLAUDE.md'ye eklenecek — atlamak için '-')_",
     "options_title": "*{name}* — Seçenekler\nİstediğin maddeyi değiştir, hazır olunca Onayla:",
     "path_confirm": "📁 Proje yolu:\n`{path}`\n\nDeğiştirmek ister misiniz?",
@@ -290,7 +294,7 @@
     "ask_auto_arch": "🤖 *{name}* için AI mimari önerisi üreteyim mi?\n\nAçıklamana göre stack, klasör yapısı ve kısa mimari notu çıkarırım. Önizler, kabul/düzenle/atla seçeneği sunarım.",
     "auto_arch_yes_btn": "✨ Evet, üret",
     "auto_arch_no_btn": "⏭️ Hayır, atla",
-    "arch_generating": "⏳ AI mimari önerisi üretiliyor… (en fazla 60 sn)",
+    "arch_generating": "⏳ AI mimari önerisi üretiliyor… (en fazla 120 sn)",
     "arch_regenerating": "⏳ Geri bildiriminle yeniden üretiliyor…",
     "arch_preview": "🧩 *AI Mimari Önizlemesi*\n\n*Açıklama:*\n{desc}\n\n*Stack:* {stack}\n\n*Klasör Yapısı:*\n{directories}\n\n*Mimari Notu:*\n{architecture}",
     "arch_accept_btn": "✅ Kabul et",
@@ -320,7 +324,8 @@
     "pdf_btn_full": "📁 Yazılım Projesi",
     "pdf_btn_minimal": "📝 Görev Kaydet",
     "pdf_btn_none": "📂 Sadece Klasör",
-    "pdf_wizard_active": "⚠️ Proje oluşturma devam ediyor. Önce sihirbazı tamamla veya iptal et, sonra PDF gönder."
+    "pdf_wizard_active": "⚠️ Proje oluşturma devam ediyor. Önce sihirbazı tamamla veya iptal et, sonra PDF gönder.",
+    "download_error": "⚠️ Medya dosyası indirilemedi. Lütfen tekrar dene."
   },
   "pdf": {
     "downloading": "⚙️ PDF indiriliyor...",
@@ -473,8 +478,8 @@
   "backup": {
     "export_start": "⏳ Yedek oluşturuluyor...",
     "export_caption": "✅ Yedek hazır: {size} KB, {tables} tablo, {files} dosya",
-    "export_error": "❌ Yedek alınamadı: {error}",
-    "export_send_error": "❌ Yedek dosyası gönderilemedi: {error}",
+    "export_error": "❌ Yedek alınamadı. Detaylar için loglara bak.",
+    "export_send_error": "❌ Yedek dosyası gönderilemedi. Detaylar için loglara bak.",
     "import_prompt": "📤 Lütfen .99rb yedek dosyasını gönderin.",
     "import_ok": "✅ İçe aktarım tamamlandı: {rows} satır eklendi, {tables} tablo işlendi, {files} dosya geri yüklendi.",
     "import_error": "❌ İçe aktarım hatası: {error}",
@@ -484,5 +489,17 @@
     "import_env_found": "ℹ️ Ortam konfigürasyonu yedekte bulundu.\ndata/env_config.env dosyasını inceleyin ve scripts/backend/.env dosyanıza birleştirin.",
     "auto_backup_caption": "🔄 Otomatik yedek hazır: {size} KB, {tables} tablo, {files} dosya",
     "auto_backup_error": "❌ Otomatik yedekleme başarısız: {error}"
+  },
+  "desktop": {
+    "ocr_done": "OCR tamamlandı.",
+    "screenshot_ok": "Ekran görüntüsü alındı.",
+    "screenshot_ocr_ok": "Ekran görüntüsü alındı ve OCR uygulandı.",
+    "screenshot_failed": "❌ Ekran görüntüsü alınamadı. X11 oturumu açık mı? DISPLAY ayarlı mı? `sudo apt install scrot` kurulu mu?",
+    "multi_screenshot_ok": "{count} monitörden ekran görüntüsü alındı: {monitors}",
+    "multi_screenshot_ocr_ok": "{count} monitörden ekran görüntüsü alındı ve OCR uygulandı.",
+    "recording_disabled": "❌ Ekran video kaydı devre dışı. Etkinleştirmek için: DESKTOP_RECORDING=true (.env)",
+    "recording_ok": "Ekran kaydı tamamlandı ({size_mb} MB, {duration}s).",
+    "recording_failed": "❌ Ekran kaydı başarısız. ffmpeg kurulu mu? X11 oturumu açık mı? `sudo apt install ffmpeg` gerekiyor.",
+    "multi_recording_ok": "{count} monitör kaydedildi: {monitors}"
   }
 }

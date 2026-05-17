@@ -108,7 +108,14 @@ class TelegramMessenger:
 
         buttons: [{"id": "btn_id", "title": "Başlık"}, ...]
         Her buton ayrı satıra yerleştirilir.
+
+        Telegram limitleri:
+        - sendMessage: text max 4096 karakter
+        - Aşılırsa önce truncate edilir; Markdown parse hatası olursa plain text denenir.
         """
+        if len(text) > TG_MAX_LEN:
+            text = text[: TG_MAX_LEN - 1] + "…"
+
         inline_keyboard = [
             [{"text": b["title"], "callback_data": b["id"]}]
             for b in buttons
@@ -119,9 +126,26 @@ class TelegramMessenger:
                 json={
                     "chat_id": to,
                     "text": text,
+                    "parse_mode": "Markdown",
                     "reply_markup": {"inline_keyboard": inline_keyboard},
                 },
             )
+            if res.status_code == 400 and (
+                "can't parse entities" in res.text
+                or "message is too long" in res.text
+            ):
+                logger.warning(
+                    "Telegram send_buttons Markdown hatası, plain text deneniyor: to=%s body=%s",
+                    to, res.text[:200],
+                )
+                res = await client.post(
+                    f"{self._base}/sendMessage",
+                    json={
+                        "chat_id": to,
+                        "text": text,
+                        "reply_markup": {"inline_keyboard": inline_keyboard},
+                    },
+                )
             if not res.is_success:
                 logger.error(
                     "Telegram send_buttons başarısız: to=%s status=%d body=%s",

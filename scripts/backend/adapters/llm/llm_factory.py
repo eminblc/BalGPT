@@ -13,6 +13,7 @@ Yeni backend eklemek:
 """
 from __future__ import annotations
 
+import asyncio
 import inspect
 import logging
 
@@ -43,11 +44,18 @@ def register_backend(name: str, cls: type[AbstractLLMProvider]) -> None:
 
     Raises:
         TypeError: cls bir tür değilse veya `complete` metodu yoksa.
+        ValueError: `complete` metodu async (coroutine function) değilse.
     """
     if not (isinstance(cls, type) and callable(getattr(cls, "complete", None))):
         raise TypeError(
             f"register_backend: {cls!r} geçerli bir LLM sağlayıcı sınıfı değil — "
             "AbstractLLMProvider Protocol'ünü (complete() metodu) uygulamalı."
+        )
+    # IMP-ADAP-4: complete() async olmalı — sync implementasyonlar asyncio event loop'unu bloklar
+    if not asyncio.iscoroutinefunction(cls.complete):
+        raise ValueError(
+            f"register_backend: {cls.__name__}.complete() async (coroutine function) değil. "
+            "LLM provider'lar asyncio uyumluluğu için `async def complete(...)` kullanmalı."
         )
     _BACKENDS[name] = cls
     logger.debug("LLM backend kaydedildi: %s", name)

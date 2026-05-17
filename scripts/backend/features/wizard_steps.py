@@ -487,11 +487,17 @@ async def confirm_create(sender: str, session: dict) -> None:
     from .projects import create_project
 
     name        = session.get("wiz_name",     "")
-    desc        = session.get("wiz_desc",     "")
+    desc        = session.get("wiz_desc",     "") or ""
     level       = session.get("wiz_level",    "full")
     mds         = session.get("wiz_mds",      None)
     custom_path = session.get("wiz_path",     None)
     services    = session.get("wiz_services", [])
+
+    # IMP-FEAT-11: boş açıklama ile proje oluşturulmasını önle
+    lang = session.get("lang", "tr")
+    if not desc.strip():
+        await get_messenger().send_text(sender, t("wizard.description_required", lang))
+        return
 
     # WIZ-LLM-5: AI önizlemesi kabul edildiyse override dict'i kur.
     ai_overrides: dict | None = None
@@ -504,7 +510,6 @@ async def confirm_create(sender: str, session: dict) -> None:
 
     metadata = json.dumps({"services": services}, ensure_ascii=False) if services else "{}"
 
-    lang = session.get("lang", "tr")
     # Hedef dizin zaten varsa uyar — kullanıcı zaten onayladıysa atla (O-2)
     target_path = Path(custom_path) if custom_path else Path(_default_project_path(name))
     if not session.pop("wiz_overwrite_confirmed", False):
@@ -527,7 +532,11 @@ async def confirm_create(sender: str, session: dict) -> None:
             ai_overrides=ai_overrides,
         )
     except ValueError as exc:
-        clear_wizard(session)
+        # IMP-FEAT-3: clear_wizard başarısız olursa logla ama devam et
+        try:
+            clear_wizard(session)
+        except Exception as _cw_exc:
+            logger.warning("Wizard: clear_wizard hatası (ValueError yolunda): %s", _cw_exc)
         msg = str(exc)
         if "zaten mevcut" in msg:
             await get_messenger().send_text(
@@ -543,7 +552,11 @@ async def confirm_create(sender: str, session: dict) -> None:
             logger.warning("Wizard: geçersiz proje adı: %s — %s", name, exc)
         return
     except PermissionError:
-        clear_wizard(session)
+        # IMP-FEAT-3: clear_wizard başarısız olursa logla ama devam et
+        try:
+            clear_wizard(session)
+        except Exception as _cw_exc:
+            logger.warning("Wizard: clear_wizard hatası (PermissionError yolunda): %s", _cw_exc)
         await get_messenger().send_text(
             sender,
             t("wizard.permission_error", lang, path=custom_path),
@@ -551,7 +564,11 @@ async def confirm_create(sender: str, session: dict) -> None:
         logger.error("Wizard: dizin izin hatası: path=%s", custom_path)
         return
     except Exception as exc:
-        clear_wizard(session)
+        # IMP-FEAT-3: clear_wizard başarısız olursa logla ama devam et
+        try:
+            clear_wizard(session)
+        except Exception as _cw_exc:
+            logger.warning("Wizard: clear_wizard hatası (Exception yolunda): %s", _cw_exc)
         await get_messenger().send_text(
             sender,
             t("wizard.unexpected_error", lang),

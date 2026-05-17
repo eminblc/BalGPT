@@ -55,19 +55,31 @@ async def apply_timezone(tz: str) -> None:
 
     APScheduler'ın timezone'u güncellenir; ardından tüm aktif cron job'ları
     yeni timezone'a göre yeniden kaydedilir (CronTrigger'lar yeniden oluşturulur).
+
+    IMP-FEAT-1: _active_timezone yalnızca _reload_cron_jobs_only() başarılıysa güncellenir;
+    hata olursa eski değere rollback yapılır.
     """
     global _active_timezone
-    _active_timezone = tz
 
     if not _scheduler.running:
+        # Scheduler çalışmıyorsa yalnızca değeri güncelle (rollback gerekmez)
+        _active_timezone = tz
         logger.info("apply_timezone: scheduler çalışmıyor, yalnızca değer güncellendi: %s", tz)
         return
 
     from zoneinfo import ZoneInfo
     _scheduler.configure(timezone=ZoneInfo(tz))
 
-    # Takvim hatırlatıcı job'ı sisteme ait — atla; yalnızca kullanıcı job'larını yeniden yükle
-    await _reload_cron_jobs_only()
+    old_tz = _active_timezone
+    _active_timezone = tz
+    try:
+        # Takvim hatırlatıcı job'ı sisteme ait — atla; yalnızca kullanıcı job'larını yeniden yükle
+        await _reload_cron_jobs_only()
+    except Exception as exc:
+        # Rollback: cron reload başarısız olursa tutarlı state koru
+        _active_timezone = old_tz
+        logger.error("apply_timezone: cron reload başarısız, eski timezone'a geri dönüldü (%s): %s", old_tz, exc)
+        raise
     logger.info("Timezone uygulandı: %s — cron job'lar yeniden yüklendi", tz)
 
 
@@ -445,7 +457,9 @@ async def _execute_task(task_id: str) -> None:
     await db.task_update_status(task_id, "running")
     try:
         if action_type == "send_message":
-            await _send_notification(t("scheduler.task_reminder", "tr", message=message))
+            # IMP-FEAT-5: _send_notification network'te takılırsa thread'i sonsuz bloke etmesini önle
+            import asyncio as _aio
+            await _aio.wait_for(_send_notification(t("scheduler.task_reminder", "tr", message=message)), timeout=30.0)
         elif action_type == "run_bridge":
             await _run_bridge_query(message, silent=True)
         # Cron job'lar tamamlandıktan sonra "scheduled" durumuna geri döner
@@ -486,7 +500,8 @@ async def _run_bridge_query(message: str, silent: bool = False) -> None:
     augmented_message = message + _SCHEDULER_SUFFIX
 
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        timeout = float(get_settings().bridge_client_timeout)
+        async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(
                 f"{get_settings().claude_bridge_url}/query",
                 headers={"X-Api-Key": get_settings().api_key.get_secret_value()},
@@ -498,8 +513,9 @@ async def _run_bridge_query(message: str, silent: bool = False) -> None:
             if answer:
                 await _send_notification(answer)
     except Exception as e:
-        logger.error("Bridge query başarısız (scheduled): %s", e)
-        await _send_notification(t("scheduler.task_error", "tr", error=e))
+        error_detail = repr(e) or type(e).__name__
+        logger.error("Bridge query başarısız (scheduled): %s", error_detail)
+        await _send_notification(t("scheduler.task_error", "tr", error=error_detail))
 
 
 # ── Takvim hatırlatıcıları ────────────────────────────────────────
@@ -606,7 +622,9 @@ async def lifecycle_startup() -> None:
             await apply_timezone(saved_tz)
             logger.info("Kullanıcı timezone tercihi yüklendi: %s", saved_tz)
     except Exception as exc:
-        logger.warning("Timezone tercihi yüklenemedi: %s", exc)
+        # BUG-FEAT-1: hata durumunda settings.timezone fallback uygula
+        logger.warning("Timezone ayarı yüklenemedi, varsayılan kullanılıyor: %s", exc)
+        await apply_timezone(settings.timezone)
 
 
 async def lifecycle_shutdown() -> None:

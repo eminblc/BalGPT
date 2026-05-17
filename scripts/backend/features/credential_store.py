@@ -25,7 +25,17 @@ def get_credential(site_slug: str, field: str) -> tuple[bool, str, str | None]:
     """
     CREDENTIAL_<SITE_SLUG>_<FIELD> env var değerini döndürür.
     Döner: (ok, mesaj, değer|None)
-    Şifre/token alanları logda maskelenir.
+
+    IMP-FEAT-15: ok=False olduğunda value=None'dur — çağırıcı mutlaka ok'u kontrol etmeli,
+    değeri kullanmadan önce None kontrolü yapılmalıdır.
+    Örnek:
+        ok, msg, value = get_credential("site", "user")
+        if not ok:
+            # value is None here — do not use it
+            return False, msg
+        # value is a str here — safe to use
+
+    Şifre/token alanları logda maskelenir (IMP-DESK-1).
     """
     value = settings.get_site_credential(site_slug, field)
     if value is None:

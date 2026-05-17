@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 from ..adapters.media import get_media_downloader
+from ..constants import WA_MAX_MEDIA_BYTES
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,11 @@ async def save_media(media_id: str, mime_type: str) -> Path:
 
     logger.info("Medya indiriliyor: media_id=%s mime=%s", media_id, mime_type)
     content, _ = await get_media_downloader().download(media_id)
+    # IMP-FEAT-9: İndirilen içerik boyutunu kontrol et — bellek koruması
+    if len(content) > WA_MAX_MEDIA_BYTES:
+        raise ValueError(
+            f"Medya boyutu sınırı aşıldı: {len(content):,} bayt > {WA_MAX_MEDIA_BYTES:,} bayt (media_id={media_id})"
+        )
     dest.write_bytes(content)
     logger.info("Medya kaydedildi: %s (%d bytes)", dest, len(content))
     return dest

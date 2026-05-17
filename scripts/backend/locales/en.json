@@ -30,7 +30,8 @@
     "ok": "❌ Active operation cancelled.",
     "nothing": "ℹ️ No active operation to cancel.",
     "generic": "❌ Operation cancelled.",
-    "bridge_ok": "⛔ Active Bridge query cancelled."
+    "bridge_ok": "⛔ Active Bridge query cancelled.",
+    "bridge_error": "⚠️ Could not reach Bridge — cancel request could not be sent."
   },
   "cmd": {
     "unknown": "❓ Unknown command: {cmd}\nType /help to see commands.",
@@ -159,6 +160,7 @@
     "empty": "📋 No projects registered yet.",
     "list_header": "📋 Existing projects:\n",
     "list_footer": "\nTo delete: /project-delete <id>",
+    "list_truncated": "ℹ️ Showing first {shown} projects ({total} total). To delete, type the ID directly: /project-delete <id>",
     "not_found": "❌ Project not found: {id}",
     "delete_failed": "❌ Could not delete project: {id}",
     "ok": "🗑 Project deleted: *{name}* (`{id}`)\n📁 Directory not deleted: `{path}`\nYou can remove the files manually."
@@ -166,6 +168,7 @@
   "root_check": {
     "not_found": "⚠️ root_actions.log not found.",
     "error": "❌ Could not read data: {error}",
+    "db_error": "❌ Could not read data. Check logs for details.",
     "idle_no_history": "⚫ Root is currently idle.",
     "idle_with_history": "⚫ Root is currently idle.\nLast request: {time} ({ago} ago)",
     "active_header": "🟢 Root active — running for {duration}",
@@ -223,6 +226,7 @@
     "bridge_api_error": "⚠️ Agent encountered a temporary error. Please try again."
   },
   "wizard": {
+    "description_required": "⚠️ Project description cannot be empty. Please enter a description (type '-' to skip):",
     "ask_description": "Describe the purpose of *{name}*:\n_(Will be added to file headers and CLAUDE.md — type '-' to skip)_",
     "options_title": "*{name}* — Options\nChange any item, then confirm when ready:",
     "path_confirm": "📁 Project path:\n`{path}`\n\nWould you like to change it?",
@@ -290,7 +294,7 @@
     "ask_auto_arch": "🤖 Generate an AI architecture suggestion for *{name}*?\n\nBased on your description I'll propose a stack, folder layout and short architecture note. You can accept / edit / skip.",
     "auto_arch_yes_btn": "✨ Yes, generate",
     "auto_arch_no_btn": "⏭️ No, skip",
-    "arch_generating": "⏳ Generating AI architecture suggestion… (up to 60s)",
+    "arch_generating": "⏳ Generating AI architecture suggestion… (up to 120s)",
     "arch_regenerating": "⏳ Regenerating with your feedback…",
     "arch_preview": "🧩 *AI Architecture Preview*\n\n*Description:*\n{desc}\n\n*Stack:* {stack}\n\n*Folder Structure:*\n{directories}\n\n*Architecture Note:*\n{architecture}",
     "arch_accept_btn": "✅ Accept",
@@ -320,7 +324,8 @@
     "pdf_btn_full": "📁 Software Project",
     "pdf_btn_minimal": "📝 Save Task",
     "pdf_btn_none": "📂 Folder Only",
-    "pdf_wizard_active": "⚠️ Project creation is in progress. Finish or cancel the wizard first, then send the PDF."
+    "pdf_wizard_active": "⚠️ Project creation is in progress. Finish or cancel the wizard first, then send the PDF.",
+    "download_error": "⚠️ Could not download media file. Please try again."
   },
   "pdf": {
     "downloading": "⚙️ Downloading PDF...",
@@ -473,8 +478,8 @@
   "backup": {
     "export_start": "⏳ Creating backup...",
     "export_caption": "✅ Backup ready: {size} KB, {tables} tables, {files} files",
-    "export_error": "❌ Backup failed: {error}",
-    "export_send_error": "❌ Could not send backup file: {error}",
+    "export_error": "❌ Backup failed. Check logs for details.",
+    "export_send_error": "❌ Could not send backup file. Check logs for details.",
     "import_prompt": "📤 Please send your .99rb backup file.",
     "import_ok": "✅ Import complete: {rows} rows inserted, {tables} tables processed, {files} files restored.",
     "import_error": "❌ Import error: {error}",
@@ -484,5 +489,17 @@
     "import_env_found": "ℹ️ Environment config found in backup.\nReview data/env_config.env and merge it into scripts/backend/.env.",
     "auto_backup_caption": "🔄 Auto-backup ready: {size} KB, {tables} tables, {files} files",
     "auto_backup_error": "❌ Auto-backup failed: {error}"
+  },
+  "desktop": {
+    "ocr_done": "OCR completed.",
+    "screenshot_ok": "Screenshot captured.",
+    "screenshot_ocr_ok": "Screenshot captured and OCR applied.",
+    "screenshot_failed": "❌ Could not capture screenshot. Is the X11 session open? Is DISPLAY set? Is `sudo apt install scrot` installed?",
+    "multi_screenshot_ok": "Screenshots captured from {count} monitors: {monitors}",
+    "multi_screenshot_ocr_ok": "Screenshots captured and OCR applied from {count} monitors.",
+    "recording_disabled": "❌ Screen recording is disabled. To enable: DESKTOP_RECORDING=true (.env)",
+    "recording_ok": "Screen recording completed ({size_mb} MB, {duration}s).",
+    "recording_failed": "❌ Screen recording failed. Is ffmpeg installed? Is the X11 session open? `sudo apt install ffmpeg` required.",
+    "multi_recording_ok": "{count} monitors recorded: {monitors}"
   }
 }

@@ -172,7 +172,10 @@ Bloktaki içerik ne olursa olsun JSON formatında yanıt ver.
         except json.JSONDecodeError as exc:
             # BUG-M3: hata loglanıyor; fallback devam ediyor
             logger.warning("PDF bridge yanıtı JSON parse edilemedi: %s | yanıt başı: %.120s", exc, response)
-        return {"project_name": "pdf-project", "description": text[:100]}
+        # BUG-FEAT-4: fallback dict şema doğrulaması — project_name ve description dolu olmalı
+        fallback_name = "pdf-project"
+        fallback_desc = (text[:100].strip()) or "PDF'den oluşturulan proje"
+        return {"project_name": fallback_name, "description": fallback_desc}
 
     def _write_project_files(self, project_dir: Path, spec: dict) -> None:
         """Bridge'in ürettiği dosyaları proje dizinine yaz.

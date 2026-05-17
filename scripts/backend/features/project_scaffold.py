@@ -28,7 +28,7 @@ def _build_md_content(
     ai_overrides: dict | None = None,
 ) -> str:
     if filename == "CLAUDE.md":
-        base = f"# {name}\n\n{description}\n\n## Proje Kök Dizini\n`{project_dir}`\n"
+        base = f"# {name}\n\n{description}\n\n## Project Root Directory\n`{project_dir}`\n"
         if ai_overrides:
             stack = ai_overrides.get("stack") or []
             directories = ai_overrides.get("directories") or []

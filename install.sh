@@ -152,9 +152,14 @@ check_prereqs() {
   ok "Python: $("$PY" --version)"
 
   if ! command -v node &>/dev/null; then die "$_S_PRE_NODE_MISSING"; fi
-  local node_major
-  node_major="$(node --version 2>/dev/null | tr -d 'v' | cut -d. -f1)"
-  if [[ "${node_major:-0}" -lt 18 ]]; then
+  local node_ver node_major
+  node_ver="$(node --version 2>/dev/null || true)"
+  node_major="$(printf '%s' "$node_ver" | tr -d 'v' | cut -d. -f1)"
+  if ! [[ "$node_major" =~ ^[0-9]+$ ]]; then
+    warn "⚠️ Node.js versiyonu belirlenemedi: $node_ver"
+    node_major=0
+  fi
+  if [[ "$node_major" -lt 18 ]]; then
     die "${_S_PRE_NODE_OLD}$(node --version)${_S_PRE_NODE_OLD2}"
   fi
   ok "Node: $(node --version)"
@@ -338,15 +343,30 @@ main() {
     if $USE_PM2; then
       echo ""
       log "$_S_STEP_HEALTH_PM2"
-      sleep 3
-      if curl -sf "http://localhost:${API_PORT}/health" > /dev/null 2>&1; then
-        ok "$_S_STEP_HEALTH_OK_API ${API_PORT})"
-      else
+      local _pm2_ok=false _pm2_i
+      for _pm2_i in $(seq 1 5); do
+        sleep 3
+        if curl -sf "http://localhost:${API_PORT}/health" > /dev/null 2>&1; then
+          ok "$_S_STEP_HEALTH_OK_API ${API_PORT})"
+          _pm2_ok=true
+          break
+        fi
+        echo "  Bekleniyor... ($_pm2_i/5)"
+      done
+      if ! $_pm2_ok; then
         warn "$_S_STEP_HEALTH_FAIL_API"
       fi
-      if curl -sf "http://localhost:${BRIDGE_PORT}/health" > /dev/null 2>&1; then
-        ok "$_S_STEP_HEALTH_OK_BRIDGE ${BRIDGE_PORT})"
-      else
+      local _bridge_ok=false _bridge_i
+      for _bridge_i in $(seq 1 5); do
+        sleep 3
+        if curl -sf "http://localhost:${BRIDGE_PORT}/health" > /dev/null 2>&1; then
+          ok "$_S_STEP_HEALTH_OK_BRIDGE ${BRIDGE_PORT})"
+          _bridge_ok=true
+          break
+        fi
+        echo "  Bekleniyor... ($_bridge_i/5)"
+      done
+      if ! $_bridge_ok; then
         warn "$_S_STEP_HEALTH_FAIL_BRIDGE"
       fi
     fi

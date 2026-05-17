@@ -24,6 +24,7 @@ TG_MAX_LEN = 4096   # sendMessage: otomatik bölme eşiği (karakter)
 
 # ── Uygulama çıktı limitleri ──────────────────────────────────────────────────
 TERMINAL_MAX_OUTPUT_CHARS = 3500   # terminal: kullanıcıya iletilen çıktı üst sınırı
+TERMINAL_CMD_TIMEOUT      = 900    # /terminal WhatsApp komutu varsayılan zaman aşımı (saniye)
 PDF_MAX_PAGES             = 30     # pdf_importer: işlenen maksimum sayfa sayısı
 LLM_MAX_TOKENS_DEFAULT    = 4096   # anthropic_provider: varsayılan maksimum çıktı token sayısı
 

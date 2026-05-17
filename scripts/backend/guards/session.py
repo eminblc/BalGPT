@@ -26,7 +26,12 @@ class SessionManager:
         self._locks: dict[str, asyncio.Lock] = {}
 
     def lock(self, number: str) -> asyncio.Lock:
-        """Gönderici başına asyncio kilidi — eş zamanlı mesajlarda race condition'ı önler."""
+        """Gönderici başına asyncio kilidi — eş zamanlı mesajlarda race condition'ı önler.
+
+        Returns asyncio.Lock — async-safe but NOT thread-safe.
+        Bu lock yalnızca asyncio event loop içinde kullanılmalıdır;
+        threading.Lock ile karıştırılmamalıdır.
+        """
         return self._locks.setdefault(number, asyncio.Lock())
 
     def get(self, number: str) -> SessionState:

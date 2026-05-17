@@ -116,7 +116,12 @@ async def import_backup(
     """
     import_mode = _parse_import_mode(mode)
 
-    raw = await file.read()
+    try:
+        raw = await file.read()
+    except Exception as exc:
+        logger.warning("Import dosya okuma hatası: %s", exc)
+        raise HTTPException(status_code=400, detail="Dosya okunamadı") from exc
+
     tmp_path = Path(f"/tmp/import_{uuid.uuid4().hex}.99rb")
     try:
         tmp_path.write_bytes(raw)
