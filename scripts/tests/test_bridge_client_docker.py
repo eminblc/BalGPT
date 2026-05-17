@@ -303,3 +303,94 @@ async def test_forward_sends_error_message_on_connect_error():
     mock_messenger.send_text.assert_called_once()
     sent_msg = mock_messenger.send_text.call_args[0][1]
     assert isinstance(sent_msg, str) and len(sent_msg) > 0
+
+
+# ---------------------------------------------------------------------------
+# 11. SEC-SCAN2-R17: forward_locked — asyncio.wait_for timeout → error message
+# ---------------------------------------------------------------------------
+
+async def test_forward_locked_lock_acquire_timeout_sends_error():
+    """SEC-SCAN2-R17: session lock alımı zaman aşımına uğrarsa kullanıcıya hata mesajı gönderilir."""
+    mock_messenger = AsyncMock()
+
+    # asyncio.wait_for'u TimeoutError fırlatacak şekilde mockla
+    async def _raising_wait_for(coro, timeout):
+        # coroutine'i iptal et, TimeoutError fırlat
+        if hasattr(coro, "close"):
+            coro.close()
+        raise asyncio.TimeoutError()
+
+    # Gerçek bir asyncio.Lock nesnesi oluştur ve acquire'ını mock'la
+    real_lock = asyncio.Lock()
+
+    class _FakeLockCtxMgr:
+        """session_mgr.lock(sender) → bu context manager döner."""
+        async def acquire(self):
+            return real_lock.acquire()
+
+        def release(self):
+            pass  # timeout sonrası release çağrılmaz
+
+    mock_session_mgr = MagicMock()
+    mock_session_mgr.lock.return_value = _FakeLockCtxMgr()
+
+    session = {"active_context": "main", "lang": "tr"}
+
+    with (
+        patch("backend.routers._bridge_client.get_messenger", return_value=mock_messenger),
+        patch("backend.routers._bridge_client.settings") as mock_settings,
+        patch("backend.guards.session_mgr", mock_session_mgr),
+        patch("asyncio.wait_for", new=_raising_wait_for),
+    ):
+        mock_settings.bridge_client_timeout = 300.0
+        mock_settings.conv_history_enabled = False
+
+        from backend.routers._bridge_client import forward_locked
+        await forward_locked("905001234567", "test message", session)
+
+    # Kullanıcıya hata mesajı gönderilmeli
+    mock_messenger.send_text.assert_called_once()
+    sent_to, sent_msg = mock_messenger.send_text.call_args[0]
+    assert sent_to == "905001234567"
+    assert isinstance(sent_msg, str) and len(sent_msg) > 0
+
+
+async def test_forward_locked_lock_acquire_timeout_does_not_call_forward():
+    """SEC-SCAN2-R17: timeout sonrası forward() çağrılmamalı."""
+    mock_messenger = AsyncMock()
+    mock_forward = AsyncMock()
+
+    async def _raising_wait_for(coro, timeout):
+        if hasattr(coro, "close"):
+            coro.close()
+        raise asyncio.TimeoutError()
+
+    real_lock = asyncio.Lock()
+
+    class _FakeLockCtxMgr:
+        async def acquire(self):
+            return real_lock.acquire()
+
+        def release(self):
+            pass
+
+    mock_session_mgr = MagicMock()
+    mock_session_mgr.lock.return_value = _FakeLockCtxMgr()
+
+    session = {"active_context": "main", "lang": "tr"}
+
+    with (
+        patch("backend.routers._bridge_client.get_messenger", return_value=mock_messenger),
+        patch("backend.routers._bridge_client.settings") as mock_settings,
+        patch("backend.guards.session_mgr", mock_session_mgr),
+        patch("asyncio.wait_for", new=_raising_wait_for),
+        patch("backend.routers._bridge_client.forward", mock_forward),
+    ):
+        mock_settings.bridge_client_timeout = 300.0
+        mock_settings.conv_history_enabled = False
+
+        from backend.routers._bridge_client import forward_locked
+        await forward_locked("905001234567", "test message", session)
+
+    # forward() hiç çağrılmamalı
+    mock_forward.assert_not_awaited()

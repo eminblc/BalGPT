@@ -5,7 +5,7 @@ Sorumluluk: Gelen URL/selector girdilerini doğrulamak; tehlikeli hedefleri enge
 from __future__ import annotations
 
 import urllib.parse
-from ipaddress import AddressValueError, ip_address
+from ipaddress import ip_address
 from typing import Any
 
 # ── URL Doğrulama (RISK-1) ────────────────────────────────────────
@@ -36,7 +36,7 @@ def _is_ssrf_risk(host: str) -> bool:
             or addr.is_reserved
             or addr.is_unspecified
         )
-    except AddressValueError:
+    except ValueError:
         return False  # Hostname; DNS çözümlemesi sonrası değerlendirilebilir
 
 

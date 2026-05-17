@@ -326,3 +326,100 @@ async def test_unknown_message_type_sends_warning():
 
     mock_msg.send_text.assert_awaited_once()
     assert "unknown_type" in mock_msg.send_text.call_args[0][1]
+
+
+# ── SEC-SCAN2-R14 — _MAX_MESSAGE_LENGTH truncation ───────────────────────────
+
+
+def test_max_message_length_constant_is_positive():
+    """_MAX_MESSAGE_LENGTH pozitif bir integer olmalı."""
+    from backend.routers._dispatcher import _MAX_MESSAGE_LENGTH
+    assert isinstance(_MAX_MESSAGE_LENGTH, int)
+    assert _MAX_MESSAGE_LENGTH > 0
+
+
+def test_max_message_length_constant_value():
+    """_MAX_MESSAGE_LENGTH değeri 32000 olmalı (SEC-SCAN2-R14)."""
+    from backend.routers._dispatcher import _MAX_MESSAGE_LENGTH
+    assert _MAX_MESSAGE_LENGTH == 32_000
+
+
+@pytest.mark.asyncio
+async def test_short_message_not_truncated():
+    """Normal uzunluktaki mesaj (< 32000 karakter) truncate edilmez."""
+    session = _make_session()
+    short_text = "Merhaba, bu kısa bir mesaj."
+
+    mock_route_text = AsyncMock()
+    patcher_m, _ = _patch_messenger()
+
+    with patcher_m, \
+         patch("backend.routers._dispatcher._route_text", mock_route_text), \
+         patch("backend.routers._dispatcher.log_inbound"), \
+         patch("backend.routers._dispatcher.is_locked", return_value=False):
+        from backend.routers import _dispatcher
+        from backend.app_types import InboundMessage
+        await _dispatcher.handle_common_message(
+            "905001234567", "msg-001", "text", session,
+            InboundMessage(text=short_text),
+        )
+
+    # _route_text'e orijinal metin aynen iletilmeli
+    mock_route_text.assert_awaited_once()
+    _, passed_text, _ = mock_route_text.call_args[0]
+    assert passed_text == short_text
+
+
+@pytest.mark.asyncio
+async def test_oversized_message_truncated_to_max_length():
+    """32001 karakterlik mesaj → 32000 karakter veya daha az olarak truncate edilir."""
+    from backend.routers._dispatcher import _MAX_MESSAGE_LENGTH
+
+    session = _make_session()
+    long_text = "x" * (_MAX_MESSAGE_LENGTH + 1)
+
+    mock_route_text = AsyncMock()
+    patcher_m, _ = _patch_messenger()
+
+    with patcher_m, \
+         patch("backend.routers._dispatcher._route_text", mock_route_text), \
+         patch("backend.routers._dispatcher.log_inbound"), \
+         patch("backend.routers._dispatcher.is_locked", return_value=False):
+        from backend.routers import _dispatcher
+        from backend.app_types import InboundMessage
+        await _dispatcher.handle_common_message(
+            "905001234567", "msg-001", "text", session,
+            InboundMessage(text=long_text),
+        )
+
+    mock_route_text.assert_awaited_once()
+    _, passed_text, _ = mock_route_text.call_args[0]
+    assert len(passed_text) <= _MAX_MESSAGE_LENGTH
+
+
+@pytest.mark.asyncio
+async def test_truncated_message_is_valid_string():
+    """Truncation sonrası mesaj geçerli bir string olmalı."""
+    from backend.routers._dispatcher import _MAX_MESSAGE_LENGTH
+
+    session = _make_session()
+    long_text = "a" * (_MAX_MESSAGE_LENGTH * 2)
+
+    mock_route_text = AsyncMock()
+    patcher_m, _ = _patch_messenger()
+
+    with patcher_m, \
+         patch("backend.routers._dispatcher._route_text", mock_route_text), \
+         patch("backend.routers._dispatcher.log_inbound"), \
+         patch("backend.routers._dispatcher.is_locked", return_value=False):
+        from backend.routers import _dispatcher
+        from backend.app_types import InboundMessage
+        await _dispatcher.handle_common_message(
+            "905001234567", "msg-001", "text", session,
+            InboundMessage(text=long_text),
+        )
+
+    mock_route_text.assert_awaited_once()
+    _, passed_text, _ = mock_route_text.call_args[0]
+    assert isinstance(passed_text, str)
+    assert len(passed_text) > 0

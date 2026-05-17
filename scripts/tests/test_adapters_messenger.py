@@ -176,3 +176,131 @@ def test_cli_messenger_supports_media():
     """CLIMessenger medya desteğini bildirmeli."""
     from backend.adapters.messenger.cli_messenger import CLIMessenger
     assert CLIMessenger.supports_media is True
+
+
+# ── SEC-SCAN2-S2 — Concurrent singleton (get_messenger) ──────────
+
+def test_get_messenger_concurrent_same_instance():
+    """10 thread aynı anda get_messenger() çağırırsa hepsi aynı instance'ı döndürmeli (SEC-SCAN2-S2)."""
+    import threading
+
+    import backend.adapters.messenger.messenger_factory as mf
+    mf._instance = None  # fixture autouse sıfırladı ama ek güvence
+
+    mock_settings = MagicMock()
+    mock_settings.messenger_type = "cli"
+    mock_settings.environment = "test"
+
+    results: list = []
+    errors: list = []
+
+    def _call():
+        try:
+            with patch("backend.adapters.messenger.messenger_factory.settings", mock_settings):
+                from backend.adapters.messenger.messenger_factory import get_messenger
+                results.append(get_messenger())
+        except Exception as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=_call) for _ in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert not errors, f"Thread'lerden hata geldi: {errors}"
+    assert len(results) == 10, "Tüm thread'ler sonuç döndürmeli"
+    # Hepsi aynı instance olmalı
+    first = results[0]
+    for instance in results[1:]:
+        assert instance is first, "Singleton ihlali: farklı instance'lar döndü"
+
+
+def test_get_messenger_singleton_reset_then_recreate():
+    """_instance=None sonrası get_messenger() yeni instance oluşturmalı (SEC-SCAN2-S2)."""
+    import backend.adapters.messenger.messenger_factory as mf
+
+    mock_settings = MagicMock()
+    mock_settings.messenger_type = "cli"
+    mock_settings.environment = "test"
+
+    with patch("backend.adapters.messenger.messenger_factory.settings", mock_settings):
+        from backend.adapters.messenger.messenger_factory import get_messenger
+        first = get_messenger()
+
+    # Singleton sıfırla
+    mf._instance = None
+
+    with patch("backend.adapters.messenger.messenger_factory.settings", mock_settings):
+        from backend.adapters.messenger.messenger_factory import get_messenger
+        second = get_messenger()
+
+    # Yeniden oluşturuldu — aynı tip ama farklı nesne olabilir
+    from backend.adapters.messenger.cli_messenger import CLIMessenger
+    assert isinstance(second, CLIMessenger)
+
+
+# ── SEC-SCAN2-S3 — Concurrent singleton (get_media_downloader) ───
+
+def test_get_media_downloader_concurrent_same_instance():
+    """5 thread aynı anda get_media_downloader() çağırırsa hepsi aynı instance döndürmeli (SEC-SCAN2-S3)."""
+    import threading
+
+    import backend.adapters.media.media_factory as mf_media
+    # Önce downloaders'ın kayıtlı olduğundan emin ol
+    import backend.adapters.media  # noqa: F401 — register_downloader side-effects için
+    mf_media._instance = None
+
+    mock_settings = MagicMock()
+    mock_settings.messenger_type = "whatsapp"
+
+    results: list = []
+    errors: list = []
+
+    def _call():
+        try:
+            with patch("backend.config.settings", mock_settings):
+                from backend.adapters.media.media_factory import get_media_downloader
+                results.append(get_media_downloader())
+        except Exception as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=_call) for _ in range(5)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    # Cleanup
+    mf_media._instance = None
+
+    assert not errors, f"Thread'lerden hata geldi: {errors}"
+    assert len(results) == 5, "Tüm thread'ler sonuç döndürmeli"
+    first = results[0]
+    for instance in results[1:]:
+        assert instance is first, "MediaDownloader singleton ihlali: farklı instance'lar döndü"
+
+
+def test_get_media_downloader_singleton_reset_then_recreate():
+    """_instance=None sonrası get_media_downloader() yeni instance oluşturmalı (SEC-SCAN2-S3)."""
+    import backend.adapters.media.media_factory as mf_media
+    import backend.adapters.media  # noqa: F401 — register_downloader side-effects
+    mf_media._instance = None
+
+    mock_settings = MagicMock()
+    mock_settings.messenger_type = "whatsapp"
+
+    with patch("backend.config.settings", mock_settings):
+        from backend.adapters.media.media_factory import get_media_downloader
+        first = get_media_downloader()
+
+    mf_media._instance = None
+
+    with patch("backend.config.settings", mock_settings):
+        second = get_media_downloader()
+
+    from backend.adapters.media.whatsapp_downloader import WhatsAppMediaDownloader
+    assert isinstance(second, WhatsAppMediaDownloader)
+
+    # Cleanup
+    mf_media._instance = None

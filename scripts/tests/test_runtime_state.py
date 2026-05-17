@@ -1,4 +1,5 @@
 """runtime_state modülü testleri — kilit, aktif model, son durum."""
+import threading
 import time
 import pytest
 
@@ -112,3 +113,52 @@ def test_ttl_eviction():
     # Yeni bir kayıt ekle → _maybe_evict tetiklenir
     rs.record_status("905009999999", "⚙️ yeni")
     assert rs.get_last_status(number) is None
+
+
+# ── SEC-SCAN2-G2 — Thread-safety ve Lock doğrulaması ─────────────
+
+def test_state_lock_exists():
+    """Modülde _state_lock adlı bir threading.Lock nesnesi bulunmalı."""
+    import backend.guards.runtime_state as rs
+    assert hasattr(rs, "_state_lock"), "_state_lock modülde tanımlı değil"
+    assert isinstance(rs._state_lock, type(threading.Lock())), (
+        "_state_lock bir threading.Lock örneği değil"
+    )
+
+
+def test_set_locked_thread_safety():
+    """İki thread aynı anda set_locked ve is_locked çağırsa tutarlı sonuç dönmeli."""
+    from backend.guards.runtime_state import set_locked, is_locked
+
+    set_locked(False)
+    results = []
+    errors = []
+
+    def writer():
+        try:
+            for _ in range(50):
+                set_locked(False)
+                set_locked(True)
+        except Exception as exc:
+            errors.append(exc)
+
+    def reader():
+        try:
+            for _ in range(100):
+                val = is_locked()
+                # Dönen değer bool olmalı — None veya başka tip olmamalı
+                results.append(isinstance(val, bool))
+        except Exception as exc:
+            errors.append(exc)
+
+    t1 = threading.Thread(target=writer)
+    t2 = threading.Thread(target=reader)
+    t1.start()
+    t2.start()
+    t1.join(timeout=5)
+    t2.join(timeout=5)
+
+    assert not errors, f"Thread'lerde hata oluştu: {errors}"
+    assert all(results), "is_locked() bool dışı bir değer döndürdü"
+    # Thread'ler bitince geçerli bir bool döndürülmeli
+    assert isinstance(is_locked(), bool)

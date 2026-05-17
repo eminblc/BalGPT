@@ -238,6 +238,79 @@ class TestPathTraversalProtection:
 
         assert "projects/proj_a/CLAUDE.md" in result
 
+    def test_is_relative_to_within_base(self, tmp_path: Path):
+        """Path.is_relative_to(): data_dir içindeki path geçer."""
+        base = tmp_path.resolve()
+        safe_path = (tmp_path / "subdir" / "file.txt").resolve()
+        # Gerçek dosya gerekmez — sadece Path nesnesi üzerinde is_relative_to testi
+        assert safe_path.is_relative_to(base)
+
+    def test_is_relative_to_outside_base(self, tmp_path: Path, tmp_path_factory):
+        """Path.is_relative_to(): data_dir dışındaki path engellenir."""
+        base = tmp_path.resolve()
+        outside_dir = tmp_path_factory.mktemp("outside_base")
+        outside_path = (outside_dir / "secret.txt").resolve()
+        assert not outside_path.is_relative_to(base)
+
+    @pytest.mark.asyncio
+    async def test_mock_path_outside_data_dir_is_skipped(self, tmp_path: Path):
+        """_read_directory: resolve() sonucu data_dir dışına çıkan dosya atlanır (mock ile).
+
+        SEC-SCAN2-F1: Path.is_relative_to() koruması doğrudan test edilir.
+        Gerçek '../' traversal'ı filesystem'de oluşturmak mümkün olmadığından
+        _read_directory'nin iç kontrol mantığı mock ile izole test edilir.
+        """
+        from unittest.mock import MagicMock, patch
+        import os
+
+        # data_dir içinde projects/ dizini oluştur
+        (tmp_path / "projects" / "proj_x").mkdir(parents=True)
+        legit_file = tmp_path / "projects" / "proj_x" / "notes.md"
+        legit_file.write_bytes(b"notes")
+
+        # data_dir dışında "kaçan" bir dosya yolu simüle et
+        outside_dir = tmp_path.parent / "outside_secret"
+        outside_dir.mkdir(exist_ok=True)
+        outside_file = outside_dir / "stolen.txt"
+        outside_file.write_bytes(b"STOLEN")
+
+        exporter = LocalFileExporter(tmp_path)
+
+        # rglob patch: gerçek dosya + outside dosyasını döndür
+        real_files = list((tmp_path / "projects").rglob("*"))
+        real_files.append(outside_file)  # dışarıdaki dosyayı sahte olarak ekle
+
+        with patch.object(Path, "rglob", return_value=iter(real_files)):
+            scope = ExportScope(include_project_files=True, include_conv_history=False, include_media=False)
+            result = await exporter.export(scope)
+
+        # Dışarıdaki dosya dict'e girmemiş olmalı
+        assert b"STOLEN" not in result.values(), "data_dir dışı dosya export'a dahil edilmemeli"
+        # Meşru dosya ise dahil edilmiş olmalı
+        assert b"notes" in result.values(), "data_dir içi dosya export'a dahil edilmeli"
+
+    @pytest.mark.asyncio
+    async def test_symlink_chain_outside_is_skipped(self, tmp_path: Path, tmp_path_factory):
+        """Zincirleme sembolik link (symlink → symlink → dış dosya) atlanır."""
+        sensitive_dir = tmp_path_factory.mktemp("chain_outside")
+        real_file = sensitive_dir / "deep_secret.txt"
+        real_file.write_bytes(b"CHAIN_SECRET")
+
+        (tmp_path / "projects").mkdir()
+        # İlk link → dış dosya
+        first_link = sensitive_dir / "link1"
+        first_link.symlink_to(real_file)
+        # İkinci link (projects/ içinde) → ilk link
+        second_link = tmp_path / "projects" / "chain_link"
+        second_link.symlink_to(first_link)
+
+        scope = ExportScope(include_project_files=True, include_conv_history=False, include_media=False)
+        exporter = LocalFileExporter(tmp_path)
+        result = await exporter.export(scope)
+
+        for v in result.values():
+            assert v != b"CHAIN_SECRET", "Zincirleme symlink atlanmalıydı"
+
 
 # ---------------------------------------------------------------------------
 # Default data_dir testleri

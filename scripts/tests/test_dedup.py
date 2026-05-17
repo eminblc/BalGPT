@@ -1,4 +1,5 @@
 """DedupGuard — bellek içi dedup testleri (DB bağımlılığı yok)."""
+import threading
 import time
 import pytest
 from unittest.mock import patch
@@ -54,3 +55,39 @@ def test_empty_message_id(dedup):
     # Boş string kabul edilmeli ama duplicate sayılmamalı (ilk kez)
     assert dedup.is_duplicate("") is False
     assert dedup.is_duplicate("") is True
+
+
+# ── SEC-SCAN2-G10 — Thread-safety ve Lock doğrulaması ────────────
+
+def test_lock_attribute_is_threading_lock(dedup):
+    """DedupGuard._lock threading.Lock örneği olmalı."""
+    assert hasattr(dedup, "_lock"), "_lock attribute DedupGuard'da yok"
+    assert isinstance(dedup._lock, type(threading.Lock())), (
+        "_lock bir threading.Lock örneği değil"
+    )
+
+
+def test_concurrent_dedup_exactly_one_false(dedup):
+    """İki thread aynı mesaj ID'siyle is_duplicate çağırdığında tam olarak biri False dönmeli.
+
+    Yarış koşulu olsaydı her ikisi de False dönebilirdi (check-before-insert penceresi).
+    threading.Lock bu pencereyi kapatır; beklenen: [False, True] sıralamasız.
+    """
+    message_id = "concurrent-msg-001"
+    results = []
+
+    def call_is_duplicate():
+        results.append(dedup.is_duplicate(message_id))
+
+    t1 = threading.Thread(target=call_is_duplicate)
+    t2 = threading.Thread(target=call_is_duplicate)
+    t1.start()
+    t2.start()
+    t1.join(timeout=5)
+    t2.join(timeout=5)
+
+    assert len(results) == 2, "Her iki thread de tamamlanmış olmalı"
+    assert sorted(results) == [False, True], (
+        f"Beklenen [False, True] (sırasız), alınan: {sorted(results)}. "
+        "Yarış koşulu olabilir — lock koruması kontrol edilmeli."
+    )

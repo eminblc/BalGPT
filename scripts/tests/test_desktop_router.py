@@ -135,3 +135,85 @@ async def test_type_text_with_mock_returns_ok():
 
     assert resp["ok"] is True
     assert "✅" in resp["message"]
+
+
+# ── SEC-SCAN2-R15: sudo_cmd whitelist ────────────────────────────────────────
+
+async def test_sudo_whitelist_empty_allows_all_commands():
+    """sudo_cmd_whitelist=[] (varsayılan) → tüm komutlara izin verilmeli."""
+    from backend.routers import desktop_router
+
+    mock_request = MagicMock()
+    mock_request.client.host = "127.0.0.1"
+
+    mock_settings = MagicMock()
+    mock_settings.desktop_enabled = True
+    mock_settings.sudo_cmd_whitelist = []  # boş → kısıtlama yok
+
+    with patch("backend.routers.desktop_router.is_localhost", return_value=True), \
+         patch("backend.routers.desktop_router.settings", mock_settings), \
+         patch("backend.features.desktop.sudo_exec",
+               AsyncMock(return_value=(0, "✅ Tamamlandı"))):
+        resp = await desktop_router.desktop_action(
+            desktop_router.DesktopRequest(
+                action="sudo_exec",
+                sudo_cmd=["apt", "install", "pkg"],
+            ),
+            mock_request,
+        )
+
+    # Whitelist boş → komut çalıştırılmalı, engellenme yok
+    assert resp["ok"] is True
+
+
+async def test_sudo_whitelist_with_allowed_command_executes():
+    """sudo_cmd_whitelist=["apt"] iken sudo_cmd=["apt", "-y", "install"] → execute edilmeli."""
+    from backend.routers import desktop_router
+
+    mock_request = MagicMock()
+    mock_request.client.host = "127.0.0.1"
+
+    mock_settings = MagicMock()
+    mock_settings.desktop_enabled = True
+    mock_settings.sudo_cmd_whitelist = ["apt"]
+
+    with patch("backend.routers.desktop_router.is_localhost", return_value=True), \
+         patch("backend.routers.desktop_router.settings", mock_settings), \
+         patch("backend.features.desktop.sudo_exec",
+               AsyncMock(return_value=(0, "✅ apt çalıştırıldı"))):
+        resp = await desktop_router.desktop_action(
+            desktop_router.DesktopRequest(
+                action="sudo_exec",
+                sudo_cmd=["apt", "-y", "install", "scrot"],
+            ),
+            mock_request,
+        )
+
+    # "apt" whitelist'te var → execute edilmeli
+    assert resp["ok"] is True
+
+
+async def test_sudo_whitelist_with_blocked_command_returns_error():
+    """sudo_cmd_whitelist=["apt"] iken sudo_cmd=["rm", "-rf", "/tmp"] → engellenmeli."""
+    from backend.routers import desktop_router
+
+    mock_request = MagicMock()
+    mock_request.client.host = "127.0.0.1"
+
+    mock_settings = MagicMock()
+    mock_settings.desktop_enabled = True
+    mock_settings.sudo_cmd_whitelist = ["apt"]
+
+    with patch("backend.routers.desktop_router.is_localhost", return_value=True), \
+         patch("backend.routers.desktop_router.settings", mock_settings):
+        resp = await desktop_router.desktop_action(
+            desktop_router.DesktopRequest(
+                action="sudo_exec",
+                sudo_cmd=["rm", "-rf", "/tmp"],
+            ),
+            mock_request,
+        )
+
+    # "rm" whitelist'te yok → engellenmeli
+    assert resp["ok"] is False
+    assert "whitelist" in resp["message"].lower() or "rm" in resp["message"]

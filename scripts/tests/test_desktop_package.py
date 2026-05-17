@@ -155,3 +155,111 @@ def test_desktop_atspi_importable():
 
 def test_desktop_popup_importable():
     import backend.features.desktop.desktop_popup  # noqa: F401
+
+
+# ── 5. SEC-SCAN2-D12: shlex.quote() script enjeksiyonu koruması ──────────────
+
+def test_shlex_quote_used_in_atspi_module():
+    """desktop_atspi.py 'shlex' importunu içermeli (shlex.quote kullanımı)."""
+    import inspect
+    import backend.features.desktop.desktop_atspi as atspi_mod
+    src = inspect.getsource(atspi_mod)
+    assert "shlex" in src, "desktop_atspi.py shlex import etmeli"
+    assert "shlex.quote" in src, "desktop_atspi.py shlex.quote() kullanmalı"
+
+
+def test_shlex_quote_escapes_single_quote_in_role():
+    """shlex.quote() özel karakterleri doğru şekilde escape etmeli — tek tırnak testi."""
+    import shlex
+    dangerous_role = "push button'; rm -rf /"
+    quoted = shlex.quote(dangerous_role)
+    # shlex.quote çıktısı tek tırnak sarmalıdır ya da özel karakterler escape edilmiştir
+    # Önemli: orijinal tehlikeli string script'te çıplak olmamalı
+    assert "'" not in quoted[1:-1] or quoted.startswith("'") and quoted.endswith("'"), \
+        "shlex.quote tehlikeli karakterleri sarmalı"
+    # Güvenli kullanım: script string'ine embed edilince komut enjeksiyonu olmamalı
+    script_fragment = f"role_lower = {quoted}.lower()"
+    # script_fragment 'rm' içermemeli (sadece escape edilmiş hali bulunabilir)
+    assert "rm -rf" not in script_fragment or quoted.startswith("'"), \
+        "inject edilmiş komut script'te çıplak bulunmamalı"
+
+
+def test_shlex_quote_escapes_newline():
+    """shlex.quote() newline karakterini de güvenli şekilde sarmalı."""
+    import shlex
+    dangerous_name = "Tamam\nrm -rf /"
+    quoted = shlex.quote(dangerous_name)
+    # shlex.quote çıktısı tek tırnak sarmalıdır; newline değerini korur ama script'te ayrı satır olmaz
+    assert quoted.startswith("'") and quoted.endswith("'"), \
+        "Newline içeren string tek tırnak içine alınmalı"
+
+
+def test_shlex_quote_escapes_semicolon():
+    """shlex.quote() noktalı virgül (;) komut ayırıcısını escape etmeli."""
+    import shlex
+    dangerous = "btn; import os; os.system('evil')"
+    quoted = shlex.quote(dangerous)
+    # shlex.quote çıktısı tek tırnak sarmalı; noktalı virgül içeride kalır ama yorumlanmaz
+    assert quoted.startswith("'") and quoted.endswith("'"), \
+        "Noktalı virgül içeren string tek tırnak ile sarmalanmalı"
+
+
+async def test_atspi_find_element_script_contains_quoted_role():
+    """atspi_find_element() özel karakter içeren role ile çağrıldığında
+    oluşturulan script shlex.quote() biçimini içermeli."""
+    import shlex
+    from unittest.mock import AsyncMock, patch
+
+    dangerous_role = "push button'; rm -rf /"
+    expected_quoted = shlex.quote(dangerous_role)
+
+    captured_scripts: list[str] = []
+
+    async def _mock_subprocess(script: str, timeout: int = 15) -> str:
+        captured_scripts.append(script)
+        # Liste döndür — JSON geçerli ama boş
+        return "[]"
+
+    with patch(
+        "backend.features.desktop.desktop_atspi._atspi_run_subprocess",
+        side_effect=_mock_subprocess,
+    ):
+        from backend.features.desktop.desktop_atspi import atspi_find_element
+        await atspi_find_element(role=dangerous_role, name="")
+
+    assert captured_scripts, "_atspi_run_subprocess çağrılmış olmalı"
+    script = captured_scripts[0]
+    # Script, shlex.quote() çıktısını içermeli — tehlikeli string değil
+    assert expected_quoted in script, \
+        f"Script shlex.quote() çıktısını içermeli. Beklenen: {expected_quoted!r}"
+    # Script 'rm -rf' i çıplak halde içermemeli
+    assert "rm -rf /" not in script.replace(expected_quoted, ""), \
+        "Tehlikeli string script'e çıplak inject edilmemeli"
+
+
+async def test_atspi_activate_element_script_contains_quoted_name():
+    """atspi_activate_element() özel karakter içeren name ile çağrıldığında
+    script shlex.quote() biçimini içermeli."""
+    import shlex
+    from unittest.mock import AsyncMock, patch
+
+    dangerous_name = "Tamam'; import subprocess; subprocess.run(['evil'])"
+    expected_quoted = shlex.quote(dangerous_name)
+
+    captured_scripts: list[str] = []
+
+    async def _mock_subprocess(script: str, timeout: int = 15) -> str:
+        captured_scripts.append(script)
+        return '{"result": "NOTFOUND:role=\'\',name=\'\'"}'
+
+    with patch(
+        "backend.features.desktop.desktop_atspi._atspi_run_subprocess",
+        side_effect=_mock_subprocess,
+    ):
+        from backend.features.desktop.desktop_atspi import atspi_activate_element
+        await atspi_activate_element(role="", name=dangerous_name)
+
+    assert captured_scripts, "_atspi_run_subprocess çağrılmış olmalı"
+    script = captured_scripts[0]
+    assert expected_quoted in script, \
+        f"Script shlex.quote() çıktısını içermeli. Beklenen: {expected_quoted!r}"

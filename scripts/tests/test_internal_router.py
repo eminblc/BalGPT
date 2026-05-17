@@ -386,3 +386,142 @@ async def test_send_media_non_media_messenger_text_fallback():
     assert data["ok"] is True
     assert data["results"][0].get("fallback") == "text"
     mock_messenger.send_text.assert_awaited_once()
+
+
+# ── SEC-SCAN2-R10 — Per-IP rate limiting ─────────────────────────
+
+@pytest.fixture(autouse=False)
+def clear_ip_rate_state():
+    """Her testten önce _ip_attempt_times state'ini temizler."""
+    from backend.routers.internal_router import _ip_attempt_times
+    _ip_attempt_times.clear()
+    yield
+    _ip_attempt_times.clear()
+
+
+async def test_ip_rate_limit_allows_up_to_max_attempts(clear_ip_rate_state):
+    """Aynı IP'den _IP_RATE_MAX_ATTEMPTS kadar deneme → 429 fırlatılmaz."""
+    from backend.routers.internal_router import (
+        _check_ip_rate_limit,
+        _IP_RATE_MAX_ATTEMPTS,
+    )
+    ip = "127.0.0.1"
+    # İzin verilen maksimum sayıya kadar çağır — exception gelmemeli
+    for _ in range(_IP_RATE_MAX_ATTEMPTS - 1):
+        _check_ip_rate_limit(ip)   # should not raise
+
+
+async def test_ip_rate_limit_blocks_on_exceeding_max(clear_ip_rate_state):
+    """Aynı IP'den _IP_RATE_MAX_ATTEMPTS + 1 deneme → HTTP 429 fırlatılır."""
+    from fastapi import HTTPException
+    from backend.routers.internal_router import (
+        _check_ip_rate_limit,
+        _IP_RATE_MAX_ATTEMPTS,
+    )
+    ip = "10.0.0.5"
+    # Limit dolana kadar doldur
+    for _ in range(_IP_RATE_MAX_ATTEMPTS):
+        _check_ip_rate_limit(ip)
+    # Bir sonraki çağrı 429 fırlatmalı
+    with pytest.raises(HTTPException) as exc_info:
+        _check_ip_rate_limit(ip)
+    assert exc_info.value.status_code == 429
+
+
+async def test_ip_rate_limit_different_ips_are_independent(clear_ip_rate_state):
+    """İki farklı IP'nin sayaçları birbirinden bağımsızdır."""
+    from fastapi import HTTPException
+    from backend.routers.internal_router import (
+        _check_ip_rate_limit,
+        _IP_RATE_MAX_ATTEMPTS,
+    )
+    ip_a = "10.0.0.1"
+    ip_b = "10.0.0.2"
+
+    # ip_a limitini doldur
+    for _ in range(_IP_RATE_MAX_ATTEMPTS):
+        _check_ip_rate_limit(ip_a)
+
+    # ip_a artık bloklanmalı
+    with pytest.raises(HTTPException) as exc_info:
+        _check_ip_rate_limit(ip_a)
+    assert exc_info.value.status_code == 429
+
+    # ip_b hâlâ serbest — aynı sayıda deneme yapılmadığından 429 gelmemeli
+    _check_ip_rate_limit(ip_b)  # should not raise
+
+
+async def test_ip_rate_limit_endpoint_returns_429_after_exceeding(clear_ip_rate_state):
+    """Gerçek endpoint'e aynı IP'den limit+1 istek → son istek 429 döner."""
+    app = _make_app()
+    mock_perm = MagicMock()
+    mock_perm.verify_totp.return_value = False
+
+    from backend.routers.internal_router import _IP_RATE_MAX_ATTEMPTS
+
+    with patch("backend.routers.internal_router.get_perm_mgr", return_value=mock_perm), \
+         patch("backend.store.sqlite_store.totp_get_lockout", AsyncMock(return_value=(0, 0.0))), \
+         patch("backend.store.sqlite_store.totp_record_failure", AsyncMock(return_value=(1, None))):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://127.0.0.1") as client:
+            # Limit dolduracak sayıda istek gönder
+            for _ in range(_IP_RATE_MAX_ATTEMPTS):
+                await client.post("/internal/verify-admin-totp", json={"code": "000000"})
+            # Bir sonraki istek 429 olmalı
+            resp = await client.post("/internal/verify-admin-totp", json={"code": "000000"})
+
+    assert resp.status_code == 429
+
+
+# ── SEC-SCAN2-R18 — IPv6 loopback varyantları (is_localhost) ─────────────────
+
+async def test_is_localhost_127_0_0_2_accepted():
+    """127.0.0.2 → loopback (RFC 5735), is_localhost True döner."""
+    from backend.routers._localhost_guard import is_localhost
+    mock_req = MagicMock()
+    mock_req.client.host = "127.0.0.2"
+    assert is_localhost(mock_req) is True
+
+
+async def test_is_localhost_ipv4_mapped_ipv6_loopback_accepted():
+    """::ffff:127.0.0.1 → IPv4-mapped loopback, is_localhost True döner."""
+    from backend.routers._localhost_guard import is_localhost
+    mock_req = MagicMock()
+    mock_req.client.host = "::ffff:127.0.0.1"
+    assert is_localhost(mock_req) is True
+
+
+async def test_is_localhost_all_zeros_rejected():
+    """0.0.0.0 → loopback değil, is_localhost False döner."""
+    from backend.routers._localhost_guard import is_localhost
+    mock_req = MagicMock()
+    mock_req.client.host = "0.0.0.0"
+    assert is_localhost(mock_req) is False
+
+
+async def test_is_localhost_private_ip_rejected():
+    """192.168.1.1 → loopback değil, is_localhost False döner."""
+    from backend.routers._localhost_guard import is_localhost
+    mock_req = MagicMock()
+    mock_req.client.host = "192.168.1.1"
+    assert is_localhost(mock_req) is False
+
+
+async def test_require_localhost_raises_for_all_zeros():
+    """_require_localhost, 0.0.0.0 için 403 fırlatmalı."""
+    from backend.routers.internal_router import _require_localhost
+    from fastapi import HTTPException
+    mock_req = MagicMock()
+    mock_req.client.host = "0.0.0.0"
+    with pytest.raises(HTTPException) as exc_info:
+        _require_localhost(mock_req)
+    assert exc_info.value.status_code == 403
+
+
+async def test_require_localhost_allows_ipv4_mapped_loopback():
+    """_require_localhost, ::ffff:127.0.0.1 için exception fırlatmamalı."""
+    from backend.routers.internal_router import _require_localhost
+    mock_req = MagicMock()
+    mock_req.client.host = "::ffff:127.0.0.1"
+    # Hata fırlatmamalı
+    _require_localhost(mock_req)
