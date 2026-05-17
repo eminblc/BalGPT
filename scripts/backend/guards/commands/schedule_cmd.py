@@ -4,6 +4,8 @@ Alt komutlar:
   /schedule                        → aktif job listesi
   /schedule ekle <cron> <açıklama> → yeni cron job (Bridge'e prompt gönderir)
   /schedule mesaj <cron> <metin>   → yeni cron job (sabit metin gönderir)
+  /schedule tarama <cron> <tip> <proje> [--no-review] → scanner cron job
+  /schedule backlog <cron> <proje> [prefix] [max]      → backlog executor cron job
   /schedule sil <id_prefix>        → job'ı kalıcı sil
   /schedule durdur <id_prefix>     → job'ı duraklat
   /schedule başlat <id_prefix>     → duraklatılmış job'ı devam ettir
@@ -31,7 +33,7 @@ class ScheduleCommand:
     button_id   = "cmd_schedule_list"
     label       = "Zamanlama Yönetimi"
     description = "Tekrarlayan görevler oluşturur, listeler, durdurur veya siler."
-    usage       = "/schedule [ekle <cron> <açıklama> | sil | durdur | başlat <id>]"
+    usage       = "/schedule [ekle|mesaj|tarama|backlog|sil|durdur|başlat ...]"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...adapters.messenger import get_messenger
@@ -49,6 +51,10 @@ class ScheduleCommand:
             await self._add(sender, rest, "run_bridge", lang, _send)
         elif sub == "mesaj":
             await self._add(sender, rest, "send_message", lang, _send)
+        elif sub == "tarama":
+            await self._add_scanner(sender, rest, lang, _send)
+        elif sub == "backlog":
+            await self._add_backlog(sender, rest, lang, _send)
         elif sub == "sil":
             await self._remove(sender, rest.strip(), lang, _send)
         elif sub in ("durdur", "pause"):
@@ -75,7 +81,14 @@ class ScheduleCommand:
             status  = "✅" if j.get("active") else "⏸"
             short   = j["id"][:6]
             cron    = j.get("cron_expr") or t("schedule.one_time", lang)
-            tip     = "💬" if j.get("action_type") == "run_bridge" else "📢"
+            _TIP_ICONS = {
+                "run_bridge": "💬",
+                "send_message": "📢",
+                "run_scan": "🔍",
+                "run_scanner": "🔍",
+                "run_backlog_executor": "🛠",
+            }
+            tip     = _TIP_ICONS.get(j.get("action_type", ""), "⚙️")
             nxt     = j.get("next_run_time", "")[:16].replace("T", " ") if j.get("next_run_time") else "—"
             lines.append(f"{status} {tip} `{short}` [{cron}]\n   {j['description']}\n   {t('schedule.next_run_label', lang)}: {nxt}")
 
@@ -173,6 +186,88 @@ class ScheduleCommand:
 
         resume_cron_job(task["id"])
         await send_text(sender, t("schedule.resume_ok", lang, id=task["id"][:6], desc=task["description"]))
+
+    @staticmethod
+    async def _add_scanner(sender: str, rest: str, lang: str, send_text) -> None:
+        from ...features.scheduler import add_cron_job, _parse_cron
+        from ...store import sqlite_store as db
+        from ...i18n import t
+
+        parts = rest.split()
+        # Minimum: 5 cron fields + scan_type + project_id = 7 parts
+        if len(parts) < 7:
+            await send_text(sender, t("schedule.scanner_format_error", lang))
+            return
+
+        cron_expr  = " ".join(parts[:5])
+        scan_type  = parts[5]
+        project_id = parts[6]
+        auto_review = "--no-review" not in parts
+
+        try:
+            _parse_cron(cron_expr)
+        except ValueError as e:
+            await send_text(sender, t("schedule.cron_error", lang, error=e))
+            return
+
+        # Validate scan_type exists
+        from ...features.scan_pipeline.config_loader import ScanConfigLoader
+        available = ScanConfigLoader().list_available()
+        if scan_type not in available:
+            await send_text(sender, t("schedule.scanner_invalid_type", lang, type=scan_type, available=", ".join(available)))
+            return
+
+        payload = {"scan_type": scan_type, "project_id": project_id, "auto_review": auto_review}
+        description = f"Tarama: {scan_type} → {project_id}" + ("" if auto_review else " (no-review)")
+
+        task = await db.task_create(
+            description=description,
+            action_type="run_scanner",
+            action_payload=payload,
+            cron_expr=cron_expr,
+        )
+        await add_cron_job(task["id"], cron_expr, description, "run_scanner", payload)
+        await send_text(sender, t("schedule.scanner_add_ok", lang,
+            id=task["id"][:6], cron=cron_expr, scan_type=scan_type,
+            project_id=project_id, auto_review="✅" if auto_review else "❌"))
+
+    @staticmethod
+    async def _add_backlog(sender: str, rest: str, lang: str, send_text) -> None:
+        from ...features.scheduler import add_cron_job, _parse_cron
+        from ...store import sqlite_store as db
+        from ...i18n import t
+
+        parts = rest.split()
+        # Minimum: 5 cron fields + project_id = 6 parts
+        if len(parts) < 6:
+            await send_text(sender, t("schedule.backlog_format_error", lang))
+            return
+
+        cron_expr  = " ".join(parts[:5])
+        project_id = parts[5]
+        prefix     = parts[6] if len(parts) > 6 else ""
+        max_items  = int(parts[7]) if len(parts) > 7 and parts[7].isdigit() else 3
+
+        try:
+            _parse_cron(cron_expr)
+        except ValueError as e:
+            await send_text(sender, t("schedule.cron_error", lang, error=e))
+            return
+
+        payload = {"project_id": project_id, "prefix": prefix, "max_items": max_items, "parallel": 2}
+        prefix_label = f" [{prefix}]" if prefix else ""
+        description = f"Backlog executor: {project_id}{prefix_label} max={max_items}"
+
+        task = await db.task_create(
+            description=description,
+            action_type="run_backlog_executor",
+            action_payload=payload,
+            cron_expr=cron_expr,
+        )
+        await add_cron_job(task["id"], cron_expr, description, "run_backlog_executor", payload)
+        await send_text(sender, t("schedule.backlog_add_ok", lang,
+            id=task["id"][:6], cron=cron_expr, project_id=project_id,
+            prefix=prefix or "tümü", max_items=max_items))
 
 
 registry.register(ScheduleCommand())

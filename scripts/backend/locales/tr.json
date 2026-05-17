@@ -128,7 +128,12 @@
     "resume_ok": "▶️ Yeniden başlatıldı: `{id}` — {desc}",
     "one_time": "tek seferlik",
     "next_run_label": "Sonraki",
-    "cron_error": "❌ {error}"
+    "cron_error": "❌ {error}",
+    "scanner_format_error": "❌ Format: /schedule tarama <dk> <sa> <gün> <ay> <hg> <tip> <proje>\nörn: /schedule tarama 0 * * * * security petekv5",
+    "scanner_invalid_type": "❌ Bilinmeyen tarama tipi: {type}\nMevcut: {available}",
+    "scanner_add_ok": "✅ Tarama cron'u oluşturuldu\nID: `{id}` · Cron: `{cron}`\nTip: {scan_type} · Proje: {project_id}\nOtomatik review: {auto_review}",
+    "backlog_format_error": "❌ Format: /schedule backlog <dk> <sa> <gün> <ay> <hg> <proje> [prefix] [max]\nörn: /schedule backlog 0 8 * * * petekv5 SEC 3",
+    "backlog_add_ok": "✅ Backlog executor cron'u oluşturuldu\nID: `{id}` · Cron: `{cron}`\nProje: {project_id} · Prefix: {prefix} · Maks: {max_items}"
   },
   "project": {
     "cleared": "✅ Aktif proje temizlendi. Ana mod aktif.",

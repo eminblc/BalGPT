@@ -128,7 +128,12 @@
     "resume_ok": "▶️ Resumed: `{id}` — {desc}",
     "one_time": "one-time",
     "next_run_label": "Next",
-    "cron_error": "❌ {error}"
+    "cron_error": "❌ {error}",
+    "scanner_format_error": "❌ Format: /schedule tarama <min> <hr> <day> <mon> <dow> <type> <project>\nexample: /schedule tarama 0 * * * * security petekv5",
+    "scanner_invalid_type": "❌ Unknown scan type: {type}\nAvailable: {available}",
+    "scanner_add_ok": "✅ Scanner cron created\nID: `{id}` · Cron: `{cron}`\nType: {scan_type} · Project: {project_id}\nAuto review: {auto_review}",
+    "backlog_format_error": "❌ Format: /schedule backlog <min> <hr> <day> <mon> <dow> <project> [prefix] [max]\nexample: /schedule backlog 0 8 * * * petekv5 SEC 3",
+    "backlog_add_ok": "✅ Backlog executor cron created\nID: `{id}` · Cron: `{cron}`\nProject: {project_id} · Prefix: {prefix} · Max: {max_items}"
   },
   "project": {
     "cleared": "✅ Active project cleared. Main mode active.",
