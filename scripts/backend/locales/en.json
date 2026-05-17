@@ -551,7 +551,19 @@
     "cancel_ok": "🛑 Run #{run_id} cancelled.",
     "cancel_not_found": "⚠️ Run not found: {run_id}",
     "cancel_ambiguous": "⚠️ Multiple active runs start with '{prefix}'. Provide a longer ID.",
-    "cancel_not_active": "ℹ️ Run #{run_id} is already finished (status: {status}). Cannot cancel."
+    "cancel_not_active": "ℹ️ Run #{run_id} is already finished (status: {status}). Cannot cancel.",
+    "detail_header": "📋 Run Detail — #{run_id}",
+    "detail_type": "Type: {agent_type}",
+    "detail_project": "Project: {project_id}",
+    "detail_session": "Session: {session_id}",
+    "detail_started": "Started: {elapsed} ago",
+    "detail_duration": "Duration: {duration}",
+    "detail_output": "Output:\n{output}",
+    "detail_error": "Error: {error}",
+    "detail_no_output": "(no output)",
+    "detail_not_found": "Run not found: {run_id}",
+    "project_header": "📂 {project_id} — Last {count} Runs",
+    "project_empty": "No runs found for project {project_id}."
   },
   "scan": {
     "select_type": "Select scan type:",

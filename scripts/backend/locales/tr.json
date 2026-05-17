@@ -551,7 +551,19 @@
     "cancel_ok": "🛑 Run #{run_id} iptal edildi.",
     "cancel_not_found": "⚠️ Run bulunamadı: {run_id}",
     "cancel_ambiguous": "⚠️ '{prefix}' ile başlayan birden fazla aktif run var. Daha uzun ID gir.",
-    "cancel_not_active": "ℹ️ Run #{run_id} zaten bitti (durum: {status}). İptal edilemez."
+    "cancel_not_active": "ℹ️ Run #{run_id} zaten bitti (durum: {status}). İptal edilemez.",
+    "detail_header": "📋 Run Detayı — #{run_id}",
+    "detail_type": "Tip: {agent_type}",
+    "detail_project": "Proje: {project_id}",
+    "detail_session": "Oturum: {session_id}",
+    "detail_started": "Başladı: {elapsed} önce",
+    "detail_duration": "Süre: {duration}",
+    "detail_output": "Çıktı:\n{output}",
+    "detail_error": "Hata: {error}",
+    "detail_no_output": "(çıktı yok)",
+    "detail_not_found": "Run bulunamadı: {run_id}",
+    "project_header": "📂 {project_id} — Son {count} Run",
+    "project_empty": "{project_id} projesine ait run bulunamadı."
   },
   "scan": {
     "select_type": "Tarama tipi seç:",

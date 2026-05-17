@@ -366,10 +366,12 @@ from .repositories.agent_run_repo import (  # noqa: E402, F401
     _sync_agent_run_list,
     _sync_agent_run_cancel,
     _sync_agent_run_list_active,
+    _sync_agent_run_list_by_project,
     agent_run_create,
     agent_run_update_status,
     agent_run_get,
     agent_run_list,
     agent_run_cancel,
     agent_run_list_active,
+    agent_run_list_by_project,
 )

@@ -230,3 +230,18 @@ async def agent_run_cancel(run_id: str) -> None:
 async def agent_run_list_active() -> list[dict]:
     """status='pending' veya 'running' olan tüm run'lar."""
     return await run_in_thread(_sync_agent_run_list_active)
+
+
+def _sync_agent_run_list_by_project(project_id: str, limit: int = 10) -> list[dict]:
+    """Belirli bir projeye ait son run'ları döndürür."""
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT * FROM agent_runs WHERE project_id = ? ORDER BY created_at DESC LIMIT ?",
+            (project_id, limit),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+async def agent_run_list_by_project(project_id: str, limit: int = 10) -> list[dict]:
+    """Belirli bir projeye ait son run'ları döndürür (async)."""
+    return await run_in_thread(_sync_agent_run_list_by_project, project_id, limit)
