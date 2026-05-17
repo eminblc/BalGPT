@@ -215,12 +215,21 @@
     "changed": "🌐 Language changed: {code}",
     "invalid": "Supported languages: tr, en",
     "label_tr": "Turkish",
-    "label_en": "English"
+    "label_en": "English",
+    "choose_prompt": "🌐 Select interface language:",
+    "btn_tr": "🇹🇷 Turkish",
+    "btn_en": "🇬🇧 English"
   },
   "timezone": {
     "current": "🕐 Current timezone: *{tz}*",
     "changed": "✅ Timezone changed: *{tz}*\nAll scheduled tasks will run according to the new timezone.",
-    "invalid": "❌ Invalid timezone: `{tz}`\nExample: `/timezone Europe/Istanbul` or `/timezone UTC`"
+    "invalid": "❌ Invalid timezone: `{tz}`\nExample: `/timezone Europe/Istanbul` or `/timezone UTC`",
+    "choose_prompt": "🕐 Active timezone: {current}\n\nSelect to change or type /timezone IANA/Timezone:",
+    "btn_istanbul": "🇹🇷 Istanbul (UTC+3)",
+    "btn_london": "🇬🇧 London (UTC+0/+1)",
+    "btn_berlin": "🇩🇪 Berlin (UTC+1/+2)",
+    "btn_newyork": "🇺🇸 New York (UTC-5/-4)",
+    "btn_dubai": "🇦🇪 Dubai (UTC+4)"
   },
   "chat": {
     "bridge_api_error": "⚠️ Agent encountered a temporary error. Please try again."
@@ -377,7 +386,12 @@
     "empty": "📭 No message history found.",
     "header": "📜 Last {count} Messages:",
     "summaries_empty": "📭 No session summaries found.",
-    "summaries_header": "🗂 Past Session Summaries:"
+    "summaries_header": "🗂 Past Session Summaries:",
+    "choose_prompt": "📝 How many messages would you like to see?",
+    "btn_5": "Last 5",
+    "btn_10": "Last 10",
+    "btn_20": "Last 20",
+    "btn_summary": "📋 Summary"
   },
   "model": {
     "current": "🤖 Active model: {model} (backend: {backend})\n\nSupported options:\n{options}",
@@ -405,6 +419,7 @@
   },
   "terminal": {
     "usage": "Usage: /terminal <command>\nExample: /terminal ls -la\n\n⚠️ Dangerous commands require Admin TOTP.\n📁 Default working dir: 99-root/\n💡 Tip: Relative paths like scripts/backend/venv/bin/pip are relative to 99-root/.",
+    "input_prompt": "💻 Type the command to run:\n(Type /cancel to abort)",
     "dangerous_prompt": "⚠️ Dangerous command detected:\n`{cmd}`\n\nEnter Admin TOTP:\n(/cancel to abort)",
     "success": "✅ [{code}] 📁 {cwd}\n{output}",
     "error": "❌ [Error {code}] 📁 {cwd}\n{output}",
@@ -428,7 +443,11 @@
     "model_header": "🤖 Model Categories:",
     "model_row": "  • {name}: {input} in + {output} out ({calls} calls)",
     "backend_header": "⚙️ Backends:",
-    "backend_row": "  • {name}: {input} in + {output} out ({calls} calls)"
+    "backend_row": "  • {name}: {input} in + {output} out ({calls} calls)",
+    "period_prompt": "📊 Token statistics — select time period:",
+    "btn_24h": "Last 24 Hours",
+    "btn_7d": "Last 7 Days",
+    "btn_30d": "Last 30 Days"
   },
   "bridge_monitor": {
     "restart_timeout": "Bridge auto-restart timed out. Manual /restart required.",
@@ -488,7 +507,12 @@
     "usage": "Usage:\n/export — essential backup\n/export full — all data\n/export media — include media\n/export env — env config (tokens/webhook)\n/import — upload .99rb file",
     "import_env_found": "ℹ️ Environment config found in backup.\nReview data/env_config.env and merge it into scripts/backend/.env.",
     "auto_backup_caption": "🔄 Auto-backup ready: {size} KB, {tables} tables, {files} files",
-    "auto_backup_error": "❌ Auto-backup failed: {error}"
+    "auto_backup_error": "❌ Auto-backup failed: {error}",
+    "scope_prompt": "📦 Select backup scope:",
+    "btn_essential": "Essential Backup",
+    "btn_full": "Full Backup",
+    "btn_media": "Include Media",
+    "btn_env": "Env Configuration"
   },
   "desktop": {
     "ocr_done": "OCR completed.",
@@ -501,5 +525,21 @@
     "recording_ok": "Screen recording completed ({size_mb} MB, {duration}s).",
     "recording_failed": "❌ Screen recording failed. Is ffmpeg installed? Is the X11 session open? `sudo apt install ffmpeg` required.",
     "multi_recording_ok": "{count} monitors recorded: {monitors}"
+  },
+  "orchestrator": {
+    "registered": "✅ Project {name} registered with orchestrator.",
+    "unregistered": "✅ Project {name} unregistered from orchestrator.",
+    "not_found": "⚠️ Project not found: {project_id}",
+    "already_registered": "ℹ️ {name} already registered. Info updated.",
+    "status_header": "📊 Project Status",
+    "no_projects": "No registered projects yet.",
+    "run_started": "▶️ Agent started (#{run_id})",
+    "run_completed": "✅ Agent completed (#{run_id})",
+    "run_failed": "❌ Agent failed (#{run_id}): {error}",
+    "run_cancelled": "🛑 Agent cancelled (#{run_id})",
+    "active_runs_header": "Active Agents ({count})",
+    "no_active_runs": "No active agents.",
+    "list_header": "All Projects ({count})",
+    "project_row": "• {name} [{status}] — {active_agents} active agents"
   }
 }

@@ -215,12 +215,21 @@
     "changed": "🌐 Dil değiştirildi: {code}",
     "invalid": "Desteklenen diller: tr, en",
     "label_tr": "Türkçe",
-    "label_en": "İngilizce"
+    "label_en": "İngilizce",
+    "choose_prompt": "🌐 Arayüz dilini seç:",
+    "btn_tr": "🇹🇷 Türkçe",
+    "btn_en": "🇬🇧 English"
   },
   "timezone": {
     "current": "🕐 Mevcut saat dilimi: *{tz}*",
     "changed": "✅ Saat dilimi değiştirildi: *{tz}*\nTüm zamanlanmış görevler yeni saat dilimine göre çalışacak.",
-    "invalid": "❌ Geçersiz saat dilimi: `{tz}`\nÖrnek: `/timezone Europe/Istanbul` veya `/timezone UTC`"
+    "invalid": "❌ Geçersiz saat dilimi: `{tz}`\nÖrnek: `/timezone Europe/Istanbul` veya `/timezone UTC`",
+    "choose_prompt": "🕐 Aktif saat dilimi: {current}\n\nDeğiştirmek için seç veya /timezone IANA/Timezone yaz:",
+    "btn_istanbul": "🇹🇷 İstanbul (UTC+3)",
+    "btn_london": "🇬🇧 Londra (UTC+0/+1)",
+    "btn_berlin": "🇩🇪 Berlin (UTC+1/+2)",
+    "btn_newyork": "🇺🇸 New York (UTC-5/-4)",
+    "btn_dubai": "🇦🇪 Dubai (UTC+4)"
   },
   "chat": {
     "bridge_api_error": "⚠️ Ajan geçici bir hatayla karşılaştı. Lütfen tekrar dene."
@@ -377,7 +386,12 @@
     "empty": "📭 Geçmiş mesaj bulunamadı.",
     "header": "📜 Son {count} Mesaj:",
     "summaries_empty": "📭 Geçmiş session özeti bulunamadı.",
-    "summaries_header": "🗂 Geçmiş Session Özetleri:"
+    "summaries_header": "🗂 Geçmiş Session Özetleri:",
+    "choose_prompt": "📝 Kaç mesajı görmek istiyorsun?",
+    "btn_5": "Son 5",
+    "btn_10": "Son 10",
+    "btn_20": "Son 20",
+    "btn_summary": "📋 Özet"
   },
   "model": {
     "current": "🤖 Aktif model: {model} (backend: {backend})\n\nDesteklenen seçenekler:\n{options}",
@@ -405,6 +419,7 @@
   },
   "terminal": {
     "usage": "Kullanım: /terminal <komut>\nÖrnek: /terminal ls -la\n\n⚠️ Tehlikeli komutlar Admin TOTP gerektirir.\n📁 Varsayılan çalışma dizini: 99-root/\n💡 İpucu: scripts/backend/venv/bin/pip gibi görece yollar 99-root/ baz alır.",
+    "input_prompt": "💻 Çalıştırılacak komutu yaz:\n(İptal için /cancel)",
     "dangerous_prompt": "⚠️ Tehlikeli komut tespit edildi:\n`{cmd}`\n\nAdmin TOTP kodunu gir:\n(/cancel ile iptal)",
     "success": "✅ [{code}] 📁 {cwd}\n{output}",
     "error": "❌ [Hata {code}] 📁 {cwd}\n{output}",
@@ -428,7 +443,11 @@
     "model_header": "🤖 Model Kategorileri:",
     "model_row": "  • {name}: {input} in + {output} out ({calls} çağrı)",
     "backend_header": "⚙️ Backend'ler:",
-    "backend_row": "  • {name}: {input} in + {output} out ({calls} çağrı)"
+    "backend_row": "  • {name}: {input} in + {output} out ({calls} çağrı)",
+    "period_prompt": "📊 Token istatistikleri — zaman aralığı seç:",
+    "btn_24h": "Son 24 Saat",
+    "btn_7d": "Son 7 Gün",
+    "btn_30d": "Son 30 Gün"
   },
   "bridge_monitor": {
     "restart_timeout": "Bridge otomatik restart zaman aşımına uğradı. Manuel /restart gerekiyor.",
@@ -488,7 +507,12 @@
     "usage": "Kullanım:\n/export — temel yedek\n/export full — tüm veri\n/export media — medya dahil\n/export env — env config (token/webhook dahil)\n/import — .99rb dosyası yükle",
     "import_env_found": "ℹ️ Ortam konfigürasyonu yedekte bulundu.\ndata/env_config.env dosyasını inceleyin ve scripts/backend/.env dosyanıza birleştirin.",
     "auto_backup_caption": "🔄 Otomatik yedek hazır: {size} KB, {tables} tablo, {files} dosya",
-    "auto_backup_error": "❌ Otomatik yedekleme başarısız: {error}"
+    "auto_backup_error": "❌ Otomatik yedekleme başarısız: {error}",
+    "scope_prompt": "📦 Yedek kapsamını seç:",
+    "btn_essential": "Temel Yedek",
+    "btn_full": "Tam Yedek",
+    "btn_media": "Medya Dahil",
+    "btn_env": "Env Konfigürasyon"
   },
   "desktop": {
     "ocr_done": "OCR tamamlandı.",
@@ -501,5 +525,21 @@
     "recording_ok": "Ekran kaydı tamamlandı ({size_mb} MB, {duration}s).",
     "recording_failed": "❌ Ekran kaydı başarısız. ffmpeg kurulu mu? X11 oturumu açık mı? `sudo apt install ffmpeg` gerekiyor.",
     "multi_recording_ok": "{count} monitör kaydedildi: {monitors}"
+  },
+  "orchestrator": {
+    "registered": "✅ {name} projesi orkestratöre kaydedildi.",
+    "unregistered": "✅ {name} projesi orkestratörden çıkarıldı.",
+    "not_found": "⚠️ Proje bulunamadı: {project_id}",
+    "already_registered": "ℹ️ {name} zaten kayıtlı. Bilgiler güncellendi.",
+    "status_header": "📊 Proje Durumu",
+    "no_projects": "Henüz kayıtlı proje yok.",
+    "run_started": "▶️ Agent başlatıldı (#{run_id})",
+    "run_completed": "✅ Agent tamamlandı (#{run_id})",
+    "run_failed": "❌ Agent başarısız (#{run_id}): {error}",
+    "run_cancelled": "🛑 Agent iptal edildi (#{run_id})",
+    "active_runs_header": "Aktif Agent'lar ({count})",
+    "no_active_runs": "Aktif agent yok.",
+    "list_header": "Tüm Projeler ({count})",
+    "project_row": "• {name} [{status}] — {active_agents} aktif ajan"
   }
 }
