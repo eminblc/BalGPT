@@ -589,5 +589,19 @@
     "history_header": "📋 Recent Scans",
     "history_row": "• {scan_type} — {status} ({accepted}✅ {rejected}❌ {duplicate}♻️)",
     "history_empty": "No scan history found."
+  },
+  "backlog": {
+    "select_action": "Select backlog executor action:",
+    "btn_run": "🛠 Run",
+    "btn_status": "📊 Status",
+    "run_usage": "Usage: /backlog run <project> [prefix] [max]",
+    "dry_usage": "Usage: /backlog dry <project> [prefix]",
+    "usage": "Usage: /backlog [run|dry|status]",
+    "starting": "🛠 Backlog executor started\nProject: {project}\nPrefix: {prefix} · Max: {max_items}\nMode: {mode}",
+    "mode_dry": "Dry run (BACKLOG not modified)",
+    "mode_full": "Full run",
+    "prefix_all": "all",
+    "status_header": "📊 Recent Backlog Executor Runs",
+    "status_empty": "No backlog executor runs yet."
   }
 }

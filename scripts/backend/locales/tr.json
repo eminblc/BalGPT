@@ -589,5 +589,19 @@
     "history_header": "📋 Son Taramalar",
     "history_row": "• {scan_type} — {status} ({accepted}✅ {rejected}❌ {duplicate}♻️)",
     "history_empty": "Geçmiş tarama bulunamadı."
+  },
+  "backlog": {
+    "select_action": "Backlog executor işlemi seç:",
+    "btn_run": "🛠 Çalıştır",
+    "btn_status": "📊 Durum",
+    "run_usage": "Kullanım: /backlog çalıştır <proje> [prefix] [max]",
+    "dry_usage": "Kullanım: /backlog kuru <proje> [prefix]",
+    "usage": "Kullanım: /backlog [çalıştır|kuru|durum]",
+    "starting": "🛠 Backlog executor başlatıldı\nProje: {project}\nPrefix: {prefix} · Maks: {max_items}\nMod: {mode}",
+    "mode_dry": "Kuru çalışma (BACKLOG'a yazılmaz)",
+    "mode_full": "Gerçek çalışma",
+    "prefix_all": "tümü",
+    "status_header": "📊 Son Backlog Executor Run'ları",
+    "status_empty": "Henüz backlog executor çalışmadı."
   }
 }

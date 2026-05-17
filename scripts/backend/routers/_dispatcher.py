@@ -377,6 +377,18 @@ async def _route_interactive(sender: str, reply_id: str, session: dict) -> None:
             await command.execute(sender, "" if scope == "essential" else scope, session)
         return
 
+    # /backlog run butonları
+    if reply_id.startswith("backlog_"):
+        sub = reply_id[len("backlog_"):]
+        command = cmd_registry.get("/backlog")
+        if command:
+            if sub == "status":
+                await command.execute(sender, "durum", session)
+            elif sub.startswith("run_"):
+                project_id = sub[len("run_"):]
+                await command.execute(sender, f"çalıştır {project_id}", session)
+        return
+
     # /scan tip seçim butonları
     if reply_id.startswith("scan_"):
         sub = reply_id[len("scan_"):]  # "security", "bugfix", "status"

@@ -117,6 +117,22 @@ class ScanCommand:
             ),
         )
 
+        # Gerçek tetikleme — arka planda scanner başlat
+        import httpx as _httpx
+        try:
+            async with _httpx.AsyncClient(timeout=5.0) as _client:
+                await _client.post(
+                    "http://localhost:8010/internal/scanner/trigger",
+                    json={
+                        "scan_type": scan_type,
+                        "project_id": root_project.get("id", ""),
+                        "auto_review": True,
+                        "dry_run": dry_run,
+                    },
+                )
+        except Exception as _exc:
+            log.warning("scan_cmd: trigger başarısız — %s", _exc)
+
     # ------------------------------------------------------------------
     # Yardımcı metotlar
     # ------------------------------------------------------------------
