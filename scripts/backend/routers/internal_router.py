@@ -9,7 +9,7 @@ import logging
 import time
 from collections import defaultdict
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional
 
@@ -301,3 +301,65 @@ async def verify_totp_internal(request: Request, body: _VerifyRequest):
 
 
 # Zamanlama endpoint'leri _schedule_router.py'e taşındı (SOLID-SRP-1).
+
+
+# ── Scan trigger ──────────────────────────────────────────────────
+
+
+class ScanTriggerRequest(BaseModel):
+    scan_type: str
+    project_id: str
+    dry_run: bool = False
+
+
+@router.post(
+    "/scan/trigger",
+    summary="Scan pipeline'ı arka planda başlat",
+    response_model=dict,
+    responses={
+        200: {
+            "description": "Tarama kuyruğa alındı",
+            "content": {"application/json": {"example": {"run_id": "queued", "status": "queued", "scan_type": "security", "project_id": "petekv5"}}},
+        },
+        400: {"description": "Geçersiz scan_type"},
+        403: {"description": "Localhost dışı erişim engellendi"},
+    },
+)
+async def trigger_scan(
+    request: Request,
+    body: ScanTriggerRequest,
+    background_tasks: BackgroundTasks,
+):
+    """Belirtilen proje için arka planda scan pipeline başlatır.
+
+    Yalnızca localhost erişimine açıktır; API key gerekmez.
+    Tarama BackgroundTasks ile asenkron çalışır — yanıt hemen döner.
+
+    Geçerli scan_type değerleri: data/scan_configs/ dizinindeki JSON dosyaları.
+    """
+    from ..features.scan_pipeline.config_loader import ScanConfigLoader
+    from ..features.scan_pipeline.runner import ScanRunner
+
+    _require_localhost(request)
+
+    # scan_type doğrulama
+    available = ScanConfigLoader().list_available()
+    if body.scan_type not in available:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Geçersiz scan_type: {body.scan_type!r}. Geçerli tipler: {available}",
+        )
+
+    runner = ScanRunner()
+    background_tasks.add_task(runner.run, body.scan_type, body.project_id, body.dry_run)
+
+    logger.info(
+        "scan/trigger: kuyruğa alındı scan_type=%s project_id=%s dry_run=%s",
+        body.scan_type, body.project_id, body.dry_run,
+    )
+    return {
+        "run_id": "queued",
+        "status": "queued",
+        "scan_type": body.scan_type,
+        "project_id": body.project_id,
+    }

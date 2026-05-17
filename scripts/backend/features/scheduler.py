@@ -277,6 +277,13 @@ async def _execute_one_shot_task(task_id: str) -> None:
             await _send_notification(t("scheduler.task_reminder", "tr", message=message))
         elif action_type == "run_bridge":
             await _run_bridge_query(message, silent=True)
+        elif action_type == "run_scan":
+            # Agent run tracking ScanRunner.run() içinde yapılır — burada duplicate etme
+            scan_type = payload.get("scan_type", "security")
+            project_id_scan = payload.get("project_id", "")
+            dry_run_scan = payload.get("dry_run", False)
+            from .scan_pipeline.runner import ScanRunner
+            await ScanRunner().run(scan_type, project_id_scan, dry_run_scan)
         await db.task_update_status(task_id, "succeeded")
         if run_id is not None:
             try:
@@ -529,6 +536,13 @@ async def _execute_task(task_id: str) -> None:
             await _aio.wait_for(_send_notification(t("scheduler.task_reminder", "tr", message=message)), timeout=30.0)
         elif action_type == "run_bridge":
             await _run_bridge_query(message, silent=True)
+        elif action_type == "run_scan":
+            # Agent run tracking ScanRunner.run() içinde yapılır — burada duplicate etme
+            scan_type = payload.get("scan_type", "security")
+            project_id_scan = payload.get("project_id", "")
+            dry_run_scan = payload.get("dry_run", False)
+            from .scan_pipeline.runner import ScanRunner
+            await ScanRunner().run(scan_type, project_id_scan, dry_run_scan)
         # Cron job'lar tamamlandıktan sonra "scheduled" durumuna geri döner
         await db.task_update_status(task_id, "scheduled")
         if run_id is not None:
