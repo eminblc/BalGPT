@@ -29,9 +29,14 @@ class FileResolver:
             if not p.is_file():
                 continue
             rel = str(p.relative_to(root))
-            # Exclude kontrolü
-            if any(fnmatch.fnmatch(rel, ex) or fnmatch.fnmatch(p.name, ex)
-                   for ex in exclude_patterns):
+            rel_parts = set(p.relative_to(root).parts)
+            # Exclude kontrolü: tam yol, dosya adı veya herhangi bir dizin bileşeni
+            if any(
+                fnmatch.fnmatch(rel, ex)
+                or fnmatch.fnmatch(p.name, ex)
+                or ex in rel_parts
+                for ex in exclude_patterns
+            ):
                 continue
             result.append(rel)
 
