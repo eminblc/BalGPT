@@ -139,16 +139,16 @@ def test_list_cron_jobs_returns_list():
 # ── pause_cron_job / resume_cron_job ──────────────────────────────
 
 def test_pause_cron_job_calls_scheduler():
-    """pause_cron_job → _scheduler.pause_job çağrılır."""
+    """pause_cron_job → _scheduler.remove_job çağrılır (pause değil — persistent store uyumsuzluğu önlenir)."""
     with patch("backend.features.scheduler._scheduler") as mock_sched, \
          patch("backend.store.sqlite_store._sync_task_deactivate"):
-        mock_sched.pause_job = MagicMock()
+        mock_sched.remove_job = MagicMock()
 
         from backend.features.scheduler import pause_cron_job
 
         pause_cron_job("task-pause-1")
 
-    mock_sched.pause_job.assert_called_once_with("task-pause-1")
+    mock_sched.remove_job.assert_called_once_with("task-pause-1")
 
 
 def test_resume_cron_job_calls_scheduler():

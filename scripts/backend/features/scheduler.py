@@ -351,13 +351,16 @@ def remove_cron_job(task_id: str) -> None:
 
 
 def pause_cron_job(task_id: str) -> None:
-    """Job'ı durdur (APScheduler + SQLite active=0)."""
+    """Job'ı durdur (APScheduler'dan sil + SQLite active=0).
+
+    pause yerine remove_job kullanılıyor: persistent job store'da
+    paused job restart sonrası tekrar yükleniyor (uyumsuzluk kaynağı).
+    """
     try:
-        _scheduler.pause_job(task_id)
+        _scheduler.remove_job(task_id)
     except JobLookupError:
         logger.debug("pause_cron_job: job APScheduler'da yok, yalnızca SQLite güncelleniyor: %s", task_id)
     except Exception as exc:
-        # BUG-A6: blanket pass kaldırıldı — beklenmedik hata loglanıyor ama SQLite yine güncellenir
         logger.error("pause_cron_job beklenmedik hata: %s — SQLite güncelleniyor: %s", task_id, exc)
     from ..store import sqlite_store as db
     db._sync_task_deactivate(task_id)
@@ -426,10 +429,27 @@ async def _reload_all_jobs() -> None:
       - gelecekte: normal DateTrigger
     - status='deleted': atla
     - scope='project': atla (project-specific orchestrator yönetir)
+
+    Startup temizliği: persistent job store'da kalan ama DB'de active=0/deleted
+    olan job'lar (pause→restart uyumsuzluğu) APScheduler'dan temizlenir.
     """
     import datetime
     import time as _time
     from ..store import sqlite_store as db
+
+    # Startup temizliği: APScheduler'daki sistem dışı job'ları DB ile karşılaştır
+    active_ids = {t["id"] for t in await db.task_list_active()}
+    system_jobs = {"calendar_reminder_check"}
+    for job in _scheduler.get_jobs():
+        if job.id in system_jobs:
+            continue
+        if job.id not in active_ids:
+            try:
+                _scheduler.remove_job(job.id)
+                logger.info("_reload_all_jobs: stale job temizlendi: %s", job.id)
+            except Exception as _rm_exc:
+                logger.warning("_reload_all_jobs: stale job silinemedi: %s — %s", job.id, _rm_exc)
+
     tasks = await db.task_list_active()
     now = _time.time()
     for task in tasks:
