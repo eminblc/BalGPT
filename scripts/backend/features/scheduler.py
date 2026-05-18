@@ -109,9 +109,43 @@ async def _reload_cron_jobs_only() -> None:
             logger.error("Cron job yeniden yüklenemedi: %s hata=%s", task_id, exc)
 
 
+async def _purge_stale_apscheduler_jobs() -> None:
+    """APScheduler başlamadan önce scheduler.db'deki stale job'ları siler.
+
+    Restart sırasında deactivated job'ların persistent store'dan yüklenip
+    misfire tetiklemesini engeller (race condition — start() sonra temizleme).
+    """
+    from ..store import sqlite_store as _db
+    from ..store._connection import _resolve_db_path
+    import sqlite3 as _sqlite3
+
+    try:
+        active_ids = {t["id"] for t in await _db.task_list_active()}
+        system_jobs = {"calendar_reminder_check"}
+        sched_db = _resolve_db_path().parent / "scheduler.db"
+        if not sched_db.exists():
+            return
+        con = _sqlite3.connect(str(sched_db))
+        rows = con.execute("SELECT id FROM apscheduler_jobs").fetchall()
+        for (job_id,) in rows:
+            if job_id in system_jobs or job_id in active_ids:
+                continue
+            con.execute("DELETE FROM apscheduler_jobs WHERE id = ?", (job_id,))
+            logger.info("Startup öncesi stale APScheduler job silindi: %s", job_id)
+        con.commit()
+        con.close()
+    except Exception as _err:
+        logger.warning("APScheduler pre-start temizlik başarısız: %s", _err)
+
+
 async def start_scheduler() -> None:
     if _scheduler.running:
         return
+
+    # Persistent DB'deki stale job'ları scheduler.start()'tan ÖNCE sil
+    # (start() job'ları yükler ve geçmiş next_run_time olanları anında tetikler)
+    await _purge_stale_apscheduler_jobs()
+
     _scheduler.start()
 
     # Takvim hatırlatıcılarını her dakika kontrol et
