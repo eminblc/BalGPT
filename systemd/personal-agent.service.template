@@ -10,6 +10,7 @@ EnvironmentFile={{ROOT_DIR}}/scripts/backend/.env
 ExecStart={{ROOT_DIR}}/scripts/backend/venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port {{API_PORT}} --log-level info
 Restart=on-failure
 RestartSec=5
+TimeoutStopSec=15
 
 [Install]
 WantedBy=multi-user.target

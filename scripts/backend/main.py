@@ -70,6 +70,20 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("Model tercihi yüklenemedi: %s", exc)
 
+    # Stale "running" agent run'larını temizle — önceki servis çökmesinden kalabilir
+    try:
+        from .store._connection import _conn as _db_conn
+        with _db_conn() as _con:
+            _cur = _con.execute(
+                "UPDATE agent_runs SET status='failed', output='Servis yeniden başlatıldı'"
+                " WHERE status IN ('running', 'pending')"
+            )
+            _stale = _cur.rowcount
+        if _stale:
+            logger.warning("Başlangıç temizliği: %d stale agent_run 'failed' olarak işaretlendi", _stale)
+    except Exception as _cleanup_exc:
+        logger.warning("Stale agent_run temizliği başarısız: %s", _cleanup_exc)
+
     # MOD-10: Feature registry startup hook'ları (scheduler, webhook_proxy, ...)
     from .features._registry import run_startup_hooks
     await run_startup_hooks()
@@ -112,6 +126,13 @@ async def lifespan(app: FastAPI):
     # Kapatma bildirimi — her şeyden ÖNCE gönderilmeli
     from .i18n import t as _t
     await _notify(_t("main.stopping", "tr"))
+
+    # Aktif scan varsa iptal et — uvicorn background task beklemeye takılmasın
+    try:
+        from .guards.runtime_state import request_scan_cancel
+        request_scan_cancel()
+    except Exception:
+        pass
 
     # Arka plan görevlerini durdur
     cleanup_task.cancel()
