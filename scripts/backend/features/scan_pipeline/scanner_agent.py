@@ -116,6 +116,18 @@ class ScannerAgent:
                 total_chunks, project_id, scan_type,
             )
 
+            # İlerleme takibi için progress.json yaz (status endpoint okur)
+            run_dir.mkdir(parents=True, exist_ok=True)
+            (run_dir / "progress.json").write_text(
+                json.dumps({
+                    "total_chunks": total_chunks,
+                    "scan_type":    scan_type,
+                    "project_id":   project_id,
+                    "started_at":   started_at,
+                }, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
             if not chunk_prompts:
                 logger.info("ScannerAgent: taranacak dosya bulunamadı — boş sonuç")
                 meta = {

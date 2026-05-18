@@ -579,10 +579,22 @@
   },
   "scan": {
     "select_type": "Tarama tipi seç:",
+    "section_quick": "⚡ Hızlı Eylemler",
+    "section_types": "🔍 Tarama Tipleri",
+    "btn_all": "🚀 Tümünü Tara",
     "btn_security": "🔒 Güvenlik",
     "btn_bugfix": "🐛 Bug Taraması",
+    "btn_performance": "⚡ Performans",
+    "btn_test-coverage": "🧪 Test Eksikliği",
+    "btn_dead-code": "🪦 Ölü Kod",
+    "btn_api-contract": "📡 API Sözleşme",
+    "btn_type-safety": "🛡 Tip Güvenliği",
+    "btn_dependency": "📦 Bağımlılık",
+    "btn_migration": "🗄 Migrasyon",
+    "btn_logging": "📝 Loglama",
     "btn_status": "📊 Durum",
     "no_root_project": "⚠️ Önce bir root proje seç: /root-project <proje-adı>",
+    "no_configs": "⚠️ Tarama konfigürasyonu bulunamadı.",
     "invalid_type": "⚠️ Geçersiz tarama tipi: {type}. Mevcut: {available}",
     "starting": "🔍 {name} başlatıldı\nProje: {project}\nMod: {mode}\n\n/agents ile ilerlemeyi takip et.",
     "mode_dry": "Sadece analiz (BACKLOG güncellenmez)",
@@ -592,7 +604,24 @@
     "status_row": "{scan_type} | {status} | {accepted} kabul / {total} bulgu",
     "history_header": "📋 Son Taramalar",
     "history_row": "• {scan_type} — {status} ({accepted}✅ {rejected}❌ {duplicate}♻️)",
-    "history_empty": "Geçmiş tarama bulunamadı."
+    "history_empty": "Geçmiş tarama bulunamadı.",
+    "third_party_ask": "🗂️ Üçüncü taraf paket dizinleri taramaya dahil edilsin mi?\n(`node_modules`, `venv`, `.venv`, `vendor`)\n\n💡 Dahil edilmezse tarama daha hızlı olur.",
+    "third_party_skip": "⚡ Hayır, atla (önerilen)",
+    "third_party_include": "Evet, dahil et",
+    "status_running_header": "🔍 Tarama devam ediyor ({scan_type})",
+    "status_elapsed": "⏱ Geçen: {minutes} dk",
+    "status_eta": " · Tahmini kalan: ~{minutes} dk",
+    "status_cancelling": "🛑 İptal istendi, mevcut chunk tamamlanıyor…",
+    "btn_cancel": "🛑 Durdur",
+    "cancel_ok": "✅ İptal isteği gönderildi. Mevcut chunk tamamlandıktan sonra tarama durur.",
+    "cancel_fail": "⚠️ İptal isteği gönderilemedi."
+  },
+  "scan_all": {
+    "summary_header": "📊 *Tüm Taramalar Tamamlandı*\n",
+    "dry_note": " _(kuru çalışma — BACKLOG güncellenmedi)_",
+    "summary_row": "• *{scan_type}*: ✅{accepted} eklendi · ❌{rejected} reddedildi · ♻️{duplicate} tekrar",
+    "summary_error": "• *{scan_type}*: ⚠️ hata",
+    "summary_total": "🔢 *Toplam:* {accepted} BACKLOG'a eklendi · {rejected} reddedildi · {duplicate} tekrar · {errors} tarama hatası"
   },
   "backlog": {
     "select_action": "Backlog executor işlemi seç:",
@@ -606,7 +635,12 @@
     "mode_full": "Gerçek çalışma",
     "prefix_all": "tümü",
     "status_header": "📊 Son Backlog Executor Run'ları",
-    "status_empty": "Henüz backlog executor çalışmadı."
+    "status_empty": "Henüz backlog executor çalışmadı.",
+    "done_summary": "✅ *Backlog Executor Tamamlandı*\n\nProje: {project}\nTamamlanan: {completed}/{total}\nBaşarısız: {failed}/{total}\n⏱ Süre: ~{minutes} dk",
+    "status_running_header": "🛠 Backlog executor çalışıyor (Proje: {project})",
+    "status_elapsed": "⏱ Geçen: {minutes} dk",
+    "status_eta": " · Tahmini kalan: ~{minutes} dk",
+    "status_done_row": "✅ {project}: {completed}/{total} tamamlandı, {failed} başarısız"
   },
   "nl_schedule": {
     "confirm_header": "📅 Şunu anlıyorum — onaylıyor musun?",
@@ -618,5 +652,15 @@
     "cancelled": "❌ Zamanlama oluşturma iptal edildi.",
     "created": "✅ Zamanlama oluşturuldu!\nID: `{id}` · Cron: `{cron}`\n{desc}",
     "create_error": "❌ Zamanlama oluşturulamadı. Lütfen tekrar dene."
+  },
+  "parallel": {
+    "scan_ask": "🔍 *{name}* taraması\n*Proje:* {project}{dry}\n\nKaç paralel agent ile taransın?\n\n💡 4 paralel ≈ ~5 dk  |  1 paralel ≈ ~15 dk",
+    "backlog_ask": "📋 Backlog executor\n*Proje:* {project}{prefix}\n\nKaç paralel agent ile çalışsın?\n\n💡 Az paralel → daha güvenli, birbirine karışmaz",
+    "btn": "{n} agent",
+    "btn_rec": "{n} agent ★",
+    "no_pending": "⚠️ Bekleyen işlem yok. Önce /scan veya /backlog başlatın.",
+    "scan_launched": "🚀 Tarama başlatıldı — {parallel} paralel agent\n⏳ Tamamlanınca bildirim gelecek.",
+    "backlog_launched": "🚀 Backlog başlatıldı — {parallel} paralel agent\n⏳ Tamamlanınca bildirim gelecek.",
+    "dry_label": " (kuru çalıştırma)"
   }
 }

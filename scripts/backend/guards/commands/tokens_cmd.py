@@ -32,6 +32,15 @@ class TokensCommand:
         lang      = session.get("lang", "tr")
         messenger = get_messenger()
 
+        if not arg.strip():
+            buttons = [
+                {"id": "tokens_24h", "title": t("tokens.btn_24h", lang)},
+                {"id": "tokens_7d",  "title": t("tokens.btn_7d",  lang)},
+                {"id": "tokens_30d", "title": t("tokens.btn_30d", lang)},
+            ]
+            await messenger.send_buttons(sender, t("tokens.period_prompt", lang), buttons)
+            return
+
         span_key = arg.strip().lower() or "24h"
         if span_key not in _VALID_SPANS:
             await messenger.send_text(sender, t("tokens.invalid_span", lang, span=span_key))

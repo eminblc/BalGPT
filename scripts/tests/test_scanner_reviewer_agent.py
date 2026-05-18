@@ -34,8 +34,8 @@ _PROJECT_GET_SCANNER = "backend.store.repositories.project_repo.project_get"
 _PROJECT_GET_REVIEWER = "backend.store.repositories.project_repo.project_get"
 _LIFECYCLE_SCANNER = "backend.features.orchestrator.core.AgentLifecycleManager"
 _LIFECYCLE_REVIEWER = "backend.features.orchestrator.core.AgentLifecycleManager"
-_GET_LLM_SCANNER = "backend.adapters.llm.llm_factory.get_llm"
-_GET_LLM_REVIEWER = "backend.adapters.llm.llm_factory.get_llm"
+_GET_LLM_SCANNER  = "backend.adapters.llm.llm_factory.get_scan_llm"
+_GET_LLM_REVIEWER = "backend.adapters.llm.llm_factory.get_scan_llm"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -148,7 +148,7 @@ class TestScannerAgentRun:
 
         agent = self._make_agent(pipeline)
 
-        async def _fake_chunks(chunk_prompts, llm, run_dir):
+        async def _fake_chunks(chunk_prompts, llm, run_dir, parallel=3):
             pass  # chunk çalıştırmayı taklit et
 
         agent._run_scanner_chunks = _fake_chunks
@@ -184,7 +184,7 @@ class TestScannerAgentRun:
         agent = self._make_agent(pipeline)
 
         # _run_scanner_chunks'u no-op stub yap
-        async def _noop_chunks(chunk_prompts, llm, run_dir):
+        async def _noop_chunks(chunk_prompts, llm, run_dir, parallel=3):
             pass
 
         agent._run_scanner_chunks = _noop_chunks

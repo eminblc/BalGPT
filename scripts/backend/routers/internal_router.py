@@ -653,10 +653,13 @@ async def scanner_status(request: Request):
     except Exception as _err:  # noqa: BLE001
         logger.debug("scanner_status: agent_runs sorgusu başarısız: %s", _err)
 
-    # scan_runs dizinindeki en yeni run_id'yi bul
+    # scan_runs dizinindeki en yeni run_id'yi bul + progress.json oku
     runs_dir = Path(__file__).parent.parent.parent.parent / "data" / "scan_runs"
     last_run_dir: str | None = None
     findings_count: int = 0
+    total_chunks: int = 0
+    scan_type: str | None = None
+    scan_started_at: float | None = None
     try:
         if runs_dir.exists():
             subdirs = sorted(
@@ -669,6 +672,13 @@ async def scanner_status(request: Request):
                 findings_dir = newest / "findings"
                 if findings_dir.exists():
                     findings_count = sum(1 for f in findings_dir.iterdir() if f.suffix == ".jsonl")
+                progress_file = newest / "progress.json"
+                if progress_file.exists():
+                    import json as _json
+                    prog = _json.loads(progress_file.read_text(encoding="utf-8"))
+                    total_chunks    = prog.get("total_chunks", 0)
+                    scan_type       = prog.get("scan_type")
+                    scan_started_at = prog.get("started_at")
     except Exception as _err:  # noqa: BLE001
         logger.debug("scanner_status: scan_runs dizini okunamadı: %s", _err)
 
@@ -677,4 +687,32 @@ async def scanner_status(request: Request):
         "running_agent_run": running_agent_run,
         "last_run_dir":      last_run_dir,
         "findings_count":    findings_count,
+        "total_chunks":      total_chunks,
+        "scan_type":         scan_type,
+        "started_at":        scan_started_at,
     }
+
+
+@router.get(
+    "/backlog/status",
+    summary="Backlog executor ilerleme durumunu göster",
+    response_model=dict,
+)
+async def backlog_status(request: Request):
+    """Backlog executor ilerleme bilgisini döndürür (progress.json okur).
+
+    Yalnızca localhost erişimine açıktır; API key gerekmez.
+    """
+    _require_localhost(request)
+
+    progress_file = Path(__file__).parent.parent.parent.parent / "data" / "backlog_progress.json"
+    if not progress_file.exists():
+        return {"status": "idle", "message": "Backlog executor çalışmıyor"}
+
+    try:
+        import json as _json
+        prog = _json.loads(progress_file.read_text(encoding="utf-8"))
+        return prog
+    except Exception as _err:
+        logger.debug("backlog_status: progress.json okunamadı: %s", _err)
+        return {"status": "error", "message": str(_err)}

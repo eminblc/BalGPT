@@ -17,6 +17,14 @@ class LangCommand:
         lang = arg.strip().lower()
         current = session.get("lang", "tr")
 
+        if not lang:
+            buttons = [
+                {"id": "lang_select_tr", "title": t("lang.btn_tr", current)},
+                {"id": "lang_select_en", "title": t("lang.btn_en", current)},
+            ]
+            await get_messenger().send_buttons(sender, t("lang.choose_prompt", current), buttons)
+            return
+
         if lang not in ("tr", "en"):
             await get_messenger().send_text(sender, t("lang.invalid", current))
             return

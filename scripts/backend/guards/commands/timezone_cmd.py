@@ -24,9 +24,20 @@ class TimezoneCommand:
         tz_arg = arg.strip()
 
         if not tz_arg:
-            # Mevcut timezone'u göster
             current = _get_current_tz()
-            await get_messenger().send_text(sender, t("timezone.current", lang, tz=current))
+            messenger = get_messenger()
+            buttons = [
+                {"id": "tz_Istanbul", "title": t("timezone.btn_istanbul", lang)},
+                {"id": "tz_London",   "title": t("timezone.btn_london",   lang)},
+                {"id": "tz_Berlin",   "title": t("timezone.btn_berlin",   lang)},
+                {"id": "tz_NewYork",  "title": t("timezone.btn_newyork",  lang)},
+                {"id": "tz_Dubai",    "title": t("timezone.btn_dubai",    lang)},
+            ]
+            await messenger.send_buttons(
+                sender,
+                t("timezone.choose_prompt", lang, current=current),
+                buttons,
+            )
             return
 
         # Geçerli IANA timezone mi?

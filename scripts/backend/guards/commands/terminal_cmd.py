@@ -48,8 +48,10 @@ class TerminalCommand:
             pending_cmd = session.pop(_SESSION_PENDING_KEY, None)
             if pending_cmd:
                 await self._run(sender, pending_cmd, lang, messenger)
-            else:
-                await messenger.send_text(sender, t("terminal.usage", lang))
+                return
+            # Bekleyen TOTP onaylı komut yok — kullanıcıdan komutu iste (TG-UX-1)
+            session.start_terminal_input()
+            await messenger.send_text(sender, t("terminal.input_prompt", lang))
             return
 
         # ── Case 2: Güvenli komut — doğrudan çalıştır ───────────────────────

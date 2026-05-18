@@ -2,7 +2,7 @@
 
 Alt komutlar:
   /backlog                           → proje seçim butonları göster
-  /backlog çalıştır <proje> [prefix] [max] → executor'ı başlat
+  /backlog run <proje> [prefix] [max] [parallel] → executor'ı başlat
   /backlog durum                     → son executor run'larını göster
   /backlog kuru <proje> [prefix]     → dry_run (BACKLOG'a yazma)
 """
@@ -24,7 +24,7 @@ class BacklogCommand:
     button_id   = "cmd_backlog"
     label       = "Backlog Executor"
     description = "BACKLOG item'larını otomatik implement eder."
-    usage       = "/backlog [çalıştır <proje> [prefix] [max] | durum | kuru <proje>]"
+    usage       = "/backlog [run <proje> [prefix] [max] [parallel] | durum | kuru <proje>]"
 
     async def execute(self, sender: str, arg: str, session: dict) -> None:
         from ...adapters.messenger import get_messenger
@@ -44,15 +44,35 @@ class BacklogCommand:
             await messenger.send_buttons(sender, t("backlog.select_action", lang), buttons)
             return
 
-        # /backlog çalıştır <proje> [prefix] [max]
+        # /backlog run <proje> [prefix] [max]
         if sub in ("çalıştır", "run"):
             if len(parts) < 2:
                 await messenger.send_text(sender, t("backlog.run_usage", lang))
                 return
             project_id = parts[1]
             prefix     = parts[2] if len(parts) > 2 else ""
-            max_items  = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 3
-            await self._trigger(sender, project_id, prefix, max_items, False, lang, messenger)
+            max_items  = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 0
+
+            # Paralel seçim ekranı göster; tetikleme parallel_ handler'da yapılır
+            session["_pending_parallel"] = {
+                "cmd": "backlog",
+                "params": {
+                    "project_id": project_id,
+                    "prefix":     prefix,
+                    "max_items":  max_items,
+                    "dry_run":    False,
+                },
+            }
+            prefix_label = f" · prefix: {prefix}" if prefix else ""
+            await messenger.send_buttons(
+                sender,
+                t("parallel.backlog_ask", lang, project=project_id, prefix=prefix_label),
+                [
+                    {"id": "parallel_1", "title": t("parallel.btn_rec", lang, n=1)},
+                    {"id": "parallel_2", "title": t("parallel.btn",     lang, n=2)},
+                    {"id": "parallel_3", "title": t("parallel.btn",     lang, n=3)},
+                ],
+            )
             return
 
         # /backlog kuru <proje> [prefix]
@@ -62,7 +82,27 @@ class BacklogCommand:
                 return
             project_id = parts[1]
             prefix     = parts[2] if len(parts) > 2 else ""
-            await self._trigger(sender, project_id, prefix, 3, True, lang, messenger)
+
+            session["_pending_parallel"] = {
+                "cmd": "backlog",
+                "params": {
+                    "project_id": project_id,
+                    "prefix":     prefix,
+                    "max_items":  0,
+                    "dry_run":    True,
+                },
+            }
+            prefix_label = f" · prefix: {prefix}" if prefix else ""
+            dry_label    = t("parallel.dry_label", lang)
+            await messenger.send_buttons(
+                sender,
+                t("parallel.backlog_ask", lang, project=f"{project_id}{dry_label}", prefix=prefix_label),
+                [
+                    {"id": "parallel_1", "title": t("parallel.btn_rec", lang, n=1)},
+                    {"id": "parallel_2", "title": t("parallel.btn",     lang, n=2)},
+                    {"id": "parallel_3", "title": t("parallel.btn",     lang, n=3)},
+                ],
+            )
             return
 
         # /backlog durum
@@ -78,6 +118,7 @@ class BacklogCommand:
         project_id: str,
         prefix: str,
         max_items: int,
+        parallel: int,
         dry_run: bool,
         lang: str,
         messenger,
@@ -107,7 +148,7 @@ class BacklogCommand:
                         "project_id": project_id,
                         "prefix":     prefix,
                         "max_items":  max_items,
-                        "parallel":   2,
+                        "parallel":   parallel,
                         "dry_run":    dry_run,
                     },
                 )
@@ -116,39 +157,61 @@ class BacklogCommand:
 
     @staticmethod
     async def _show_status(sender: str, lang: str, messenger) -> None:
-        """Son backlog executor run'larını gösterir."""
+        """Backlog executor durumunu gösterir: aktifse canlı ilerleme, değilse son run özeti."""
+        import time
+        import httpx as _httpx
         from ...i18n import t
-        from pathlib import Path
-        import json
 
-        _STATUS_ICON = {
-            "pending":   "⏳",
-            "running":   "▶️",
-            "completed": "✅",
-            "failed":    "❌",
-            "cancelled": "🛑",
-        }
+        data: dict = {}
+        try:
+            async with _httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get("http://localhost:8010/internal/backlog/status")
+                if resp.status_code == 200:
+                    data = resp.json()
+        except Exception as _exc:
+            log.warning("backlog_cmd: status endpoint erişilemedi — %s", _exc)
 
-        runs_file = Path(__file__).parent.parent.parent.parent.parent / "data" / "backlog_runs.json"
-        runs: list[dict] = []
-        if runs_file.exists():
-            try:
-                all_runs: list[dict] = json.loads(runs_file.read_text(encoding="utf-8"))
-                runs = [r for r in all_runs if r.get("agent_type") == "backlog_executor"][-5:]
-            except Exception:  # noqa: BLE001
-                pass
+        status     = data.get("status", "")
+        total      = data.get("total_items", 0)
+        completed  = data.get("completed", 0)
+        failed     = data.get("failed", 0)
+        started_at = data.get("started_at")
+        project_id = data.get("project_id", "?")
 
-        if not runs:
-            await messenger.send_text(sender, t("backlog.status_empty", lang))
+        if status == "running":
+            pct    = int(completed / total * 100) if total else 0
+            filled = pct // 10
+            bar    = "▓" * filled + "░" * (10 - filled)
+            elapsed = int((time.time() - started_at) / 60) if started_at else 0
+            eta_str = ""
+            if completed and started_at:
+                rate    = (time.time() - started_at) / completed
+                eta_sec = int(rate * (total - completed))
+                eta_str = t("backlog.status_eta", lang, minutes=max(1, eta_sec // 60))
+            lines = [
+                t("backlog.status_running_header", lang, project=project_id),
+                f"[{bar}] {completed}/{total} item (%{pct})",
+                t("backlog.status_elapsed", lang, minutes=elapsed) + eta_str,
+            ]
+            await messenger.send_text(sender, "\n".join(lines))
             return
 
-        lines = [t("backlog.status_header", lang)]
-        for run in runs:
-            icon   = _STATUS_ICON.get(run.get("status", ""), "▶️")
-            rid    = str(run.get("id", "?"))[:6]
-            output = run.get("output") or "—"
-            lines.append(f"{icon} #{rid} {run.get('project_id', '?')} — {output}")
-        await messenger.send_text(sender, "\n".join(lines))
+        if status == "completed":
+            lines = [
+                t("backlog.status_header", lang),
+                t(
+                    "backlog.status_done_row",
+                    lang,
+                    project=project_id,
+                    completed=completed,
+                    total=total,
+                    failed=failed,
+                ),
+            ]
+            await messenger.send_text(sender, "\n".join(lines))
+            return
+
+        await messenger.send_text(sender, t("backlog.status_empty", lang))
 
 
 registry.register(BacklogCommand())

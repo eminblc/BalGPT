@@ -20,10 +20,23 @@ class HistoryCommand:
             format_summaries,
         )
         from ...adapters.messenger import get_messenger
+        from ...i18n import t
 
         sub = arg.strip().lower()
 
         lang = session.get("lang", "tr")
+
+        if not sub:
+            messenger = get_messenger()
+            buttons = [
+                {"id": "history_5",       "title": t("history.btn_5",       lang)},
+                {"id": "history_10",      "title": t("history.btn_10",      lang)},
+                {"id": "history_20",      "title": t("history.btn_20",      lang)},
+                {"id": "history_summary", "title": t("history.btn_summary", lang)},
+            ]
+            await messenger.send_buttons(sender, t("history.choose_prompt", lang), buttons)
+            return
+
         if sub in ("ozet", "özet", "summary"):
             summaries = await get_session_summaries(sender, limit=5)
             await get_messenger().send_text(sender, format_summaries(summaries, lang=lang))

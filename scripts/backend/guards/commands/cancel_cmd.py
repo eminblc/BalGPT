@@ -85,6 +85,10 @@ class CancelCommand:
             from ...routers._desktop_totp_gate import clear_totp_request_sent
             clear_totp_request_sent()
 
+        # Terminal input awaiting state (TG-UX-1)
+        if session.pop("awaiting_terminal_cmd", False):
+            had_pending = True
+
         for k in pending_keys:
             if session.pop(k, None) is not None:
                 had_pending = True

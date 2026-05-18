@@ -53,6 +53,17 @@ class ExportCommand:
         sub   = arg.strip().lower()
         send  = get_messenger().send_text
 
+        if not sub:
+            messenger = get_messenger()
+            buttons = [
+                {"id": "export_essential", "title": t("backup.btn_essential", lang)},
+                {"id": "export_full",      "title": t("backup.btn_full",      lang)},
+                {"id": "export_media",     "title": t("backup.btn_media",     lang)},
+                {"id": "export_env",       "title": t("backup.btn_env",       lang)},
+            ]
+            await messenger.send_buttons(sender, t("backup.scope_prompt", lang), buttons)
+            return
+
         scope = self._resolve_scope(sub)
         if scope is None:
             await send(sender, t("backup.usage", lang))

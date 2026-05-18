@@ -98,6 +98,23 @@ class BacklogExecutorAgent:
         if max_items and max_items > 0:
             items = items[:max_items]
 
+        # İlerleme takibi — progress.json yaz (status endpoint okur)
+        _PROGRESS_FILE = Path(__file__).parent.parent.parent.parent.parent / "data" / "backlog_progress.json"
+        import json as _json
+        _progress = {
+            "run_id":      run_id,
+            "project_id":  project_id,
+            "total_items": len(items),
+            "completed":   0,
+            "failed":      0,
+            "started_at":  started_at,
+            "status":      "running",
+        }
+        try:
+            _PROGRESS_FILE.write_text(_json.dumps(_progress, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
+
         if not items:
             await lifecycle.mark_completed(agent_run_id, output="0 item — işlenecek görev yok")
             logger.info(
@@ -127,6 +144,13 @@ class BacklogExecutorAgent:
         completed = sum(1 for r in results if r is True)
         failed = sum(1 for r in results if r is False or isinstance(r, Exception))
         skipped = len(items) - completed - failed
+
+        # Progress.json'u tamamlandı olarak güncelle
+        try:
+            _progress.update({"completed": completed, "failed": failed, "status": "completed"})
+            _PROGRESS_FILE.write_text(_json.dumps(_progress, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
 
         summary = f"completed={completed} failed={failed} total={len(items)}"
         await lifecycle.mark_completed(agent_run_id, output=summary)

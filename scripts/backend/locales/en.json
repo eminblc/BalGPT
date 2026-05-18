@@ -577,8 +577,27 @@
     "reviewer_done": "📋 Review complete — {accepted} accepted / {rejected} rejected",
     "executor_done": "🛠 Executor complete — {completed}/{total} items"
   },
+  "scan_all": {
+    "summary_header": "📊 *All Scans Complete*\n",
+    "dry_note": " _(dry run — BACKLOG not updated)_",
+    "summary_row": "• *{scan_type}*: ✅{accepted} added · ❌{rejected} rejected · ♻️{duplicate} duplicate",
+    "summary_error": "• *{scan_type}*: ⚠️ error",
+    "summary_total": "🔢 *Total:* {accepted} added to BACKLOG · {rejected} rejected · {duplicate} duplicates · {errors} scan errors"
+  },
   "scan": {
     "select_type": "Select scan type:",
+    "section_quick": "⚡ Quick Actions",
+    "section_types": "🔍 Scan Types",
+    "btn_all": "🚀 Run All Scans",
+    "btn_performance": "⚡ Performance",
+    "btn_test-coverage": "🧪 Test Coverage",
+    "btn_dead-code": "🪦 Dead Code",
+    "btn_api-contract": "📡 API Contract",
+    "btn_type-safety": "🛡 Type Safety",
+    "btn_dependency": "📦 Dependencies",
+    "btn_migration": "🗄 Migrations",
+    "btn_logging": "📝 Logging",
+    "no_configs": "⚠️ No scan configurations found.",
     "btn_security": "🔒 Security",
     "btn_bugfix": "🐛 Bug Scan",
     "btn_status": "📊 Status",
@@ -592,7 +611,17 @@
     "status_row": "{scan_type} | {status} | {accepted} accepted / {total} findings",
     "history_header": "📋 Recent Scans",
     "history_row": "• {scan_type} — {status} ({accepted}✅ {rejected}❌ {duplicate}♻️)",
-    "history_empty": "No scan history found."
+    "history_empty": "No scan history found.",
+    "third_party_ask": "🗂️ Include third-party package directories in the scan?\n(`node_modules`, `venv`, `.venv`, `vendor`)\n\n💡 Excluding them makes the scan faster.",
+    "third_party_skip": "⚡ No, skip (recommended)",
+    "third_party_include": "Yes, include",
+    "status_running_header": "🔍 Scan in progress ({scan_type})",
+    "status_elapsed": "⏱ Elapsed: {minutes} min",
+    "status_eta": " · Est. remaining: ~{minutes} min",
+    "status_cancelling": "🛑 Cancellation requested, finishing current chunk…",
+    "btn_cancel": "🛑 Stop",
+    "cancel_ok": "✅ Cancellation request sent. Scan will stop after the current chunk finishes.",
+    "cancel_fail": "⚠️ Could not send cancellation request."
   },
   "backlog": {
     "select_action": "Select backlog executor action:",
@@ -606,7 +635,12 @@
     "mode_full": "Full run",
     "prefix_all": "all",
     "status_header": "📊 Recent Backlog Executor Runs",
-    "status_empty": "No backlog executor runs yet."
+    "status_empty": "No backlog executor runs yet.",
+    "done_summary": "✅ *Backlog Executor Complete*\n\nProject: {project}\nCompleted: {completed}/{total}\nFailed: {failed}/{total}\n⏱ Duration: ~{minutes} min",
+    "status_running_header": "🛠 Backlog executor running (Project: {project})",
+    "status_elapsed": "⏱ Elapsed: {minutes} min",
+    "status_eta": " · Est. remaining: ~{minutes} min",
+    "status_done_row": "✅ {project}: {completed}/{total} completed, {failed} failed"
   },
   "nl_schedule": {
     "confirm_header": "📅 Here's what I understood — do you confirm?",
@@ -618,5 +652,15 @@
     "cancelled": "❌ Schedule creation cancelled.",
     "created": "✅ Schedule created!\nID: `{id}` · Cron: `{cron}`\n{desc}",
     "create_error": "❌ Could not create schedule. Please try again."
+  },
+  "parallel": {
+    "scan_ask": "🔍 *{name}* scan\n*Project:* {project}{dry}\n\nHow many parallel agents?\n\n💡 4 parallel ≈ ~5 min  |  1 parallel ≈ ~15 min",
+    "backlog_ask": "📋 Backlog executor\n*Project:* {project}{prefix}\n\nHow many parallel agents?\n\n💡 Fewer agents = safer, no conflicts",
+    "btn": "{n} agent",
+    "btn_rec": "{n} agent ★",
+    "no_pending": "⚠️ No pending operation. Start with /scan or /backlog first.",
+    "scan_launched": "🚀 Scan started — {parallel} parallel agents\n⏳ You'll be notified when done.",
+    "backlog_launched": "🚀 Backlog started — {parallel} parallel agents\n⏳ You'll be notified when done.",
+    "dry_label": " (dry run)"
   }
 }
