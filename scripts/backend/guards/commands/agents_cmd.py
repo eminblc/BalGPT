@@ -148,6 +148,7 @@ class AgentsCommand:
 
     cmd_id      = "/agents"
     perm        = Perm.OWNER
+    button_id   = "cmd_agents"
     label       = "Agent Run'lar"
     description = "Aktif ve son agent run'larını gösterir. Alt komutlar: active, history, cancel <id>."
     usage       = "/agents [active|history|cancel <run_id>]"

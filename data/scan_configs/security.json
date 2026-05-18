@@ -1,23 +1,31 @@
 {
-  "type": "security",
-  "name": "Güvenlik Taraması",
-  "scanner_prompt": "Aşağıdaki güvenlik sorunlarını ara:\n- SQL/NoSQL injection (ham string interpolation)\n- Authentication bypass (eksik guard, JWT validation)\n- Authorization eksiklikleri (role kontrolü yok)\n- SSRF / open redirect\n- Path traversal\n- Hardcoded secret/credential\n- Race condition (shared mutable state)\n- Prototype pollution (TypeScript/JS)\n- Mass assignment (DTO'da validation eksik)\n- Sensitive data loglama\nSadece gerçek sorunları raporla. Test dosyalarındaki mock'ları raporlama.",
-  "target_patterns": [
-    "apps/api/src/**/*.ts",
-    "apps/web/src/**/*.ts",
-    "apps/web/src/**/*.tsx"
-  ],
-  "exclude_patterns": [
-    "*.spec.ts",
-    "*.test.ts",
-    "*.e2e-spec.ts",
-    "node_modules",
-    "dist",
-    ".next",
-    "*.d.ts",
-    "*.mock.ts"
-  ],
-  "reviewer_prompt": "Her bulguyu değerlendir:\n- accepted: Gerçek güvenlik açığı, production'da exploit edilebilir, mevcut BACKLOG'da yok\n- rejected: False positive, test kodu, framework tarafından handle ediliyor, veya scope dışı\n- duplicate: BACKLOG'da zaten var veya bu taramada başka ID ile zaten raporlandı\nStrict ol: şüpheli durumda rejected tercih et.",
-  "backlog_prefix": "SEC",
-  "max_findings_per_agent": 15
+    "type": "security",
+    "name": "Güvenlik Taraması",
+    "description": "SQL injection, auth bypass, path traversal, hardcoded secret",
+    "scanner_prompt": "Aşağıdaki güvenlik sorunlarını ara:\n- SQL/NoSQL injection (ham string interpolation)\n- Authentication bypass (eksik guard, JWT validation)\n- Authorization eksiklikleri (role kontrol yok)\n- SSRF / open redirect\n- Path traversal\n- Hardcoded secret/credential\n- Race condition (shared mutable state)\n- Prototype pollution (TypeScript/JS)\n- Mass assignment (DTO/model'da validation eksik)\n- Sensitive data loglama\nSadece gerçek sorunları raporla. Test dosyalarındaki mock'ları raporlama.",
+    "target_patterns": [
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.py"
+    ],
+    "exclude_patterns": [
+        "*.spec.ts",
+        "*.test.ts",
+        "*.test.js",
+        "*.e2e-spec.ts",
+        "node_modules",
+        "dist",
+        ".next",
+        "__pycache__",
+        "*.d.ts",
+        "*.mock.ts",
+        "venv",
+        ".venv",
+        "coverage"
+    ],
+    "reviewer_prompt": "Her bulguyu değerlendir:\n- accepted: Gerçek güvenlik açığı, production'da exploit edilebilir, mevcut BACKLOG'da yok\n- rejected: False positive, test kodu, framework tarafından handle ediliyor, veya scope dışı\n- duplicate: BACKLOG'da zaten var veya bu taramada başka ID ile raporlandı\nStrict ol: şüpheli durumda rejected tercih et.",
+    "backlog_prefix": "SEC",
+    "max_findings_per_agent": 15
 }

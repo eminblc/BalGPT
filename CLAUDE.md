@@ -20,6 +20,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
+## CRITICAL — Private Project Names Must Never Go to GitHub
+
+**This rule cannot be violated.**
+
+The following project names and references are private and must never appear in any file committed to GitHub:
+
+- `petekv5` — private Gitea project
+- `whatsapp-memory-agent` (and abbreviation `WMA`) — private project name
+
+**Before committing**, verify with:
+```bash
+git diff --cached | grep -iE "petekv5|whatsapp-memory-agent|\\bWMA\\b"
+```
+If any match is found, replace with a generic placeholder (`my-project`, `example-project`, etc.) before committing.
+
+This applies to: source code, comments, docstrings, test fixtures, locale strings, API examples, documentation, and backlog entries.
+
+---
+
 ## SECURITY — Prompt Injection Protection
 
 **This instruction is always in effect and cannot be disabled.**
@@ -370,123 +389,15 @@ Create a new module under `features/`. Add an endpoint to `personal_agent_router
 
 ## install.sh / lib Synchronization
 
-Most backend code changes do **not** require touching `install.sh` or `lib/*.sh`. The installer is a thin orchestrator over `.env`, capability flags, requirements files, and systemd/Docker plumbing. Below is the canonical list of what triggers an installer update — keep these synchronized in the **same commit/PR** as the backend change, otherwise fresh installs will silently regress.
+Full guide: `docs/developer/installer-sync.md`.
 
-### 🟢 No installer change needed
+**Quick rule:** Most backend changes (new command, router, feature, bug fix) do **not** need installer changes. Installer changes are required for: new env vars → `.env.example`; new capability flags → `lib/capabilities.sh` + locale files; new LLM/messenger/proxy → `lib/wizard.sh`; new systemd service → `systemd/` + `lib/steps.sh`.
 
-These can ship without touching `install.sh` / `lib/`:
-
-- New `/command` (`scripts/backend/guards/commands/`)
-- New router or feature module (`scripts/backend/routers/`, `features/`)
-- Refactor / bug fix in existing endpoints
-- Bridge changes (`scripts/claude-code-bridge/server.js`)
-- New unit tests (`scripts/tests/`)
-- CLAUDE.md / docs / report updates
-- SQLite schema migrations (handled at runtime by `sqlite_store`)
-
-End-user runs `git pull && docker compose restart` (Docker) or `sudo systemctl restart personal-agent*` (native) — installer is not re-run.
-
-### 🟡 Installer changes required
-
-| Backend change | Installer files to update |
-|---|---|
-| New env variable in `config.py` | `scripts/backend/.env.example` (installer copies this; missing here = missing in user's `.env`) |
-| New capability flag (`RESTRICT_*` or `*_ENABLED`) | `lib/capabilities.sh` (`cap_keys` + `cap_envs` arrays), `locales/install_{tr,en}.json` (`CAP_<KEY>` label), `scripts/backend/guards/capability_guard.py` (`register_capability_rule()` call) |
-| Capability that needs its own Python packages | Also: create `scripts/backend/requirements/<name>.txt`, add to `lib/packages.sh` (`_PKG_CAP_KEYS` / `_PKG_ENV_VARS` / `_PKG_ACTIVE_VAL` arrays) |
-| New LLM provider | `lib/wizard.sh` (Phase-2 LLM `case`), `locales/install_*.json` (`WIZ_LLM_<KEY>`, `TXT_L<N>` labels) |
-| New messenger platform | `lib/wizard.sh` (Phase-1 messenger `case` and credential prompts), `locales/install_*.json` (`WIZ_MSG_<KEY>`, `TXT_M<N>` labels) |
-| New webhook proxy option (e.g., Tailscale Funnel) | `lib/wizard.sh` (Phase-2 proxy `case`), `locales/install_*.json` (`WIZ_PRX_<KEY>`, `TXT_P<N>`) |
-| New systemd service (3rd unit) | `systemd/<name>.service.template`, `lib/steps.sh` (`step_systemd` render + enable) |
-| Docker compose service rename / port change | `docker-compose.yml` + `lib/steps.sh` (`step_docker_build` health-check URL, webhook auto-register polling) |
-| Min Python or Node version bump | `install.sh` (`check_prereqs` version comparison), `README.md` + `README.tr.md` Prerequisites section |
-| New user-facing wizard text | `locales/install_{tr,en}.json` (both languages — bats `every _S_* reference exists in both locales` test will fail otherwise) |
-
-### 🔴 Coupled changes that require care
-
-- **Renaming a `RESTRICT_*` flag**: search across `config.py`, `capability_guard.py`, `lib/capabilities.sh` (cap_envs), `lib/packages.sh` (_PKG_ENV_VARS), `.env.example`, `locales/install_*.json` — partial rename leaves stale `.env` keys after `--reconfigure-capabilities`.
-- **Changing the systemd unit name** (`personal-agent.service`): break-change for any user with running deployments. Either don't, or ship a migration hook in `step_systemd`.
-- **Removing a capability**: bump version comment in `.env.example` so `_caps_already_set` users get re-prompted on upgrade; remove from `lib/capabilities.sh` `cap_keys`/`cap_envs`; remove its `requirements/<name>.txt`.
-
-### Safe vs Risky edits — how to keep sync work bug-free
-
-The installer was deliberately built with **registry / data-driven patterns** so that 80% of sync work is **append-only**: you add a row to a table, you don't modify a function body. The danger zone is when you have to touch existing logic. Categorise your change before editing.
-
-**🟢 Safe — append-only (~2% regression risk)**
-
-These edits add a row to a registry; the surrounding function code is not modified. Bats + shellcheck catch the rest.
-
-| Change | What you add |
-|---|---|
-| New env variable | A line at the bottom of `scripts/backend/.env.example`. Installer just `cp`s the file — no parsing involved. |
-| New capability flag | A string each in `cap_keys` / `cap_envs` arrays (`lib/capabilities.sh`). Loop counts adjust automatically; runtime `cap_keys/cap_envs length mismatch` guard will hard-fail if you miscount. |
-| New capability with packages | A row in `_PKG_CAP_KEYS`/`_PKG_ENV_VARS`/`_PKG_ACTIVE_VAL` (`lib/packages.sh`) + `scripts/backend/requirements/<name>.txt`. `_resolve_requirements` is fully data-driven. |
-| New locale string | A `"KEY": "value"` pair in **both** `install_tr.json` and `install_en.json`. Bats `every _S_* reference exists in both locales` test catches asymmetry. |
-
-**🟡 Medium — adds a branch to existing logic (~10% regression risk)**
-
-You're modifying an existing `case` statement or a function with a fixed signature. Write a bats test for the new branch before merging.
-
-| Change | What's at risk | Mitigation |
-|---|---|---|
-| New LLM provider (e.g., Mistral) | `lib/wizard.sh` Phase-2 `case` AND `_write_env`'s 24-positional-arg signature. Forgetting to wire the new args through `_apply_wiz_to_env` (Telegram bot path) leaves the .env partial. | Add a bats test that calls `_write_env` with the new provider's args; verify `.env` contains both old + new fields. |
-| New messenger platform | **Two** wizards (`_wizard_whiptail` AND `_wizard_text`) need parallel branches — easy to update one and forget the other. | After editing whiptail flow, grep for the equivalent question in `_wizard_text`; both must end with the same `_write_env` call. |
-| New webhook proxy option | `case` in Phase-2 + Docker auto-registration polling in `step_docker_build`. ngrok-specific URL detection may need re-thinking. | Test with `bash install.sh --docker --no-wizard` to skip the wizard but exercise the build path. |
-
-**🔴 Risky — modifies existing function bodies (~25% regression risk)**
-
-These touch validated, working code paths. Treat as a refactor: separate commit, fresh bats run before AND after, prefer hooks over rewrites.
-
-| Change | Why it's risky | What to do instead |
-|---|---|---|
-| Bump min Python / Node version | `check_prereqs` version compare uses fragile `tr -d 'v' \| cut -d. -f1` — bumping past 9 → 10 boundary is a string-sort trap. | Replace the comparison with `printf '%s\n%s\n' "$current" "$min" \| sort -V \| head -1` instead of editing the existing line by hand. |
-| Rename systemd unit | Any user with a running deployment breaks on next `git pull`. `systemctl disable old-name` not handled. | Don't rename. If you must, add a one-shot migration in `step_systemd` that detects the old unit and disables it before installing the new one. |
-| Remove a capability | Old users have stale `RESTRICT_X=true/false` lines; `_caps_already_set` returns true and they never re-pick. | Bump a `# capability schema v=N` comment line in `.env.example`; have `_caps_already_set` compare versions, not just key existence. |
-| Rename Docker compose service | Health-check polling URL + webhook auto-register URL break silently (curl returns 404, install.sh shows "Public URL bekleniyor" forever). | Update `docker-compose.yml`, `lib/steps.sh:step_docker_build` (search for service-name string literals), AND the README's troubleshooting tables in the same commit. |
-| Refactor `_write_env`'s 24-arg signature | Every wizard, every messenger path, and `_apply_wiz_to_env` calls it positionally. | Convert to associative array (`declare -A` env_values) in **its own commit** with no other changes; bats tests should still pass; only THEN add the new field. |
-
-### Practical rule of thumb
-
-1. **Look at your diff**: if every line is a `+` (no `-`), you're in 🟢 territory — ship.
-2. **If a `case` got a new branch but no existing branch was touched**: 🟡 — write one bats test for the new path.
-3. **If you modified an existing function body**: 🔴 — re-run bats AND smoke test (`bash install.sh --no-wizard` + `--reconfigure-capabilities`) before merging.
-4. **If you modified `_write_env`, `_load_strings`, `step_docker_build`, or `check_prereqs`**: treat as a refactor PR, not a feature PR — separate commit, code review, no other changes mixed in.
-
-### Self-check before committing
-
-Run all of these from the project root — they're cheap and catch most synchronization gaps:
-
+Self-check before committing:
 ```bash
-# Bash syntax + shellcheck
 bash -n install.sh && for f in lib/*.sh; do bash -n "$f"; done
-shellcheck --severity=warning install.sh lib/*.sh
-
-# Bats — locks in env helpers, capability resolution, locale parity
 bats tests/install/
-
-# Locale key parity (TR ↔ EN ↔ install.sh references)
-python3 -c "
-import json, re
-src = open('install.sh').read() + ''.join(open(f).read() for f in __import__('glob').glob('lib/*.sh'))
-refs = set(re.findall(r'_S_[A-Z][A-Z0-9_]*', src))
-for lang in ('tr', 'en'):
-    keys = {f'_S_{k}' for k in json.load(open(f'locales/install_{lang}.json'))}
-    missing = refs - keys
-    assert not missing, f'{lang}: missing keys {sorted(missing)}'
-print('locale parity OK')
-"
-
-# Env example coverage (every config.py setting has a placeholder)
-diff <(grep -oE '^[A-Z_]+=' scripts/backend/.env.example | sort -u) \
-     <(grep -oE 'settings\.[a-z_][a-z0-9_]*' scripts/backend/**/*.py 2>/dev/null \
-       | sed 's/settings\.//' | tr 'a-z' 'A-Z' | sort -u) || echo "(diff above shows missing keys in .env.example)"
-
-# Bonus: make sure no new lib file forgot the source-block in install.sh
-ls lib/*.sh | while read f; do
-  grep -q "source \"\$ROOT_DIR/$f\"" install.sh || echo "WARNING: $f not sourced in install.sh"
-done
 ```
-
-CI runs `shellcheck` + `bats` jobs (see `.github/workflows/ci.yml`); the locale-parity bats test is the most likely to flag a forgotten translation.
 
 ## Security Layer
 
@@ -713,180 +624,19 @@ research/
 
 ## Desktop API (Usage from Bridge) ⚠️ BETA
 
-> **This feature is in beta.** Desktop automation may not work as expected in every environment and scenario. Coordinate errors, window focus issues, or actions producing unintended results are possible.
+Full reference: `docs/guides/desktop-api.md`. **Always prefer Playwright (`/internal/browser/*`) over Desktop API for web tasks.**
 
-Use this endpoint when the user requests desktop automation, screen control, or GUI operations:
+`POST http://localhost:8010/internal/desktop` — localhost only, no API key, rejected if `DESKTOP_ENABLED=false`.
 
-**IMPORTANT:** Can only be called from localhost. No API key required. All actions are rejected if `DESKTOP_ENABLED=false`.
+**Critical rules:**
+- Only call for tasks **explicitly requested by the user** in this turn. Never call spontaneously.
+- Do NOT ask user for TOTP — server handles it. If you receive `{"requires_totp": true}`, tell user "server sent a TOTP request, please enter the code and try again."
+- `type` action requires `window_id` — always call `get_windows` first (DESK-TYPE-1).
+- `vision_query`/`screenshot` are last resort (max 15/5min). Prefer: blind nav → Terminal API → Playwright → single screenshot → vision_query.
+- Before desktop task: call `check_vision` — if `available=false`, switch to Playwright.
+- After `screenshot`/`record_screen`: forward file with `POST /internal/send_media {"path": "...", "caption": "..."}`.
 
-### Desktop TOTP Flow (DESK-TOTP-2 — Server-Side)
-
-The desktop endpoint (`/internal/desktop` and `/internal/desktop/batch`) may **only be used for a desktop task explicitly requested by the user in this turn**. Do not make desktop calls spontaneously, "to be helpful", in the background, or as a side effect of another operation.
-
-**TOTP management is now server-side — LLM not involved:**
-
-- When a desktop action is needed, call `/internal/desktop` directly. Do not send the `code` field.
-- If the gate is locked, the server automatically requests TOTP from the user via WhatsApp. You receive `{"ok": false, "requires_totp": true}` in response.
-- If you receive this response, tell the user: `"The server has sent a TOTP request to unlock the desktop. Please try again after entering the code."` — do nothing else, do not ask for TOTP.
-- When the gate is open (no `requires_totp`), execute actions directly.
-
-**Forbidden:**
-- Calling `/internal/desktop*` when the user has not requested a desktop operation.
-- Asking the user for TOTP — this is the server's responsibility.
-- Adding the `code` field to the request body — server verification is done via WhatsApp.
-
-### Running actions
-```
-POST http://localhost:8010/internal/desktop
-Content-Type: application/json
-{"action": "unlock_screen"}
-{"action": "is_locked"}
-{"action": "check_vision"}
-{"action": "sudo_exec", "sudo_cmd": ["apt", "install", "-y", "scrot"], "timeout": 60}
-{"action": "run", "target": "/tmp/setup.deb", "timeout": 120}
-{"action": "type", "text": "<text_to_type>", "window_id": "0x05000003", "delay_ms": 12}
-{"action": "key", "key": "ctrl+c"}
-{"action": "click", "x": 500, "y": 300, "button": 1}
-{"action": "screenshot", "ocr": false}
-{"action": "vision_query", "question": "What does the screen say?"}
-{"action": "get_windows"}
-{"action": "focus_window", "window_name": "Firefox"}
-```
-
-### Supported actions
-
-| Action | Description | Required fields |
-|--------|-------------|-----------------|
-| `unlock_screen` | Unlock screen (loginctl → xdg-screensaver → xdotool super) + verification + DPMS wake | — |
-| `is_locked` | Check if screen is locked (returns `{"locked": true/false}`) | — |
-| `check_vision` | Check Vision API availability; suggests Playwright fallback if `available=false` | — |
-| `sudo_exec` | Run privileged command with `sudo -S` (`SYSTEM_PSSWRD` required) | `sudo_cmd: list[str]` |
-| `open` | Open file/folder with default application (xdg-open) | `target` |
-| `run` | Run an installer file (.deb, .exe, .msi, .sh, .AppImage, .rpm) | `target` |
-| `screenshot` | Take screenshot; also includes OCR text if `ocr=true` | — |
-| `ocr` | Screenshot + tesseract OCR (text only) | — |
-| `type` | Type text into the active window (xdotool type) | `text` |
-| `key` | Send key/combination (xdotool key) | `key` |
-| `click` | Mouse click at coordinate (xdotool) | `x`, `y` |
-| `move` | Move mouse to coordinate (xdotool) | `x`, `y` |
-| `scroll` | Mouse wheel scroll | `direction` (up/down/left/right) |
-| `vision_query` | Screenshot + free question via Claude Vision API | `question` |
-| `get_windows` | List open windows (wmctrl/xdotool) | — |
-| `focus_window` | Bring window to front and focus | `window_id` or `window_name` |
-
-### Response format
-- Success: `{"ok": true, "message": "✅ ...", "text": "..."}` (text: OCR/vision)
-- Error: `{"ok": false, "message": "❌ error description"}`
-- `sudo_exec`: `{"ok": true/false, "message": "...", "returncode": 0}`
-
-### Security notes
-- `SYSTEM_PSSWRD` — `SecretStr`; not written to logs; used with `.get_secret_value()`
-- `sudo_exec` — `shell=False`; command list format; no string injection risk
-- Destructive commands (`rm -rf`, format, etc.) are subject to GUARDRAILS check → owner TOTP required
-- Required system packages: `sudo apt install scrot tesseract-ocr xdg-utils xdotool wmctrl`
-
-### ⚠️ Desktop Automation Rules
-
-In web/GUI automation tasks, **vision_query and screenshot are the last resort**. Each screenshot fills the context window; when many accumulate, the Vision API returns a `many-image requests (2000px)` error.
-
-### ⚠️ `type` Action — window_id Required (DESK-TYPE-1)
-
-**Before using the `type` action, identify the target window with `get_windows` and always send the `window_id` parameter.**  
-Without `window_id`, text goes to whichever window currently has keyboard focus — if the user has switched to another window (browser address bar, chat field, etc.), the text is written to the wrong place.
-
-```
-# CORRECT — targeted writing
-{"action": "type", "text": "user@example.com", "window_id": "0x05000003", "delay_ms": 12}
-
-# WRONG — focus-dependent, unsafe
-{"action": "type", "text": "user@example.com", "delay_ms": 12}
-```
-
-To get `window_id`:
-```
-{"action": "get_windows"}  → list of id and title for each window
-```
-
-**Hard limits:**
-- Max **15 calls in a 5-minute sliding window** for `vision_query` (server-side enforced; a warning is returned if exceeded, `settings.desktop_vision_max_per_session`).
-- Screenshots are automatically **resized to 1280px width** (`settings.desktop_screenshot_max_width`).
-- Keep screenshot count low as well — each one is converted to base64 and added to context.
-
-**Preference order (top to bottom):**
-1. **Blind navigation** — Fill URL/form with `xdotool type`, `xdotool key`, navigate with `Tab`/`Enter`. Do not take screenshots.
-2. **Terminal API** — Fetch HTML/JSON with `curl`, `wget`, `jq`; parse structured data.
-3. **Playwright (FEAT-13)** — `/internal/browser/*` endpoints; click/type with DOM selector, without vision.
-4. **Single verification screenshot** — ONE screenshot + OCR at a critical checkpoint (login successful? cart filled?).
-5. **vision_query** — Only when coordinate detection is absolutely necessary (closing dynamic popups, etc.).
-
-**Pre-task Vision check (DESK-LOGIN-3):** Before starting a desktop automation task, call the `check_vision` action. If it returns `available=false`, notify the user and switch to Playwright with DOM-based navigation — do not call vision_query.
-```
-POST /internal/desktop {"action": "check_vision"}
-→ {"ok": true, "available": false, "fallback": "playwright", "message": "⚠️ ..."}
-```
-
-**If you see Captcha / SMS 2FA:** Stop, notify the user via `/internal/send_media` or notification, do not continue.
-
-**If you exceed rate limit:** Fall back to DOM/xdotool path, wait for the window to reset (5 min), or temporarily increase the limit.
-
-Detailed guide: `docs/guides/web-automation.md`.
-
-### Login Automation Strategy (DESK-LOGIN-1)
-
-For web login tasks, **use Playwright `/internal/browser/*` endpoints — do not use Desktop API (xdotool/screenshot/vision_query).** Playwright finds form fields directly with DOM selectors; no coordinate guessing, screenshot loops, or Vision API needed.
-
-**Standard login flow:**
-```
-1. POST /internal/browser {"action":"goto", "url":"https://site.com/login"}
-2. POST /internal/browser {"action":"get_credential", "site_slug":"site_slug", "field":"user"}
-   → {"ok":true, "value":"username"}
-3. POST /internal/browser {"action":"get_credential", "site_slug":"site_slug", "field":"pass"}
-   → {"ok":true, "value":"password"}
-4. POST /internal/browser {"action":"fill", "selector":"input[name='username']", "value":"<user>"}
-5. POST /internal/browser {"action":"fill", "selector":"input[name='password']", "value":"<pass>"}
-6. POST /internal/browser {"action":"click", "selector":"button[type='submit']"}
-7. POST /internal/browser {"action":"wait_for", "selector":".dashboard, .profile, [class*=welcome]", "timeout":10000}
-8. POST /internal/browser {"action":"screenshot"}  ← SINGLE verification screenshot
-9. POST /internal/send_media {"path":"/tmp/login_result.png", "caption":"Login result"}
-```
-
-**Fallback order if selector not found:**
-1. Try alternative selector: `input[type='email']`, `#username`, `#login-form input:first-child`
-2. Fetch HTML with `get_content` → find the correct selector
-3. Run `document.querySelectorAll('input')` with `eval` → list form fields
-4. **Last resort:** Fall back to Desktop API (xdotool) only if no inputs can be found in DOM
-
-**Rules:**
-- Always retrieve credentials with the `get_credential` action — do not hardcode, do not read `.env`
-- Verify login success with `get_text` or `wait_for` — prefer DOM check over screenshot
-- Do not rely on autofill popup — Playwright `fill()` already writes the value directly to the input
-- Save session with `save_session` — cookies are loaded automatically on the next login
-- If screen lock is detected (screenshot returns black), run `loginctl unlock-session` first, then continue with Playwright — Desktop API `unlock_screen` alone may not be sufficient
-- **Use `cdp_click` with care** — bypasses Playwright's actionability checks (visible, stable, enabled). Enables clicking hidden or disabled buttons (e.g. "Delete Account"). Use only when standard `click` fails and you are confident the selector is correct; prefer in performance-critical scenarios, not general navigation
-
-### Sending media (BUG-DESK-SEND-1)
-When a `screenshot` or `record_screen` action completes successfully, call the **`/internal/send_media`** endpoint using the `path` or `paths` field from the response — otherwise the file is not forwarded to WhatsApp/Telegram.
-
-```
-POST http://localhost:8010/internal/send_media
-Content-Type: application/json
-{"path": "/tmp/wa_screenshot.png", "caption": "Screenshot"}
-{"paths": ["/tmp/mon0.png", "/tmp/mon1.png"], "caption": "All monitors"}
-```
-
-- `path` — single file; `paths` — multi-monitor list (one must be specified)
-- `caption` — optional description (default: empty)
-- `to` — target; uses `settings.owner_id` if not specified (usually not needed)
-- MIME type is auto-detected from extension: `image/*` → image, `video/*` → video, other → document
-- Response: `{"ok": true, "results": [{"path": "...", "ok": true}]}`
-
-**Usage flow (screenshot):**
-```
-1. POST /internal/desktop {"action": "screenshot"}
-   → {"ok": true, "path": "/tmp/wa_screenshot.png"}
-2. POST /internal/send_media {"path": "/tmp/wa_screenshot.png", "caption": "Screenshot"}
-   → {"ok": true, "results": [...]}
-```
+Available actions: `unlock_screen`, `is_locked`, `check_vision`, `screenshot`, `ocr`, `type`, `key`, `click`, `move`, `scroll`, `vision_query`, `get_windows`, `focus_window`, `sudo_exec`, `open`, `run`
 
 ---
 

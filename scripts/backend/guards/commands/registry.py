@@ -54,6 +54,13 @@ class CommandRegistry:
         """hidden=True olan komutlar hariç tüm komut ID'lerini döndürür."""
         return [cid for cid, cmd in self._commands.items() if not getattr(cmd, "hidden", False)]
 
+    def get_by_button_id(self, button_id: str) -> Command | None:
+        """button_id attribute'una göre komut döndürür."""
+        for cmd in self._commands.values():
+            if getattr(cmd, "button_id", None) == button_id:
+                return cmd
+        return None
+
     def describe(self, cmd_id: str) -> dict[str, str] | None:
         """Komut için label/description/usage döndürür; kayıtlı değilse None."""
         cmd = self._commands.get(cmd_id)

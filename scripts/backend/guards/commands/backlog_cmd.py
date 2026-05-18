@@ -37,11 +37,44 @@ class BacklogCommand:
 
         # /backlog → buton menüsü
         if not sub:
-            buttons = [
-                {"id": "backlog_run_petekv5",  "title": t("backlog.btn_run", lang)},
-                {"id": "backlog_status",        "title": t("backlog.btn_status", lang)},
-            ]
-            await messenger.send_buttons(sender, t("backlog.select_action", lang), buttons)
+            import json
+            from pathlib import Path
+            _CTX_FILE = Path(__file__).parent.parent.parent.parent.parent / "data" / "active_context.json"
+            root_project: dict | None = None
+            try:
+                ctx = json.loads(_CTX_FILE.read_text(encoding="utf-8"))
+                root_project = ctx.get("active_root_project")
+            except Exception:  # noqa: BLE001
+                pass
+
+            if root_project:
+                pid = root_project.get("id", "")
+                buttons = [
+                    {"id": f"backlog_run_{pid}", "title": t("backlog.btn_run", lang)},
+                    {"id": "backlog_status",     "title": t("backlog.btn_status", lang)},
+                ]
+                await messenger.send_buttons(sender, t("backlog.select_action", lang), buttons)
+            else:
+                # Root project yok → 99-root onayı sor
+                session["_pending_parallel"] = {
+                    "cmd":              "backlog",
+                    "_display_project": "99-root",
+                    "_needs_root_confirm": True,
+                    "params": {
+                        "project_id": "",
+                        "prefix":     "",
+                        "max_items":  0,
+                        "dry_run":    False,
+                    },
+                }
+                await messenger.send_buttons(
+                    sender,
+                    t("noroot.confirm_ask", lang),
+                    [
+                        {"id": "noroot_y", "title": t("noroot.yes_btn", lang)},
+                        {"id": "noroot_n", "title": t("noroot.no_btn",  lang)},
+                    ],
+                )
             return
 
         # /backlog run <proje> [prefix] [max]

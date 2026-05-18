@@ -45,6 +45,8 @@ class ReviewerAgent:
         self,
         run_id: str,
         dry_run: bool = False,
+        notify: bool = True,
+        review_model: str | None = None,
     ) -> dict:
         """Verilen run_id için review fazını çalıştırır.
 
@@ -52,6 +54,9 @@ class ReviewerAgent:
             run_id:  ScannerAgent tarafından oluşturulan run ID.
             dry_run: True ise BACKLOG.md'ye yazma, yalnızca analiz yap.
                      meta.json'daki dry_run değeri ile override edilir.
+            notify:  False ise tamamlanma bildirimi gönderilmez.
+                     AllScansRunner gibi orchestrator'lar bunu False geçer;
+                     sonunda tek bir özet bildirimi kendileri gönderir.
 
         Returns:
             {"accepted": N, "rejected": N, "duplicate": N, "run_id": run_id}
@@ -62,7 +67,7 @@ class ReviewerAgent:
         """
         from ...store.repositories.project_repo import project_get
         from ...features.orchestrator.core import AgentLifecycleManager
-        from ...adapters.llm.llm_factory import get_llm
+        from ...adapters.llm.llm_factory import get_scan_llm
 
         run_dir = _RUNS_DIR / run_id
         meta_path = run_dir / "meta.json"
@@ -102,7 +107,7 @@ class ReviewerAgent:
             logger.warning("ReviewerAgent: agent run kaydedilemedi: %s", _err)
 
         pipeline = self._get_pipeline()
-        llm = get_llm()
+        llm = get_scan_llm(model=review_model)
 
         try:
             config = self._get_config_loader().load(scan_type)
@@ -134,7 +139,7 @@ class ReviewerAgent:
             reviewer_result = await llm.complete(
                 messages=[{"role": "user", "content": reviewer_prompt}],
                 model=None,
-                max_tokens=4096,
+                max_tokens=2048,  # {id, verdict, reason} × N bulgu; 4096 aşırıydı
             )
             logger.info(
                 "ReviewerAgent: reviewer tamamlandı — %d bulgu incelendi run_id=%s",
@@ -178,6 +183,26 @@ class ReviewerAgent:
 
             if agent_run_id:
                 await lifecycle.mark_completed(agent_run_id, output=output_summary)
+
+            # Kullanıcıya tamamlanma bildirimi gönder (orchestrator'lar bunu kapatır)
+            if notify:
+                try:
+                    from ...adapters.messenger import get_messenger
+                    from ...config import settings
+                    from ...i18n import t
+                    lang = "tr"
+                    owner = settings.owner_id
+                    await get_messenger().send_text(
+                        owner,
+                        t(
+                            "scan.reviewer_done",
+                            lang,
+                            accepted=scan_result["accepted"],
+                            rejected=scan_result["rejected"],
+                        ),
+                    )
+                except Exception as _notify_err:
+                    logger.warning("ReviewerAgent: bildirim gönderilemedi: %s", _notify_err)
 
             return {
                 "accepted": scan_result["accepted"],

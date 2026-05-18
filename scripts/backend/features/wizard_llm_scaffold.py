@@ -307,7 +307,7 @@ class WizardBridgeAdapter:
             r = await client.post(
                 f"{self._bridge_url}/query",
                 headers={"X-Api-Key": self._api_key},
-                json={"session_id": session_id, "message": prompt},
+                json={"session_id": session_id, "message": prompt, "silent": True},
             )
             r.raise_for_status()
             answer = r.json().get("answer", "")

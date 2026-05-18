@@ -134,8 +134,12 @@ class BacklogExecutorAgent:
         # 5. Paralel çalıştır
         sem = asyncio.Semaphore(parallel)
         file_lock = asyncio.Lock()  # BACKLOG.md concurrent yazma koruması
+        progress_lock = asyncio.Lock()  # progress.json eşzamanlı yazma koruması
         tasks = [
-            self._execute_item(item, backlog_path, project_root, sem, dry_run, file_lock)
+            self._execute_item(
+                item, backlog_path, project_root, sem, dry_run, file_lock,
+                _progress, _PROGRESS_FILE, progress_lock,
+            )
             for item in items
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -199,16 +203,22 @@ class BacklogExecutorAgent:
         sem: asyncio.Semaphore,
         dry_run: bool,
         file_lock: asyncio.Lock,
+        progress: dict,
+        progress_file: Path,
+        progress_lock: asyncio.Lock,
     ) -> bool:
         """Tek bir BACKLOG item'ını işle.
 
         Args:
-            item:         İşlenecek BacklogItem.
-            backlog_path: BACKLOG.md dosyasının Path'i.
-            project_root: Proje kök dizini.
-            sem:          Eşzamanlılık sınırlayıcı Semaphore.
-            dry_run:      True ise Bridge çağrısı yapılmadan done olarak işaretlenir.
-            file_lock:    BACKLOG.md dosyasına eşzamanlı yazma koruması için Lock.
+            item:          İşlenecek BacklogItem.
+            backlog_path:  BACKLOG.md dosyasının Path'i.
+            project_root:  Proje kök dizini.
+            sem:           Eşzamanlılık sınırlayıcı Semaphore.
+            dry_run:       True ise Bridge çağrısı yapılmadan done olarak işaretlenir.
+            file_lock:     BACKLOG.md dosyasına eşzamanlı yazma koruması için Lock.
+            progress:      Paylaşılan ilerleme dict'i (run() tarafından oluşturulur).
+            progress_file: progress.json Path'i.
+            progress_lock: progress dict/dosyasına eşzamanlı erişim kilidi.
 
         Returns:
             True → başarı, False → hata.
@@ -221,6 +231,13 @@ class BacklogExecutorAgent:
             if dry_run:
                 async with file_lock:
                     parser.mark_done(backlog_path, item["item_id"])
+                async with progress_lock:
+                    progress["completed"] += 1
+                    try:
+                        import json as _json
+                        progress_file.write_text(_json.dumps(progress, ensure_ascii=False), encoding="utf-8")
+                    except Exception:
+                        pass
                 logger.info(
                     "BacklogExecutorAgent._execute_item: %s dry_run ile done.",
                     item["item_id"],
@@ -254,6 +271,13 @@ class BacklogExecutorAgent:
                 if response.status_code == 200:
                     async with file_lock:
                         parser.mark_done(backlog_path, item["item_id"])
+                    async with progress_lock:
+                        progress["completed"] += 1
+                        try:
+                            import json as _json
+                            progress_file.write_text(_json.dumps(progress, ensure_ascii=False), encoding="utf-8")
+                        except Exception:
+                            pass
                     logger.info(
                         "BacklogExecutorAgent._execute_item: %s tamamlandı.",
                         item["item_id"],
@@ -266,6 +290,13 @@ class BacklogExecutorAgent:
                 )
                 async with file_lock:
                     parser.mark_failed(backlog_path, item["item_id"])
+                async with progress_lock:
+                    progress["failed"] += 1
+                    try:
+                        import json as _json
+                        progress_file.write_text(_json.dumps(progress, ensure_ascii=False), encoding="utf-8")
+                    except Exception:
+                        pass
                 return False
 
             except Exception as exc:  # noqa: BLE001
@@ -275,6 +306,13 @@ class BacklogExecutorAgent:
                 )
                 async with file_lock:
                     parser.mark_failed(backlog_path, item["item_id"])
+                async with progress_lock:
+                    progress["failed"] += 1
+                    try:
+                        import json as _json
+                        progress_file.write_text(_json.dumps(progress, ensure_ascii=False), encoding="utf-8")
+                    except Exception:
+                        pass
                 return False
 
     def _build_prompt(self, item: BacklogItem, project_root: str) -> str:

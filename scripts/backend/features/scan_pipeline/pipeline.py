@@ -28,7 +28,7 @@ class ScanPipeline:
 
     Kullanım (Claude Code context'inde):
         pipeline = ScanPipeline()
-        result = await pipeline.run("security", project_id="petekv5")
+        result = await pipeline.run("security", project_id="my-project")
     """
 
     def __init__(self) -> None:
@@ -63,11 +63,15 @@ class ScanPipeline:
             encoding="utf-8",
         )
 
+    # Üçüncü taraf paket dizinleri — kullanıcı dahil et derse exclude'dan çıkarılır
+    _THIRD_PARTY_DIRS: frozenset[str] = frozenset({"node_modules", "venv", ".venv", "vendor"})
+
     def build_scanner_prompts(
         self,
         scan_type: str,
         project_path: str,
         run_id: str,
+        include_third_party: bool = False,
     ) -> tuple[ScanConfig, list[dict], Path]:
         """
         Phase 1 için prompt listesi üret.
@@ -77,7 +81,7 @@ class ScanPipeline:
         config = self._config_loader.load(scan_type)
         run_dir = self.get_run_dir(run_id)
         orchestrator = ScannerOrchestrator(run_dir)
-        prompts = self._build_prompts_sync(orchestrator, config, project_path)
+        prompts = self._build_prompts_sync(orchestrator, config, project_path, include_third_party)
         return config, prompts, run_dir
 
     def _build_prompts_sync(
@@ -85,14 +89,14 @@ class ScanPipeline:
         orchestrator: ScannerOrchestrator,
         config: ScanConfig,
         project_path: str,
+        include_third_party: bool = False,
     ) -> list[dict]:
         resolver = FileResolver()
-        files = resolver.resolve(
-            project_path,
-            config["target_patterns"],
-            config["exclude_patterns"],
-        )
-        chunks = resolver.split_into_chunks(files, chunk_size=15)
+        exclude = list(config["exclude_patterns"])
+        if include_third_party:
+            exclude = [p for p in exclude if p not in self._THIRD_PARTY_DIRS]
+        files = resolver.resolve(project_path, config["target_patterns"], exclude)
+        chunks = resolver.split_into_chunks(files, chunk_size=10)
         return orchestrator._build_prompts(chunks, config, project_path)
 
     def collect_and_build_reviewer_prompt(

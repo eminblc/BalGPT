@@ -108,11 +108,29 @@ class ScanCommand:
 
         if clean_arg == "all":
             root_project = _get_root_project()
+            all_scan_name = t("scan.btn_all", lang)
             if not root_project:
-                await messenger.send_text(sender, t("scan.no_root_project", lang))
+                # Root project yok → 99-root onayı sor
+                session["_pending_parallel"] = {
+                    "cmd":              "all_scans",
+                    "_display_name":    all_scan_name,
+                    "_display_project": "99-root",
+                    "_needs_root_confirm": True,
+                    "params": {
+                        "project_id": "",
+                        "dry_run":    dry_run,
+                    },
+                }
+                await messenger.send_buttons(
+                    sender,
+                    t("noroot.confirm_ask", lang),
+                    [
+                        {"id": "noroot_y", "title": t("noroot.yes_btn", lang)},
+                        {"id": "noroot_n", "title": t("noroot.no_btn",  lang)},
+                    ],
+                )
                 return
             project_name = root_project.get("name") or root_project.get("id", "?")
-            all_scan_name = t("scan.btn_all", lang)
             session["_pending_parallel"] = {
                 "cmd": "all_scans",
                 "_display_name":    all_scan_name,
@@ -144,14 +162,35 @@ class ScanCommand:
             )
             return
 
+        config    = configs[scan_type]
+        scan_name = config.get("name", scan_type)
+
         # Root project kontrolü
         root_project = _get_root_project()
         if not root_project:
-            await messenger.send_text(sender, t("scan.no_root_project", lang))
+            # Root project yok → 99-root onayı sor
+            session["_pending_parallel"] = {
+                "cmd":              "scan",
+                "_display_name":    scan_name,
+                "_display_project": "99-root",
+                "_needs_root_confirm": True,
+                "params": {
+                    "scan_type":   scan_type,
+                    "project_id":  "",
+                    "auto_review": True,
+                    "dry_run":     dry_run,
+                },
+            }
+            await messenger.send_buttons(
+                sender,
+                t("noroot.confirm_ask", lang),
+                [
+                    {"id": "noroot_y", "title": t("noroot.yes_btn", lang)},
+                    {"id": "noroot_n", "title": t("noroot.no_btn",  lang)},
+                ],
+            )
             return
 
-        config       = configs[scan_type]
-        scan_name    = config.get("name", scan_type)
         project_name = root_project.get("name") or root_project.get("id", "?")
 
         # Üçüncü taraf sorusu göster; paralel seçim scan3p_ handler'da yapılır

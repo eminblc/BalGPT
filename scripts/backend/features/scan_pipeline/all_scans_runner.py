@@ -27,6 +27,8 @@ class AllScansRunner:
         parallel: int = 3,
         dry_run: bool = False,
         include_third_party: bool = False,
+        scan_model: str | None = None,
+        review_model: str | None = None,
     ) -> None:
         """Tüm scan tiplerini sırayla çalıştır, sonunda özet gönder.
 
@@ -35,6 +37,8 @@ class AllScansRunner:
             parallel:            Her scanner için eş zamanlı Bridge chunk sayısı.
             dry_run:             True ise BACKLOG.md'ye yazma.
             include_third_party: True ise node_modules/venv/.venv/vendor taramaya dahil edilir.
+            scan_model:          Opsiyonel model alias ("haiku", "sonnet", "opus") veya tam ad.
+            review_model:        Opsiyonel reviewer model alias ("haiku", "sonnet", "opus").
         """
         from .config_loader import ScanConfigLoader
         from .scanner_agent import ScannerAgent
@@ -77,6 +81,9 @@ class AllScansRunner:
                     scan_type, project_id,
                     auto_review=True, dry_run=dry_run, parallel=parallel,
                     include_third_party=include_third_party,
+                    notify_on_review=False,  # özet sonunda AllScansRunner gönderir
+                    scan_model=scan_model,
+                    review_model=review_model,
                 )
                 meta = self._read_meta(run_id)
                 accepted  = meta.get("accepted", 0)

@@ -43,10 +43,11 @@ class FileResolver:
         return result
 
     def split_into_chunks(
-        self, files: list[str], chunk_size: int = 15
+        self, files: list[str], chunk_size: int = 10
     ) -> list[list[str]]:
         """
         Dosyaları chunk'lara böl — her chunk bir scanner agent'a gider.
-        chunk_size: token bütçesine göre ayarla (default 15 dosya/agent).
+        chunk_size: token bütçesine göre ayarla (default 10 dosya/agent).
+        10 dosya × 2000 karakter = 20K karakter ≈ 5K token giriş (önceki: 60K).
         """
         return [files[i:i + chunk_size] for i in range(0, len(files), chunk_size)]

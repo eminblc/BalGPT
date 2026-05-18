@@ -201,6 +201,71 @@ async def _h_noop(_sender: str, _session: dict) -> None:
     """Section başlığı butonları — tıklanırsa sessizce yoksay."""
 
 
+async def _h_noroot_y(sender: str, session: dict) -> None:
+    """noroot_y — 99-root projesi ile devam et.
+
+    Pending işlemin project_id'sini 99-root ile doldurur,
+    sonraki adıma geçer (scan → üçüncü taraf sorusu; backlog → paralel sorusu).
+    """
+    from ..i18n import t as _t
+
+    lang    = session.get("lang", "tr")
+    pending = session.get("_pending_parallel")
+    if pending is None:
+        await _get_messenger().send_text(sender, _t("parallel.no_pending", lang))
+        return
+
+    from ..guards.commands._root_project_helpers import ensure_99root_in_db
+
+    try:
+        project = await ensure_99root_in_db()
+    except Exception as _exc:
+        import logging as _logging
+        _logging.getLogger(__name__).warning("noroot_y: 99-root DB hatası — %s", _exc)
+        await _get_messenger().send_text(sender, _t("noroot.db_error", lang))
+        session.pop("_pending_parallel", None)
+        return
+
+    pending["params"]["project_id"] = project["id"]
+    pending.pop("_needs_root_confirm", None)
+    pending["_display_project"] = project.get("name") or project["id"]
+
+    cmd_type: str = pending["cmd"]
+
+    if cmd_type == "backlog":
+        # Paralel seçim sorusu
+        project_id   = project["id"]
+        prefix       = pending["params"].get("prefix", "")
+        prefix_label = f" · prefix: {prefix}" if prefix else ""
+        dry_label    = _t("parallel.dry_label", lang) if pending["params"].get("dry_run") else ""
+        await _get_messenger().send_buttons(
+            sender,
+            _t("parallel.backlog_ask", lang, project=f"{project_id}{dry_label}", prefix=prefix_label),
+            [
+                {"id": "parallel_1", "title": _t("parallel.btn_rec", lang, n=1)},
+                {"id": "parallel_2", "title": _t("parallel.btn",     lang, n=2)},
+                {"id": "parallel_3", "title": _t("parallel.btn",     lang, n=3)},
+            ],
+        )
+    else:
+        # scan / all_scans → üçüncü taraf sorusu
+        await _get_messenger().send_buttons(
+            sender,
+            _t("scan.third_party_ask", lang),
+            [
+                {"id": "scan3p_n", "title": _t("scan.third_party_skip",    lang)},
+                {"id": "scan3p_y", "title": _t("scan.third_party_include", lang)},
+            ],
+        )
+
+
+async def _h_noroot_n(sender: str, session: dict) -> None:
+    """noroot_n — 99-root onayı reddedildi; işlemi iptal et."""
+    session.pop("_pending_parallel", None)
+    lang = session.get("lang", "tr")
+    await _get_messenger().send_text(sender, t("noroot.cancelled", lang))
+
+
 # ── Exact-match dispatch table ────────────────────────────────────────────
 
 _EXACT: dict[str, Callable] = {
@@ -230,6 +295,8 @@ _EXACT: dict[str, Callable] = {
     "cmd_lang":              _h_cmd_lang,
     "lang_tr":               _h_lang_tr,
     "lang_en":               _h_lang_en,
+    "noroot_y":              _h_noroot_y,
+    "noroot_n":              _h_noroot_n,
 }
 
 
@@ -259,12 +326,200 @@ async def _hp_pdf_scaffold(sender: str, level: str, session: dict) -> None:
     await import_from_whatsapp_media(media_id, sender, level=level, lang=lang)
 
 
+async def _hp_cmd_button(sender: str, suffix: str, session: dict) -> None:
+    """cmd_<suffix> button'larını registry'deki button_id ile eşleştirip çalıştırır.
+
+    Yeni bir komuta button_id eklemek menü değişikliği gerektirmez (OCP).
+    """
+    from ..guards.commands.registry import registry
+    button_id = "cmd_" + suffix
+    cmd = registry.get_by_button_id(button_id)
+    if cmd is None:
+        lang = session.get("lang", "tr")
+        await _get_messenger().send_text(sender, t("menu.unknown_reply", lang, id=button_id))
+        return
+    await cmd.execute(sender, "", session)
+
+
+async def _hp_scan_button(sender: str, suffix: str, session: dict) -> None:
+    """scan_<suffix> butonlarını ScanCommand.execute'a yönlendirir.
+
+    Örnekler: scan_security → arg="security", scan_status → arg="status"
+    """
+    from ..guards.commands.scan_cmd import ScanCommand
+    await ScanCommand().execute(sender, suffix, session)
+
+
+async def _hp_backlog_button(sender: str, suffix: str, session: dict) -> None:
+    """backlog_<suffix> butonlarını BacklogCommand.execute'a yönlendirir.
+
+    Örnekler: backlog_run_myproject → arg="run myproject", backlog_status → arg="status"
+    """
+    from ..guards.commands.backlog_cmd import BacklogCommand
+    # "run_myproject" → "run myproject" (ilk alt çizgiyi boşluğa çevir)
+    arg = suffix.replace("_", " ", 1)
+    await BacklogCommand().execute(sender, arg, session)
+
+
+async def _hp_scan3p(sender: str, choice: str, session: dict) -> None:
+    """scan3p_y / scan3p_n — üçüncü taraf dahil etme tercihini kaydeder, paralel seçim gösterir."""
+    from ..i18n import t as _t
+
+    lang    = session.get("lang", "tr")
+    pending = session.get("_pending_parallel")
+    if pending is None:
+        await _get_messenger().send_text(sender, _t("parallel.no_pending", lang))
+        return
+
+    pending["params"]["include_third_party"] = (choice == "y")
+
+    display_name    = pending.get("_display_name", "")
+    display_project = pending.get("_display_project", "")
+    dry_label       = _t("parallel.dry_label", lang) if pending["params"].get("dry_run") else ""
+
+    await _get_messenger().send_buttons(
+        sender,
+        _t("parallel.scan_ask", lang, name=display_name, project=display_project, dry=dry_label),
+        [
+            {"id": "parallel_2", "title": _t("parallel.btn",     lang, n=2)},
+            {"id": "parallel_3", "title": _t("parallel.btn",     lang, n=3)},
+            {"id": "parallel_4", "title": _t("parallel.btn_rec", lang, n=4)},
+        ],
+    )
+
+
+async def _hp_parallel_select(sender: str, n_str: str, session: dict) -> None:
+    """parallel_<N> butonunu işler.
+
+    Backlog: hemen başlatır.
+    Scan / all_scans: paralel sayısını pending'e kaydeder, model seçimi sorusuna geçer.
+    """
+    from ..i18n import t as _t
+
+    lang    = session.get("lang", "tr")
+    pending = session.get("_pending_parallel")
+    if pending is None:
+        await _get_messenger().send_text(sender, _t("parallel.no_pending", lang))
+        return
+
+    try:
+        n = int(n_str)
+    except ValueError:
+        await _get_messenger().send_text(sender, _t("parallel.no_pending", lang))
+        return
+
+    cmd_type: str = pending["cmd"]
+
+    if cmd_type == "backlog":
+        # Backlog: model seçimi yok — hemen başlat
+        import httpx as _httpx
+        params: dict = session.pop("_pending_parallel")["params"]
+        try:
+            async with _httpx.AsyncClient(timeout=5.0) as client:
+                await client.post(
+                    "http://localhost:8010/internal/backlog/execute",
+                    json={**params, "parallel": n},
+                )
+            await _get_messenger().send_text(
+                sender, _t("parallel.backlog_launched", lang, parallel=n)
+            )
+        except Exception as _exc:
+            import logging as _logging
+            _logging.getLogger(__name__).warning("parallel_select(backlog): trigger başarısız — %s", _exc)
+        return
+
+    # scan / all_scans → paraleli kaydet, model sorusuna geç
+    pending["params"]["parallel"] = n
+    await _get_messenger().send_buttons(
+        sender,
+        _t("scan_model.ask", lang),
+        [
+            {"id": "scanmodel_haiku",  "title": _t("scan_model.btn_haiku",  lang)},
+            {"id": "scanmodel_sonnet", "title": _t("scan_model.btn_sonnet", lang)},
+            {"id": "scanmodel_opus",   "title": _t("scan_model.btn_opus",   lang)},
+        ],
+    )
+
+
+async def _hp_scan_model_select(sender: str, alias: str, session: dict) -> None:
+    """scanmodel_<alias> butonunu işler: scan modelini kaydeder, reviewer model sorusunu gösterir."""
+    from ..i18n import t as _t
+
+    lang    = session.get("lang", "tr")
+    pending = session.get("_pending_parallel")
+    if pending is None:
+        await _get_messenger().send_text(sender, _t("parallel.no_pending", lang))
+        return
+
+    pending["params"]["scan_model"] = alias  # "haiku" | "sonnet" | "opus"
+
+    await _get_messenger().send_buttons(
+        sender,
+        _t("scan_model.ask_review", lang),
+        [
+            {"id": "reviewmodel_haiku",  "title": _t("scan_model.btn_haiku",  lang)},
+            {"id": "reviewmodel_sonnet", "title": _t("scan_model.btn_sonnet", lang)},
+            {"id": "reviewmodel_opus",   "title": _t("scan_model.btn_opus",   lang)},
+        ],
+    )
+
+
+async def _hp_review_model_select(sender: str, alias: str, session: dict) -> None:
+    """reviewmodel_<alias> butonunu işler: reviewer modelini kaydeder ve scan/all_scans başlatır."""
+    import httpx as _httpx
+    from ..i18n import t as _t
+
+    lang    = session.get("lang", "tr")
+    pending = session.pop("_pending_parallel", None)
+    if pending is None:
+        await _get_messenger().send_text(sender, _t("parallel.no_pending", lang))
+        return
+
+    cmd_type: str = pending["cmd"]
+    params: dict  = pending["params"]
+    params["review_model"] = alias  # "haiku" | "sonnet" | "opus"
+    parallel: int = params.get("parallel", 3)
+
+    try:
+        async with _httpx.AsyncClient(timeout=5.0) as client:
+            if cmd_type == "scan":
+                resp = await client.post(
+                    "http://localhost:8010/internal/scanner/trigger",
+                    json=params,
+                )
+            elif cmd_type == "all_scans":
+                resp = await client.post(
+                    "http://localhost:8010/internal/scanner/trigger-all",
+                    json=params,
+                )
+            else:
+                resp = None
+
+        if resp is not None and resp.status_code == 409:
+            await _get_messenger().send_text(sender, _t("scan.already_running", lang))
+            return
+
+        await _get_messenger().send_text(
+            sender, _t("parallel.scan_launched", lang, parallel=parallel)
+        )
+    except Exception as _exc:
+        import logging as _logging
+        _logging.getLogger(__name__).warning("review_model_select: trigger başarısız — %s", _exc)
+
+
 # ── Prefix dispatch table: (prefix, handler) — matched in order ──────────
 
 _PREFIX: list[tuple[str, Callable]] = [
     ("model_select_", _hp_model_select),
     ("wiz_opt_",      _hp_wiz_opt),
     ("pdf_scaffold_", _hp_pdf_scaffold),
+    ("scan3p_",       _hp_scan3p),
+    ("parallel_",     _hp_parallel_select),
+    ("scanmodel_",    _hp_scan_model_select),
+    ("reviewmodel_",  _hp_review_model_select),
+    ("scan_",         _hp_scan_button),
+    ("backlog_",      _hp_backlog_button),
+    ("cmd_",          _hp_cmd_button),
     *_PROJECT_PREFIX_HANDLERS,
 ]
 

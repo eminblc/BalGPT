@@ -5,7 +5,7 @@ from typing import TypedDict
 
 class ScheduleParams(TypedDict, total=False):
     """LLM'den çıkarılan zamanlama parametreleri."""
-    project_id:     str    # "petekv5"
+    project_id:     str    # "my-project"
     action_type:    str    # "run_scanner" | "run_backlog_executor"
     scan_type:      str    # "security" | "bugfix" (run_scanner için)
     prefix:         str    # "SEC" (run_backlog_executor için, boş = tümü)

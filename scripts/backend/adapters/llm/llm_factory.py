@@ -23,6 +23,7 @@ from . import AbstractLLMProvider
 from .anthropic_provider import AnthropicProvider
 from .ollama_provider import OllamaProvider
 from .gemini_provider import GeminiProvider
+from .bridge_provider import BridgeLLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ _BACKENDS: dict[str, type[AbstractLLMProvider]] = {
     "anthropic": AnthropicProvider,
     "ollama":    OllamaProvider,
     "gemini":    GeminiProvider,
+    "bridge":    BridgeLLMProvider,
 }
 
 
@@ -73,6 +75,52 @@ def _accepts_default_model(cls: type) -> bool:
         return "default_model" in sig.parameters
     except (ValueError, TypeError):
         return False
+
+
+# Scan için model alias → tam model adı (model_cmd.py ile senkron)
+_SCAN_MODEL_ALIASES: dict[str, str] = {
+    "haiku":  "claude-haiku-4-5-20251001",
+    "sonnet": "claude-sonnet-4-6",
+    "opus":   "claude-opus-4-7",
+}
+
+
+def get_scan_llm(model: str | None = None) -> AbstractLLMProvider:
+    """Scan/review görevleri için LLM provider döndürür.
+
+    Args:
+        model: Opsiyonel alias veya tam model adı (ör. "haiku", "sonnet", "opus").
+               Verilmezse varsayılan model kullanılır.
+
+    Öncelik sırası:
+    1. LLM_BACKEND=anthropic ve ANTHROPIC_API_KEY tanımlı → AnthropicProvider
+    2. LLM_BACKEND=anthropic ama API key yok           → BridgeLLMProvider (fallback)
+    3. LLM_BACKEND=bridge                              → BridgeLLMProvider
+    4. LLM_BACKEND=ollama/gemini/diğer                → get_llm() (normal akış)
+
+    Bridge her zaman kullanılabilir fallback — API key gerektirmez.
+    """
+    resolved = settings.llm_backend.lower().strip()
+
+    if resolved == "anthropic":
+        try:
+            key = settings.anthropic_api_key.get_secret_value()
+            if key and key.strip():
+                # Alias varsa tam model adına çevir, yoksa olduğu gibi kullan
+                resolved_model = _SCAN_MODEL_ALIASES.get(model or "", model) if model else None
+                logger.debug(
+                    "get_scan_llm: Anthropic API key mevcut, AnthropicProvider kullanılıyor model=%s",
+                    resolved_model,
+                )
+                if resolved_model:
+                    return AnthropicProvider(default_model=resolved_model)
+                return AnthropicProvider()
+        except Exception:
+            pass
+        logger.debug("get_scan_llm: Anthropic API key yok, Bridge fallback kullanılıyor")
+        return BridgeLLMProvider()
+
+    return get_llm(resolved)
 
 
 def get_llm(backend: str | None = None) -> AbstractLLMProvider:

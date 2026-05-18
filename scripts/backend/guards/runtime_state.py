@@ -110,3 +110,22 @@ def is_scan_cancel_requested() -> bool:
     """İptal flag'i set edilmişse True döner."""
     with _state_lock:
         return _scan_cancel_requested
+
+
+# ── Scan çalışma kilidi ──────────────────────────────────────────────────────
+# True → bir scan background task'i şu an aktif; yeni scan başlatılamaz.
+# Backlog executor bu flag'i okumaz/yazmaz — sadece scan'ler kilitler.
+_scan_running: bool = False
+
+
+def set_scan_running(value: bool) -> None:
+    """Scan çalışma bayrağını değiştir (True = aktif, False = boşta)."""
+    global _scan_running
+    with _state_lock:
+        _scan_running = value
+
+
+def is_scan_running() -> bool:
+    """Halihazırda bir scan çalışıyor mu?"""
+    with _state_lock:
+        return _scan_running

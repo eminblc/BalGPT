@@ -106,7 +106,7 @@ class NLScheduleParser:
 
 Kullanıcı mesajı: "{text}"
 
-Mevcut projeler: {", ".join(projects) if projects else "petekv5"}
+Mevcut projeler: {", ".join(projects) if projects else "my-project"}
 Mevcut tarama tipleri: {", ".join(scan_types) if scan_types else "security, bugfix"}
 
 Çıkar ve SADECE şu JSON'u döndür (başka metin ekleme):

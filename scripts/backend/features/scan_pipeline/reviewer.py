@@ -51,10 +51,15 @@ class FindingReviewer:
         # BACKLOG'dan ilgili satırları çek (ilk 100 satır yeterli — tam dosya değil)
         backlog_summary = self._extract_backlog_summary(config["backlog_prefix"])
 
+        # snippet alanı reviewer kararı için gereksiz — token tasarrufu için çıkar
+        compact_findings = [
+            {k: v for k, v in f.items() if k != "snippet"}
+            for f in findings
+        ]
         return _REVIEWER_PROMPT.format(
             reviewer_prompt=config["reviewer_prompt"],
             backlog_summary=backlog_summary,
-            findings_json=json.dumps(findings, ensure_ascii=False, indent=2),
+            findings_json=json.dumps(compact_findings, ensure_ascii=False, indent=2),
             prefix=config["backlog_prefix"],
         )
 

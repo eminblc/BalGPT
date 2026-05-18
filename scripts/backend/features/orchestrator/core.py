@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class ProjectRegistry:
-    """Harici projelerin (petekv5, bengisu vb.) 99-root'a kaydını yönetir.
+    """Harici projelerin 99-root'a kaydını yönetir.
 
     DIP: store bağımlılığı constructor üzerinden inject edilir;
     concrete SqliteStore sınıfına doğrudan bağımlılık yoktur.

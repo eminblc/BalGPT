@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import time
 from collections import defaultdict
+from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -303,6 +304,64 @@ async def verify_totp_internal(request: Request, body: _VerifyRequest):
 # Zamanlama endpoint'leri _schedule_router.py'e taşındı (SOLID-SRP-1).
 
 
+# ── Scan lock wrapper'ları (OCP: mevcut agent sınıfları değiştirilmedi) ──────
+
+async def _run_scanner_task(
+    scan_type: str,
+    project_id: str,
+    auto_review: bool,
+    dry_run: bool,
+    parallel: int,
+    include_third_party: bool,
+    notify_on_review: bool,
+    scan_model: "str | None",
+    review_model: "str | None",
+) -> None:
+    """ScannerAgent.run()'ı scan lock içinde çalıştır; bitince kilidi serbest bırak."""
+    from ..guards.runtime_state import set_scan_running
+    from ..features.scan_pipeline.scanner_agent import ScannerAgent
+    try:
+        await ScannerAgent().run(
+            scan_type, project_id, auto_review, dry_run, parallel,
+            include_third_party, notify_on_review, scan_model, review_model,
+        )
+    finally:
+        set_scan_running(False)
+
+
+async def _run_all_scans_task(
+    project_id: str,
+    parallel: int,
+    dry_run: bool,
+    include_third_party: bool,
+    scan_model: "str | None",
+    review_model: "str | None",
+) -> None:
+    """AllScansRunner.run()'ı scan lock içinde çalıştır; bitince kilidi serbest bırak."""
+    from ..guards.runtime_state import set_scan_running
+    from ..features.scan_pipeline.all_scans_runner import AllScansRunner
+    try:
+        await AllScansRunner().run(
+            project_id, parallel, dry_run, include_third_party, scan_model, review_model,
+        )
+    finally:
+        set_scan_running(False)
+
+
+async def _run_legacy_scan_task(
+    scan_type: str,
+    project_id: str,
+    dry_run: bool,
+) -> None:
+    """ScanRunner.run()'ı (legacy endpoint) scan lock içinde çalıştır."""
+    from ..guards.runtime_state import set_scan_running
+    from ..features.scan_pipeline.runner import ScanRunner
+    try:
+        await ScanRunner().run(scan_type, project_id, dry_run)
+    finally:
+        set_scan_running(False)
+
+
 # ── Scan trigger ──────────────────────────────────────────────────
 
 
@@ -319,6 +378,8 @@ class ScannerTriggerRequest(BaseModel):
     dry_run: bool = False
     parallel: int = Field(default=3, ge=1, le=10)
     include_third_party: bool = False
+    scan_model: str | None = None    # "haiku" | "sonnet" | "opus" | tam model adı
+    review_model: str | None = None  # "haiku" | "sonnet" | "opus" | tam model adı
 
 
 class ReviewerTriggerRequest(BaseModel):
@@ -341,7 +402,7 @@ class BacklogExecuteRequest(BaseModel):
     responses={
         200: {
             "description": "Tarama kuyruğa alındı",
-            "content": {"application/json": {"example": {"run_id": "queued", "status": "queued", "scan_type": "security", "project_id": "petekv5"}}},
+            "content": {"application/json": {"example": {"run_id": "queued", "status": "queued", "scan_type": "security", "project_id": "my-project"}}},
         },
         400: {"description": "Geçersiz scan_type"},
         403: {"description": "Localhost dışı erişim engellendi"},
@@ -360,9 +421,13 @@ async def trigger_scan(
     Geçerli scan_type değerleri: data/scan_configs/ dizinindeki JSON dosyaları.
     """
     from ..features.scan_pipeline.config_loader import ScanConfigLoader
-    from ..features.scan_pipeline.runner import ScanRunner
+    from ..guards.runtime_state import is_scan_running, set_scan_running
 
     _require_localhost(request)
+
+    # Eşzamanlı scan koruması
+    if is_scan_running():
+        raise HTTPException(status_code=409, detail="scan_already_running")
 
     # scan_type doğrulama
     available = ScanConfigLoader().list_available()
@@ -372,8 +437,10 @@ async def trigger_scan(
             detail=f"Geçersiz scan_type: {body.scan_type!r}. Geçerli tipler: {available}",
         )
 
-    runner = ScanRunner()
-    background_tasks.add_task(runner.run, body.scan_type, body.project_id, body.dry_run)
+    set_scan_running(True)
+    background_tasks.add_task(
+        _run_legacy_scan_task, body.scan_type, body.project_id, body.dry_run,
+    )
 
     logger.info(
         "scan/trigger: kuyruğa alındı scan_type=%s project_id=%s dry_run=%s",
@@ -397,7 +464,7 @@ async def trigger_scan(
     responses={
         200: {
             "description": "Tarama kuyruğa alındı",
-            "content": {"application/json": {"example": {"status": "queued", "scan_type": "security", "project_id": "petekv5", "auto_review": True}}},
+            "content": {"application/json": {"example": {"status": "queued", "scan_type": "security", "project_id": "my-project", "auto_review": True}}},
         },
         400: {"description": "Geçersiz scan_type"},
         403: {"description": "Localhost dışı erişim engellendi"},
@@ -414,8 +481,13 @@ async def trigger_scanner(
     Tarama BackgroundTasks ile asenkron çalışır — yanıt hemen döner.
     """
     from ..features.scan_pipeline.config_loader import ScanConfigLoader
+    from ..guards.runtime_state import is_scan_running, set_scan_running
 
     _require_localhost(request)
+
+    # Eşzamanlı scan koruması
+    if is_scan_running():
+        raise HTTPException(status_code=409, detail="scan_already_running")
 
     available = ScanConfigLoader().list_available()
     if body.scan_type not in available:
@@ -424,12 +496,11 @@ async def trigger_scanner(
             detail=f"Bilinmeyen scan tipi: {body.scan_type}. Mevcut: {available}",
         )
 
-    from ..features.scan_pipeline.scanner_agent import ScannerAgent  # lazy import
-
+    set_scan_running(True)
     background_tasks.add_task(
-        ScannerAgent().run,
+        _run_scanner_task,
         body.scan_type, body.project_id, body.auto_review, body.dry_run, body.parallel,
-        body.include_third_party,
+        body.include_third_party, True, body.scan_model, body.review_model,
     )
     logger.info(
         "scanner/trigger: kuyruğa alındı scan_type=%s project_id=%s auto_review=%s dry_run=%s",
@@ -451,6 +522,8 @@ class AllScansTriggerRequest(BaseModel):
     parallel: int = Field(default=3, ge=1, le=10)
     dry_run: bool = False
     include_third_party: bool = False
+    scan_model: str | None = None    # "haiku" | "sonnet" | "opus" | tam model adı
+    review_model: str | None = None  # "haiku" | "sonnet" | "opus" | tam model adı
 
 
 @router.post(
@@ -469,12 +542,19 @@ async def trigger_all_scans(
     Tümü bitince özet bildirim owner'a gönderilir.
     Yalnızca localhost erişimine açıktır.
     """
+    from ..guards.runtime_state import is_scan_running, set_scan_running
+
     _require_localhost(request)
 
-    from ..features.scan_pipeline.all_scans_runner import AllScansRunner
+    # Eşzamanlı scan koruması
+    if is_scan_running():
+        raise HTTPException(status_code=409, detail="scan_already_running")
 
+    set_scan_running(True)
     background_tasks.add_task(
-        AllScansRunner().run, body.project_id, body.parallel, body.dry_run, body.include_third_party
+        _run_all_scans_task,
+        body.project_id, body.parallel, body.dry_run, body.include_third_party,
+        body.scan_model, body.review_model,
     )
     logger.info(
         "scanner/trigger-all: kuyruğa alındı project_id=%s parallel=%d dry_run=%s",
@@ -530,7 +610,7 @@ async def trigger_reviewer(
     responses={
         200: {
             "description": "Executor kuyruğa alındı",
-            "content": {"application/json": {"example": {"status": "queued", "project_id": "petekv5", "prefix": "", "max_items": 3}}},
+            "content": {"application/json": {"example": {"status": "queued", "project_id": "my-project", "prefix": "", "max_items": 3}}},
         },
         403: {"description": "Localhost dışı erişim engellendi"},
     },

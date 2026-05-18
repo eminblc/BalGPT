@@ -53,11 +53,11 @@ class TestAgentLifecycleManager:
         repo = self._make_repo()
         mgr = self._make_manager(mock_repo=repo)
 
-        asyncio.run(mgr.start_run("manual_bridge", "project_petekv5"))
+        asyncio.run(mgr.start_run("manual_bridge", "project_my-project"))
 
         call_args = repo.agent_run_create.call_args
         assert call_args.args[0] == "manual_bridge"
-        assert call_args.args[1] == "project_petekv5"
+        assert call_args.args[1] == "project_my-project"
 
     def test_lifecycle_start_run_optional_fields(self):
         """start_run project_id, task_id, prompt, source, sender iletir."""
@@ -66,7 +66,7 @@ class TestAgentLifecycleManager:
 
         asyncio.run(mgr.start_run(
             "project_task", "sess-1",
-            project_id="petekv5",
+            project_id="my-project",
             task_id="task-99",
             prompt="Deploy et",
             source="whatsapp",
@@ -74,7 +74,7 @@ class TestAgentLifecycleManager:
         ))
 
         kwargs = repo.agent_run_create.call_args.kwargs
-        assert kwargs["project_id"] == "petekv5"
+        assert kwargs["project_id"] == "my-project"
         assert kwargs["task_id"] == "task-99"
         assert kwargs["prompt"] == "Deploy et"
         assert kwargs["source"] == "whatsapp"
@@ -147,11 +147,11 @@ class TestAgentLifecycleManager:
         repo.agent_run_list = AsyncMock(return_value=fake_runs)
         mgr = self._make_manager(mock_repo=repo)
 
-        result = asyncio.run(mgr.list_runs(project_id="petekv5", status="running", limit=10))
+        result = asyncio.run(mgr.list_runs(project_id="my-project", status="running", limit=10))
 
         assert result == fake_runs
         repo.agent_run_list.assert_awaited_once_with(
-            project_id="petekv5", status="running", limit=10
+            project_id="my-project", status="running", limit=10
         )
 
     def test_lifecycle_list_active_runs_delegates_to_repo(self):
@@ -190,8 +190,8 @@ class TestOrchestratorSessionManager:
     # test_session_manager_get_session_id
 
     def test_session_manager_get_session_id(self, mgr):
-        """project_id='petekv5' → 'project_petekv5' döner."""
-        assert mgr.get_session_id("petekv5") == "project_petekv5"
+        """project_id='my-project' → 'project_my-project' döner."""
+        assert mgr.get_session_id("my-project") == "project_my-project"
 
     def test_session_manager_get_session_id_generic(self, mgr):
         """project_id='bengisu' → 'project_bengisu' döner."""
@@ -314,19 +314,19 @@ class TestProjectRegistry:
 
     def test_registry_register_project_calls_update_metadata(self):
         """register_project → store.project_update_metadata çağrılır."""
-        project = {"id": "petekv5", "name": "PetekV5", "metadata": "{}"}
+        project = {"id": "my-project", "name": "MyProject", "metadata": "{}"}
         store = self._make_store(project=project)
         reg = self._make_registry(store)
 
         asyncio.run(reg.register_project(
-            "petekv5",
+            "my-project",
             bridge_url="http://localhost:8015",
             concurrent_agents=3,
         ))
 
         store.project_update_metadata.assert_awaited_once()
         call_args = store.project_update_metadata.call_args
-        assert call_args.args[0] == "petekv5"
+        assert call_args.args[0] == "my-project"
         meta = json.loads(call_args.args[1])
         assert meta["orchestrator_enabled"] is True
         assert meta["bridge_url"] == "http://localhost:8015"
@@ -418,10 +418,10 @@ class TestExternalProjectRegistrar:
         """Başarılı kayıt → ok=True, project_id döner."""
         reg = self._make_registrar()
 
-        result = asyncio.run(reg.handle_registration("petekv5", "http://localhost:8015"))
+        result = asyncio.run(reg.handle_registration("my-project", "http://localhost:8015"))
 
         assert result["ok"] is True
-        assert result["project_id"] == "petekv5"
+        assert result["project_id"] == "my-project"
 
     def test_handle_registration_not_found(self):
         """Olmayan proje → ok=False, error dolu."""
@@ -445,10 +445,10 @@ class TestExternalProjectRegistrar:
         """Başarılı kayıt silme → ok=True, project_id döner."""
         reg = self._make_registrar()
 
-        result = asyncio.run(reg.handle_unregistration("petekv5"))
+        result = asyncio.run(reg.handle_unregistration("my-project"))
 
         assert result["ok"] is True
-        assert result["project_id"] == "petekv5"
+        assert result["project_id"] == "my-project"
 
     def test_handle_unregistration_not_found(self):
         """Olmayan proje → ok=False."""

@@ -74,7 +74,7 @@
     "section_planning": "Planning & Projects",
     "section_system": "System & Tools",
     "section_intelligence": "Scanning & Agents",
-    "fallback": "Commands:\n/help [/cmd]     — This menu or command details\n/history [N|summary] — Recent messages\n/project [id]    — Set active project (TOTP)\n/lang <tr|en>    — Change language\n/model           — {model_hint}\n/beta       — Exit beta mode\n\nCreate project:\n  Menu → New Project → enter name → select type:\n  • Software Project  (CLAUDE.md, BACKLOG.md ...)\n  • Save Task         (README + outputs/)\n  • Folder Only       (empty folder)\n\nSystem commands:\n/root-reset  — Reset session\n/restart     — Restart services\n/terminal <cmd> — Run shell command (dangerous → admin TOTP)\n⚠️ Destructive (math + admin TOTP):\n/shutdown    — Stop service\n\nBackup:\n/export          — Basic backup (.99rb)\n/export full     — Full backup (with media)\n/export media    — Basic + media\n/import          — Restore from .99rb file\n\nScheduling (TOTP):\n/schedule                               → list\n/schedule ekle 0 9 * * * <desc>         → 9am daily — Bridge prompt\n/schedule mesaj 0 9 * * * <text>        → 9am daily — fixed message\n/schedule scan 0 */6 * * * sec project  → scanner cron every 6h\n/schedule backlog 0 8 * * * project     → backlog executor cron\n/schedule sil|durdur|başlat <id>\nNatural language: 'Scan petekv5 every 30 minutes' → Claude creates it\n\nScanning & Agents:\n/scan [security|bugfix] [--dry] — Start project scan\n/backlog [run|dry|status]       — Execute BACKLOG.md items\n/agents [detail|project|cancel] — Manage agent runs\n\nNon-command messages go to Claude. 💬",
+    "fallback": "Commands:\n/help [/cmd]     — This menu or command details\n/history [N|summary] — Recent messages\n/project [id]    — Set active project (TOTP)\n/lang <tr|en>    — Change language\n/model           — {model_hint}\n/beta       — Exit beta mode\n\nCreate project:\n  Menu → New Project → enter name → select type:\n  • Software Project  (CLAUDE.md, BACKLOG.md ...)\n  • Save Task         (README + outputs/)\n  • Folder Only       (empty folder)\n\nSystem commands:\n/root-reset  — Reset session\n/restart     — Restart services\n/terminal <cmd> — Run shell command (dangerous → admin TOTP)\n⚠️ Destructive (math + admin TOTP):\n/shutdown    — Stop service\n\nBackup:\n/export          — Basic backup (.99rb)\n/export full     — Full backup (with media)\n/export media    — Basic + media\n/import          — Restore from .99rb file\n\nScheduling (TOTP):\n/schedule                               → list\n/schedule ekle 0 9 * * * <desc>         → 9am daily — Bridge prompt\n/schedule mesaj 0 9 * * * <text>        → 9am daily — fixed message\n/schedule scan 0 */6 * * * sec project  → scanner cron every 6h\n/schedule backlog 0 8 * * * project     → backlog executor cron\n/schedule sil|durdur|başlat <id>\nNatural language: 'Scan my-project every 30 minutes' → Claude creates it\n\nScanning & Agents:\n/scan [security|bugfix] [--dry] — Start project scan\n/backlog [run|dry|status]       — Execute BACKLOG.md items\n/agents [detail|project|cancel] — Manage agent runs\n\nNon-command messages go to Claude. 💬",
     "btn_chat": "💬 Chat",
     "btn_plans": "📋 My Plans",
     "btn_projects": "📁 Projects",
@@ -136,10 +136,10 @@
     "one_time": "one-time",
     "next_run_label": "Next",
     "cron_error": "❌ {error}",
-    "scanner_format_error": "❌ Format: /schedule scan <min> <hr> <day> <mon> <dow> <type> <project>\nexample: /schedule scan 0 * * * * security petekv5",
+    "scanner_format_error": "❌ Format: /schedule scan <min> <hr> <day> <mon> <dow> <type> <project>\nexample: /schedule scan 0 * * * * security my-project",
     "scanner_invalid_type": "❌ Unknown scan type: {type}\nAvailable: {available}",
     "scanner_add_ok": "✅ Scanner cron created\nID: `{id}` · Cron: `{cron}`\nType: {scan_type} · Project: {project_id}\nAuto review: {auto_review}",
-    "backlog_format_error": "❌ Format: /schedule backlog <min> <hr> <day> <mon> <dow> <project> [prefix] [max]\nexample: /schedule backlog 0 8 * * * petekv5 SEC 3",
+    "backlog_format_error": "❌ Format: /schedule backlog <min> <hr> <day> <mon> <dow> <project> [prefix] [max]\nexample: /schedule backlog 0 8 * * * my-project SEC 3",
     "backlog_add_ok": "✅ Backlog executor cron created\nID: `{id}` · Cron: `{cron}`\nProject: {project_id} · Prefix: {prefix} · Max: {max_items}"
   },
   "project": {
@@ -624,7 +624,8 @@
     "status_cancelling": "🛑 Cancellation requested, finishing current chunk…",
     "btn_cancel": "🛑 Stop",
     "cancel_ok": "✅ Cancellation request sent. Scan will stop after the current chunk finishes.",
-    "cancel_fail": "⚠️ Could not send cancellation request."
+    "cancel_fail": "⚠️ Could not send cancellation request.",
+    "already_running": "⚠️ A scan is already running. Wait for it to finish or stop it with /scan cancel."
   },
   "backlog": {
     "select_action": "Select backlog executor action:",
@@ -656,6 +657,13 @@
     "created": "✅ Schedule created!\nID: `{id}` · Cron: `{cron}`\n{desc}",
     "create_error": "❌ Could not create schedule. Please try again."
   },
+  "scan_model": {
+    "ask": "🤖 Which model should scan?\n\n⚡ Haiku — fast and cheap\n⚖️ Sonnet — balanced (recommended)\n🔬 Opus — deep analysis, slower",
+    "ask_review": "🔍 Which model should review findings?\n\n⚡ Haiku — fast\n⚖️ Sonnet — balanced (recommended)\n🔬 Opus — deep analysis",
+    "btn_haiku": "⚡ Haiku (Fast)",
+    "btn_sonnet": "⚖️ Sonnet (Balanced) ★",
+    "btn_opus": "🔬 Opus (Deep)"
+  },
   "parallel": {
     "scan_ask": "🔍 *{name}* scan\n*Project:* {project}{dry}\n\nHow many parallel agents?\n\n💡 4 parallel ≈ ~5 min  |  1 parallel ≈ ~15 min",
     "backlog_ask": "📋 Backlog executor\n*Project:* {project}{prefix}\n\nHow many parallel agents?\n\n💡 Fewer agents = safer, no conflicts",
@@ -665,5 +673,12 @@
     "scan_launched": "🚀 Scan started — {parallel} parallel agents\n⏳ You'll be notified when done.",
     "backlog_launched": "🚀 Backlog started — {parallel} parallel agents\n⏳ You'll be notified when done.",
     "dry_label": " (dry run)"
+  },
+  "noroot": {
+    "confirm_ask": "No root project selected. Would you like to continue with 99-root?",
+    "yes_btn": "Yes, use 99-root",
+    "no_btn": "No, cancel",
+    "cancelled": "❌ Cancelled.",
+    "db_error": "❌ Failed to register 99-root project in the database."
   }
 }

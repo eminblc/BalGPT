@@ -1,0 +1,31 @@
+{
+    "type": "dead-code",
+    "name": "Ölü Kod Taraması",
+    "description": "Kullanılmayan export, fonksiyon, değişken",
+    "scanner_prompt": "Aşağıdaki ölü kod kategorilerini ara:\n- Export edilen ama hiçbir yerde import edilmeyen fonksiyon/class/const\n- Tanımlanan ama hiç çağrılmayan private metot\n- Hiç ulaşılamayan kod (return/throw sonrası satır, daima false koşul)\n- Yorum satırına alınmış büyük kod blokları (3+ satır)\n- Kullanılmayan import satırı\n- Tanımlanan ama okunmayan değişken (assign edilip sonra kullanılmayan)\n- Boş catch bloğu veya sadece console.log içeren catch\n- Kullanılmayan React prop veya state\nSadece gerçek ölü kod raporla, dinamik kullanım (reflection, Object.keys) olanları raporlama.",
+    "target_patterns": [
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.py"
+    ],
+    "exclude_patterns": [
+        "*.spec.ts",
+        "*.test.ts",
+        "*.test.js",
+        "*.e2e-spec.ts",
+        "node_modules",
+        "dist",
+        ".next",
+        "__pycache__",
+        "*.d.ts",
+        "*.mock.ts",
+        "venv",
+        ".venv",
+        "coverage"
+    ],
+    "reviewer_prompt": "Her bulguyu değerlendir:\n- accepted: Gerçekten kullanılmayan, temizlenebilir, mevcut BACKLOG'da yok\n- rejected: Dinamik kullanım var (reflection, decorator, DI container), kasıtlı bırakılmış\n- duplicate: BACKLOG'da zaten var veya bu taramada başka ID ile raporlandı\nŞüpheli durumda rejected tercih et — yanlış silme maliyetlidir.",
+    "backlog_prefix": "DEAD",
+    "max_findings_per_agent": 20
+}

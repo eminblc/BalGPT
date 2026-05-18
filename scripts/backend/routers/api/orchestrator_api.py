@@ -25,7 +25,7 @@ class RegisterProjectRequest(BaseModel):
     project_id: str = Field(
         ...,
         description="Kayıt edilecek proje ID'si (projects tablosunda mevcut olmalı)",
-        json_schema_extra={"example": "petekv5"},
+        json_schema_extra={"example": "my-project"},
     )
     bridge_url: str = Field(
         ...,

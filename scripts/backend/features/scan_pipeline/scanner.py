@@ -61,7 +61,7 @@ class ScannerOrchestrator:
             return []
 
         chunks = self._resolver.split_into_chunks(
-            files, chunk_size=15
+            files, chunk_size=10
         )
         logger.info(
             "ScannerOrchestrator: %d dosya → %d chunk → paralel agent",
@@ -96,6 +96,7 @@ class ScannerOrchestrator:
             result.append({
                 "chunk_index": i,
                 "files": chunk,
+                "project_path": project_path,
                 "prompt": prompt,
                 "output_file": str(self._output_dir / "findings" / f"chunk_{i:03d}.jsonl"),
             })

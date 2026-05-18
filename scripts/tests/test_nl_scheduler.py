@@ -16,7 +16,7 @@ def _make_parser():
 
 def _make_valid_raw(**overrides) -> dict:
     base = {
-        "project_id": "petekv5",
+        "project_id": "my-project",
         "action_type": "run_scanner",
         "scan_type": "security",
         "prefix": "",
@@ -40,13 +40,13 @@ class TestIsScheduleIntent:
     def test_security_scan_every_30min_returns_true(self):
         parser = _make_parser()
         assert parser.is_schedule_intent(
-            "petekv5 için yarım saatte bir güvenlik taraması yap"
+            "my-project için yarım saatte bir güvenlik taraması yap"
         ) is True
 
     def test_hourly_security_scan_returns_true(self):
         parser = _make_parser()
         assert parser.is_schedule_intent(
-            "saatlik security scan petekv5"
+            "saatlik security scan my-project"
         ) is True
 
     def test_daily_backlog_executor_returns_true(self):
@@ -86,7 +86,7 @@ class TestPostProcess:
         raw = _make_valid_raw()
         result = parser._post_process(raw)
         assert result is not None
-        assert result["project_id"] == "petekv5"
+        assert result["project_id"] == "my-project"
         assert result["cron_expr"] == "*/30 * * * *"
 
     def test_empty_project_id_returns_none(self):
@@ -154,7 +154,7 @@ class TestBuildPrompt:
         parser = _make_parser()
         prompt = parser._build_prompt(
             "saatlik güvenlik taraması yap",
-            ["petekv5"],
+            ["my-project"],
             ["security", "bugfix"],
         )
         assert "saatlik güvenlik taraması yap" in prompt
@@ -163,11 +163,11 @@ class TestBuildPrompt:
         parser = _make_parser()
         prompt = parser._build_prompt(
             "test mesajı",
-            ["petekv5", "my-project"],
+            ["my-project", "other-project"],
             ["security"],
         )
-        assert "petekv5" in prompt
         assert "my-project" in prompt
+        assert "other-project" in prompt
 
     def test_prompt_contains_scan_types(self):
         parser = _make_parser()
@@ -218,16 +218,16 @@ class TestParseAsync:
         mock_llm.complete = AsyncMock(return_value=mock_result)
 
         with patch.object(parser, "is_schedule_intent", return_value=True), \
-             patch.object(parser, "_get_available_projects", new=AsyncMock(return_value=["petekv5"])), \
+             patch.object(parser, "_get_available_projects", new=AsyncMock(return_value=["my-project"])), \
              patch.object(parser, "_get_scan_types", return_value=["security", "bugfix"]), \
              patch(
                  "backend.adapters.llm.llm_factory.get_llm",
                  return_value=mock_llm,
              ):
-            result = await parser.parse("petekv5 için saatlik güvenlik taraması")
+            result = await parser.parse("my-project için saatlik güvenlik taraması")
 
         assert result is not None
-        assert result["project_id"] == "petekv5"
+        assert result["project_id"] == "my-project"
         assert result["cron_expr"] == "*/30 * * * *"
 
     @pytest.mark.asyncio
@@ -304,7 +304,7 @@ class TestGetAvailableProjects:
     async def test_returns_project_ids_from_project_list(self):
         """project_list sonuçlarından ID'ler döner."""
         parser = _make_parser()
-        fake_projects = [{"id": "petekv5"}, {"id": "my-app"}]
+        fake_projects = [{"id": "my-project"}, {"id": "my-app"}]
 
         # _get_available_projects içinde 'from ...store.repositories.project_repo import project_list'
         # şeklinde lazy import yapılıyor; modül düzeyinde patch'liyoruz.
@@ -315,7 +315,7 @@ class TestGetAvailableProjects:
             result = await parser._get_available_projects()
 
         assert isinstance(result, list)
-        assert result == ["petekv5", "my-app"]
+        assert result == ["my-project", "my-app"]
 
     @pytest.mark.asyncio
     async def test_returns_empty_list_when_project_list_raises(self):

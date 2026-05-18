@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 _BRIDGE_CONCURRENCY = 3
 
 # Dosya başına maksimum karakter — token bütçesini korumak için
-_MAX_CHARS_PER_FILE = 4_000
+# 2000 karakter ≈ 500 token/dosya; 10 dosya × 500 = 5000 token giriş (önceki: 15000)
+_MAX_CHARS_PER_FILE = 2_000
 
 
 class ScannerAgent:
@@ -54,6 +55,9 @@ class ScannerAgent:
         dry_run: bool = False,
         parallel: int = 3,
         include_third_party: bool = False,
+        notify_on_review: bool = True,
+        scan_model: str | None = None,
+        review_model: str | None = None,
     ) -> str:
         """Tarama fazını başlatır, bulgular diske yazılır, run_id döndürür.
 
@@ -63,6 +67,13 @@ class ScannerAgent:
             auto_review:          True ise scanner bittikten sonra ReviewerAgent otomatik tetiklenir.
             dry_run:              True ise BACKLOG.md'ye yazma — ReviewerAgent'a iletilir.
             include_third_party:  True ise node_modules/venv/.venv/vendor exclude edilmez.
+            notify_on_review:     False ise ReviewerAgent tamamlanma bildirimi göndermez.
+                                  AllScansRunner gibi orchestrator'lar False geçer; özeti
+                                  kendileri gönderir.
+            scan_model:           Opsiyonel model alias ("haiku", "sonnet", "opus") veya tam ad.
+                                  Verilmezse get_scan_llm() varsayılan modeli kullanır.
+            review_model:         Opsiyonel reviewer model alias ("haiku", "sonnet", "opus").
+                                  Verilmezse ReviewerAgent varsayılan modeli kullanır.
 
         Returns:
             run_id (str) — caller veya ReviewerAgent bu ID ile bulguları okur.
@@ -102,7 +113,7 @@ class ScannerAgent:
             logger.warning("ScannerAgent: agent run kaydedilemedi: %s", _err)
 
         pipeline = self._get_pipeline()
-        llm = get_scan_llm()
+        llm = get_scan_llm(model=scan_model)
 
         try:
             # Phase 1 — prompt listesi üret
@@ -184,7 +195,10 @@ class ScannerAgent:
             if auto_review:
                 # Lazy import — circular import riski yok (ayrı modül)
                 from .reviewer_agent import ReviewerAgent  # noqa: PLC0415
-                await ReviewerAgent().run(run_id, dry_run=dry_run)
+                await ReviewerAgent().run(
+                    run_id, dry_run=dry_run, notify=notify_on_review,
+                    review_model=review_model,
+                )
 
             return run_id
 
@@ -305,7 +319,7 @@ class ScannerAgent:
         result = await llm.complete(
             messages=[{"role": "user", "content": full_prompt}],
             model=None,
-            max_tokens=2048,
+            max_tokens=1024,  # max 20 bulgu × ~40 token = 800 token yeterli
         )
 
         # output_file dizinini oluştur ve sonucu kaydet
