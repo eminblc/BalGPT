@@ -634,24 +634,31 @@ async def scanner_status(request: Request):
     # En son çalışan agent_run kaydını oku
     running_agent_run: dict | None = None
     try:
-        from ..store.sqlite_store import SqliteStore
-        store = SqliteStore()
-        rows = await store.fetchall(
-            "SELECT id, session_id, project_id, started_at, status FROM agent_runs "
-            "WHERE agent_type = 'scanner' AND status = 'running' "
-            "ORDER BY started_at DESC LIMIT 1"
+        import asyncio as _asyncio
+        from ..store._connection import _conn as _db_conn
+
+        def _query_running_scanner() -> dict | None:
+            with _db_conn() as con:
+                row = con.execute(
+                    "SELECT id, session_id, project_id, started_at, status FROM agent_runs "
+                    "WHERE agent_type = 'scanner' AND status = 'running' "
+                    "ORDER BY started_at DESC LIMIT 1"
+                ).fetchone()
+                if row:
+                    return {
+                        "id":         row["id"],
+                        "session_id": row["session_id"],
+                        "project_id": row["project_id"],
+                        "started_at": row["started_at"],
+                        "status":     row["status"],
+                    }
+                return None
+
+        running_agent_run = await _asyncio.get_event_loop().run_in_executor(
+            None, _query_running_scanner
         )
-        if rows:
-            row = rows[0]
-            running_agent_run = {
-                "id":         row["id"],
-                "session_id": row["session_id"],
-                "project_id": row["project_id"],
-                "started_at": row["started_at"],
-                "status":     row["status"],
-            }
     except Exception as _err:  # noqa: BLE001
-        logger.debug("scanner_status: agent_runs sorgusu başarısız: %s", _err)
+        logger.warning("scanner_status: agent_runs sorgusu başarısız: %s", _err)
 
     # scan_runs dizinindeki en yeni run_id'yi bul + progress.json oku
     runs_dir = Path(__file__).parent.parent.parent.parent / "data" / "scan_runs"
