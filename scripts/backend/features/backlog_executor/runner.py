@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 import uuid
 from pathlib import Path
 from typing import TypedDict
@@ -44,7 +45,7 @@ class BacklogExecutorAgent:
         self,
         project_id: str,
         prefix: str = "",
-        max_items: int = 3,
+        max_items: int = 0,
         parallel: int = 2,
         dry_run: bool = False,
     ) -> ExecutorResult:
@@ -53,7 +54,7 @@ class BacklogExecutorAgent:
         Args:
             project_id: DB'deki proje ID'si.
             prefix:     Yalnızca bu prefix'li item'ları işle (boşsa tümü).
-            max_items:  Tek çalışmada işlenecek maksimum item sayısı.
+            max_items:  Tek çalışmada işlenecek maksimum item sayısı (0 = tümü).
             parallel:   Eşzamanlı Bridge istekleri (Semaphore büyüklüğü).
             dry_run:    True ise Bridge'e istek atmadan item'ları done olarak işaretle.
 
@@ -64,6 +65,8 @@ class BacklogExecutorAgent:
             ValueError: Proje DB'de bulunamazsa.
             FileNotFoundError: Projede BACKLOG.md yoksa.
         """
+        started_at = time.time()
+
         # 1. Proje kontrolü
         project = await project_get(project_id)
         if project is None:
@@ -91,7 +94,9 @@ class BacklogExecutorAgent:
 
         # 4. Pending item'ları al
         parser = BacklogParser()
-        items = parser.get_pending_items(backlog_path, prefix)[:max_items]
+        items = parser.get_pending_items(backlog_path, prefix)
+        if max_items and max_items > 0:
+            items = items[:max_items]
 
         if not items:
             await lifecycle.mark_completed(agent_run_id, output="0 item — işlenecek görev yok")
@@ -111,8 +116,9 @@ class BacklogExecutorAgent:
 
         # 5. Paralel çalıştır
         sem = asyncio.Semaphore(parallel)
+        file_lock = asyncio.Lock()  # BACKLOG.md concurrent yazma koruması
         tasks = [
-            self._execute_item(item, backlog_path, project_root, sem, dry_run)
+            self._execute_item(item, backlog_path, project_root, sem, dry_run, file_lock)
             for item in items
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -125,6 +131,31 @@ class BacklogExecutorAgent:
         summary = f"completed={completed} failed={failed} total={len(items)}"
         await lifecycle.mark_completed(agent_run_id, output=summary)
         logger.info("BacklogExecutorAgent.run: %s — %s", project_id, summary)
+
+        # Tamamlanma bildirimi — tüm işler bittikten sonra tek seferde
+        try:
+            from ...adapters.messenger import get_messenger
+            from ...config import settings
+            from ...i18n import t
+
+            lang     = "tr"
+            owner    = settings.owner_id
+            duration = max(1, int((time.time() - started_at) / 60))
+            project_name = project.get("name") or project_id
+            await get_messenger().send_text(
+                owner,
+                t(
+                    "backlog.done_summary",
+                    lang,
+                    project=project_name,
+                    completed=completed,
+                    total=len(items),
+                    failed=failed,
+                    minutes=duration,
+                ),
+            )
+        except Exception as _notify_err:
+            logger.warning("BacklogExecutorAgent: bildirim gönderilemedi: %s", _notify_err)
 
         return ExecutorResult(
             project_id=project_id,
@@ -143,6 +174,7 @@ class BacklogExecutorAgent:
         project_root: str,
         sem: asyncio.Semaphore,
         dry_run: bool,
+        file_lock: asyncio.Lock,
     ) -> bool:
         """Tek bir BACKLOG item'ını işle.
 
@@ -152,16 +184,19 @@ class BacklogExecutorAgent:
             project_root: Proje kök dizini.
             sem:          Eşzamanlılık sınırlayıcı Semaphore.
             dry_run:      True ise Bridge çağrısı yapılmadan done olarak işaretlenir.
+            file_lock:    BACKLOG.md dosyasına eşzamanlı yazma koruması için Lock.
 
         Returns:
             True → başarı, False → hata.
         """
         async with sem:
             parser = BacklogParser()
-            parser.mark_in_progress(backlog_path, item["item_id"])
+            async with file_lock:
+                parser.mark_in_progress(backlog_path, item["item_id"])
 
             if dry_run:
-                parser.mark_done(backlog_path, item["item_id"])
+                async with file_lock:
+                    parser.mark_done(backlog_path, item["item_id"])
                 logger.info(
                     "BacklogExecutorAgent._execute_item: %s dry_run ile done.",
                     item["item_id"],
@@ -184,15 +219,17 @@ class BacklogExecutorAgent:
                     "session_id": f"executor_{item['item_id']}",
                     "message": prompt,
                     "init_prompt": "",
+                    "silent": True,
                 }
                 _pp = Path(project_root).resolve()
                 if str(_pp).startswith(str(_root_dir.resolve()) + "/") or _pp == _root_dir.resolve():
                     body["project_path"] = str(_pp)
-                async with httpx.AsyncClient(timeout=300.0) as client:
+                async with httpx.AsyncClient(timeout=1800.0) as client:
                     response = await client.post(url, json=body, headers=headers)
 
                 if response.status_code == 200:
-                    parser.mark_done(backlog_path, item["item_id"])
+                    async with file_lock:
+                        parser.mark_done(backlog_path, item["item_id"])
                     logger.info(
                         "BacklogExecutorAgent._execute_item: %s tamamlandı.",
                         item["item_id"],
@@ -203,7 +240,8 @@ class BacklogExecutorAgent:
                     "BacklogExecutorAgent._execute_item: %s — HTTP %d",
                     item["item_id"], response.status_code,
                 )
-                parser.mark_failed(backlog_path, item["item_id"])
+                async with file_lock:
+                    parser.mark_failed(backlog_path, item["item_id"])
                 return False
 
             except Exception as exc:  # noqa: BLE001
@@ -211,7 +249,8 @@ class BacklogExecutorAgent:
                     "BacklogExecutorAgent._execute_item: %s için istisna — %s",
                     item["item_id"], exc,
                 )
-                parser.mark_failed(backlog_path, item["item_id"])
+                async with file_lock:
+                    parser.mark_failed(backlog_path, item["item_id"])
                 return False
 
     def _build_prompt(self, item: BacklogItem, project_root: str) -> str:
