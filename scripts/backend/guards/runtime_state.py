@@ -84,3 +84,29 @@ def record_status(number: str, text: str) -> None:
 def get_last_status(number: str) -> dict | None:
     with _state_lock:
         return _last_status.get(number)
+
+
+# ── Scan iptali ──────────────────────────────────────────────────────────────
+# True → devam eden scan chunk döngüsü en kısa sürede durmalı.
+# AllScansRunner başlarken clear_scan_cancel() çağırır (stale flag temizliği).
+_scan_cancel_requested: bool = False
+
+
+def request_scan_cancel() -> None:
+    """Aktif scan'in iptalini iste; bir sonraki chunk kontrolünde durur."""
+    global _scan_cancel_requested
+    with _state_lock:
+        _scan_cancel_requested = True
+
+
+def clear_scan_cancel() -> None:
+    """İptal flag'ini sıfırla; yeni bir scan başlamadan önce çağrılmalı."""
+    global _scan_cancel_requested
+    with _state_lock:
+        _scan_cancel_requested = False
+
+
+def is_scan_cancel_requested() -> bool:
+    """İptal flag'i set edilmişse True döner."""
+    with _state_lock:
+        return _scan_cancel_requested

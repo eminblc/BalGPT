@@ -93,7 +93,7 @@ class TestExportCommandExecute:
              patch("pathlib.Path.unlink", return_value=None):
             from backend.guards.commands.export_cmd import ExportCommand
             cmd = ExportCommand()
-            await cmd.execute("sender", "", session)
+            await cmd.execute("sender", "essential", session)
 
         # start msg + caption (messenger MediaMessenger değilse send_text fallback)
         assert mock_messenger.send_text.call_count >= 1
@@ -132,7 +132,7 @@ class TestExportCommandExecute:
                    return_value=mock_service):
             from backend.guards.commands.export_cmd import ExportCommand
             cmd = ExportCommand()
-            await cmd.execute("sender", "", session)
+            await cmd.execute("sender", "essential", session)
 
         # İlk: export_start, ikinci: hata mesajı (hassas detay kullanıcıya gösterilmez)
         assert mock_messenger.send_text.call_count == 2

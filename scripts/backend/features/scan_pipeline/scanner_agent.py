@@ -17,6 +17,9 @@ from .pipeline import ScanPipeline
 
 logger = logging.getLogger(__name__)
 
+# Bridge'e eş zamanlı gidecek maksimum chunk sayısı
+_BRIDGE_CONCURRENCY = 3
+
 # Dosya başına maksimum karakter — token bütçesini korumak için
 _MAX_CHARS_PER_FILE = 4_000
 
@@ -49,14 +52,17 @@ class ScannerAgent:
         project_id: str,
         auto_review: bool = True,
         dry_run: bool = False,
+        parallel: int = 3,
+        include_third_party: bool = False,
     ) -> str:
         """Tarama fazını başlatır, bulgular diske yazılır, run_id döndürür.
 
         Args:
-            scan_type:   data/scan_configs/{scan_type}.json ile eşleşen tip.
-            project_id:  DB'deki proje ID'si; project_root yolu buradan alınır.
-            auto_review: True ise scanner bittikten sonra ReviewerAgent otomatik tetiklenir.
-            dry_run:     True ise BACKLOG.md'ye yazma — ReviewerAgent'a iletilir.
+            scan_type:            data/scan_configs/{scan_type}.json ile eşleşen tip.
+            project_id:           DB'deki proje ID'si; project_root yolu buradan alınır.
+            auto_review:          True ise scanner bittikten sonra ReviewerAgent otomatik tetiklenir.
+            dry_run:              True ise BACKLOG.md'ye yazma — ReviewerAgent'a iletilir.
+            include_third_party:  True ise node_modules/venv/.venv/vendor exclude edilmez.
 
         Returns:
             run_id (str) — caller veya ReviewerAgent bu ID ile bulguları okur.
@@ -66,7 +72,7 @@ class ScannerAgent:
         """
         from ...store.repositories.project_repo import project_get
         from ...features.orchestrator.core import AgentLifecycleManager
-        from ...adapters.llm.llm_factory import get_llm
+        from ...adapters.llm.llm_factory import get_scan_llm
 
         # Proje doğrulama — erken hata, agent run kaydedilmeden önce
         project = await project_get(project_id)
@@ -96,12 +102,18 @@ class ScannerAgent:
             logger.warning("ScannerAgent: agent run kaydedilemedi: %s", _err)
 
         pipeline = self._get_pipeline()
-        llm = get_llm()
+        llm = get_scan_llm()
 
         try:
             # Phase 1 — prompt listesi üret
             config, chunk_prompts, run_dir = pipeline.build_scanner_prompts(
-                scan_type, project_root, run_id
+                scan_type, project_root, run_id, include_third_party=include_third_party
+            )
+
+            total_chunks = len(chunk_prompts)
+            logger.info(
+                "ScannerAgent: tarama başladı — toplam %d chunk, proje=%s, scan_type=%s",
+                total_chunks, project_id, scan_type,
             )
 
             if not chunk_prompts:
@@ -127,7 +139,7 @@ class ScannerAgent:
                 return run_id
 
             # Phase 1 — chunk'ları paralel LLM çağrısıyla çalıştır
-            await self._run_scanner_chunks(chunk_prompts, llm, run_dir)
+            await self._run_scanner_chunks(chunk_prompts, llm, run_dir, parallel)
 
             # Ara meta bilgisini yaz (ReviewerAgent tarafından okunur)
             findings_count = len(list(run_dir.glob("findings/*.jsonl")))
@@ -171,6 +183,16 @@ class ScannerAgent:
                     await lifecycle.mark_failed(agent_run_id, error_msg=str(exc))
                 except Exception as _mark_err:
                     logger.warning("ScannerAgent: mark_failed başarısız: %s", _mark_err)
+            try:
+                from ...adapters.messenger import get_messenger
+                from ...config import settings
+                owner = settings.owner_id
+                await get_messenger().send_text(
+                    owner,
+                    f"❌ Scan başarısız — {scan_type} / {project_id}\n{exc}",
+                )
+            except Exception as _notify_err:
+                logger.warning("ScannerAgent: bildirim gönderilemedi: %s", _notify_err)
             raise
 
     async def _run_scanner_chunks(
@@ -178,21 +200,62 @@ class ScannerAgent:
         chunk_prompts: list[dict],
         llm,
         run_dir: Path,
+        parallel: int = _BRIDGE_CONCURRENCY,
     ) -> None:
-        """Chunk prompt'larını paralel LLM çağrılarıyla çalıştırır.
+        """Chunk prompt'larını sınırlı paralellikte Bridge üzerinden çalıştırır.
 
-        Her chunk için dosya içeriklerini okur, LLM'e gönderir, çıktıyı kaydeder.
-        Tek bir chunk'ın başarısızlığı diğerlerini durdurmaz.
+        parallel semaphore'u ile eş zamanlı Bridge çağrısı kısıtlanır.
+        Tüm chunk'lar başarısızsa ilk hatayı yeniden fırlatır.
+        İptal flag'i set edilmişse kalan chunk'lar atlanır.
         """
-        tasks = [
-            self._run_single_chunk(chunk, llm)
-            for chunk in chunk_prompts
-        ]
+        from ...guards.runtime_state import is_scan_cancel_requested
+
+        total = len(chunk_prompts)
+        sem = asyncio.Semaphore(parallel)
+        completed = 0
+        start_time = time.time()
+        lock = asyncio.Lock()
+
+        async def _guarded(chunk: dict, idx: int) -> None:
+            nonlocal completed
+            # İptal kontrolü — semaphore'a girmeden önce
+            if is_scan_cancel_requested():
+                logger.info(
+                    "ScannerAgent: iptal istendi, kalan %d chunk atlanıyor",
+                    total - idx,
+                )
+                return
+            async with sem:
+                if is_scan_cancel_requested():
+                    logger.info(
+                        "ScannerAgent: iptal istendi, kalan %d chunk atlanıyor",
+                        total - idx,
+                    )
+                    return
+                await self._run_single_chunk(chunk, llm)
+                async with lock:
+                    completed += 1
+                    elapsed = time.time() - start_time
+                    estimated_remaining = (
+                        (elapsed / completed) * (total - completed)
+                        if completed > 0 else 0.0
+                    )
+                    logger.info(
+                        "ScannerAgent: ilerleme %d/%d chunk — geçen %.1fs, tahmini %.1fs kaldı",
+                        completed, total, elapsed, estimated_remaining,
+                    )
+
+        tasks = [_guarded(chunk, i) for i, chunk in enumerate(chunk_prompts)]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
+        errors: list[Exception] = []
         for i, res in enumerate(results):
             if isinstance(res, Exception):
                 logger.error("ScannerAgent: chunk %d başarısız — %s", i, res)
+                errors.append(res)
+
+        if errors and len(errors) == len(chunk_prompts):
+            raise errors[0]
 
     async def _run_single_chunk(self, chunk: dict, llm) -> None:
         """Tek bir chunk'ı LLM ile çalıştırır ve sonucu kaydeder.
@@ -204,9 +267,17 @@ class ScannerAgent:
           - output_file: str        — sonucun yazılacağı .jsonl yolu
         """
         chunk_index: int = chunk["chunk_index"]
-        files: list[str] = chunk["files"]
+        rel_files: list[str] = chunk["files"]
+        project_path: str = chunk.get("project_path", "")
         base_prompt: str = chunk["prompt"]
         output_file: str = chunk["output_file"]
+
+        # Relative path'leri absolute'a çevir — FastAPI CWD proje kökü değil
+        if project_path:
+            root = Path(project_path)
+            files = [str(root / f) for f in rel_files]
+        else:
+            files = rel_files
 
         # Dosya içeriklerini oku ve prompt'a ekle
         file_sections = await asyncio.get_event_loop().run_in_executor(

@@ -359,7 +359,7 @@ async def test_history_messages():
          patch("backend.features.history.get_recent_messages", AsyncMock(return_value=[])), \
          patch("backend.features.history.format_history", return_value="Geçmiş yok"):
         from backend.guards.commands.history_cmd import HistoryCommand
-        await HistoryCommand().execute("905001234567", "", session)
+        await HistoryCommand().execute("905001234567", "5", session)
 
     mock_messenger.send_text.assert_awaited_once()
 
@@ -972,13 +972,16 @@ async def test_terminal_dangerous_cmd_requests_totp():
 @pytest.mark.asyncio
 async def test_terminal_no_arg_no_pending():
     mock_messenger = AsyncMock()
-    session = {"lang": "tr"}
+    session_obj = MagicMock()
+    session_obj.get.return_value = "tr"
+    session_obj.pop.return_value = None  # no pending cmd
 
     with patch("backend.adapters.messenger.get_messenger",
                return_value=mock_messenger):
         from backend.guards.commands.terminal_cmd import TerminalCommand
-        await TerminalCommand().execute("905001234567", "", session)
+        await TerminalCommand().execute("905001234567", "", session_obj)
 
+    session_obj.start_terminal_input.assert_called_once()
     mock_messenger.send_text.assert_awaited_once()
 
 
@@ -1016,9 +1019,10 @@ async def test_timezone_no_arg_shows_current():
         from backend.guards.commands.timezone_cmd import TimezoneCommand
         await TimezoneCommand().execute("905001234567", "", session)
 
-    mock_messenger.send_text.assert_awaited_once()
-    msg = mock_messenger.send_text.call_args[0][1]
-    assert "Europe/Istanbul" in msg
+    # Boş arg → buton menüsü gösterilir (send_buttons), send_text çağrılmaz
+    mock_messenger.send_buttons.assert_awaited_once()
+    prompt = mock_messenger.send_buttons.call_args[0][1]
+    assert "Europe/Istanbul" in prompt
 
 
 @pytest.mark.asyncio
@@ -1082,7 +1086,7 @@ async def test_tokens_default_span_shows_stats():
          patch("backend.store.repositories.token_stat_repo.get_summary",
                AsyncMock(return_value=_SAMPLE_SUMMARY)):
         from backend.guards.commands.tokens_cmd import TokensCommand
-        await TokensCommand().execute("905001234567", "", session)
+        await TokensCommand().execute("905001234567", "24h", session)
 
     mock_messenger.send_text.assert_awaited_once()
     msg = mock_messenger.send_text.call_args[0][1]

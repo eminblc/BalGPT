@@ -317,6 +317,8 @@ class ScannerTriggerRequest(BaseModel):
     project_id: str
     auto_review: bool = True
     dry_run: bool = False
+    parallel: int = Field(default=3, ge=1, le=10)
+    include_third_party: bool = False
 
 
 class ReviewerTriggerRequest(BaseModel):
@@ -327,8 +329,8 @@ class ReviewerTriggerRequest(BaseModel):
 class BacklogExecuteRequest(BaseModel):
     project_id: str
     prefix: str = ""
-    max_items: int = Field(default=3, ge=1, le=20)
-    parallel: int = Field(default=2, ge=1, le=5)
+    max_items: int = Field(default=0, ge=0, le=100)  # 0 = tüm pending item'lar
+    parallel: int = Field(default=2, ge=1, le=10)
     dry_run: bool = False
 
 
@@ -425,7 +427,9 @@ async def trigger_scanner(
     from ..features.scan_pipeline.scanner_agent import ScannerAgent  # lazy import
 
     background_tasks.add_task(
-        ScannerAgent().run, body.scan_type, body.project_id, body.auto_review, body.dry_run
+        ScannerAgent().run,
+        body.scan_type, body.project_id, body.auto_review, body.dry_run, body.parallel,
+        body.include_third_party,
     )
     logger.info(
         "scanner/trigger: kuyruğa alındı scan_type=%s project_id=%s auto_review=%s dry_run=%s",
@@ -437,6 +441,46 @@ async def trigger_scanner(
         "project_id": body.project_id,
         "auto_review": body.auto_review,
     }
+
+
+# ── All scans trigger ──────────────────────────────────────────────
+
+
+class AllScansTriggerRequest(BaseModel):
+    project_id: str
+    parallel: int = Field(default=3, ge=1, le=10)
+    dry_run: bool = False
+    include_third_party: bool = False
+
+
+@router.post(
+    "/scanner/trigger-all",
+    summary="Tüm scan tiplerini sırayla başlat",
+    response_model=dict,
+)
+async def trigger_all_scans(
+    request: Request,
+    body: AllScansTriggerRequest,
+    background_tasks: BackgroundTasks,
+):
+    """Tüm konfigüre edilmiş scan tiplerini sırayla çalıştırır.
+
+    Her scan tamamlandıktan sonra reviewer otomatik devreye girer.
+    Tümü bitince özet bildirim owner'a gönderilir.
+    Yalnızca localhost erişimine açıktır.
+    """
+    _require_localhost(request)
+
+    from ..features.scan_pipeline.all_scans_runner import AllScansRunner
+
+    background_tasks.add_task(
+        AllScansRunner().run, body.project_id, body.parallel, body.dry_run, body.include_third_party
+    )
+    logger.info(
+        "scanner/trigger-all: kuyruğa alındı project_id=%s parallel=%d dry_run=%s",
+        body.project_id, body.parallel, body.dry_run,
+    )
+    return {"status": "queued", "project_id": body.project_id, "parallel": body.parallel}
 
 
 # ── Reviewer agent trigger ─────────────────────────────────────────
@@ -518,4 +562,119 @@ async def execute_backlog(
         "project_id": body.project_id,
         "prefix": body.prefix,
         "max_items": body.max_items,
+    }
+
+
+# ── Scanner cancel / status ────────────────────────────────────────
+
+
+@router.post(
+    "/scanner/cancel",
+    summary="Aktif scan'i iptal et",
+    response_model=dict,
+    responses={
+        200: {
+            "description": "İptal flag'i set edildi",
+            "content": {"application/json": {"example": {"status": "cancel_requested"}}},
+        },
+        403: {"description": "Localhost dışı erişim engellendi"},
+    },
+)
+async def cancel_scanner(request: Request):
+    """Devam eden scan pipeline'ının iptalini talep eder.
+
+    Flag set edilir; bir sonraki chunk döngüsü kontrolünde tarama durur.
+    Yalnızca localhost erişimine açıktır; API key gerekmez.
+    """
+    _require_localhost(request)
+    from ..guards.runtime_state import request_scan_cancel
+    request_scan_cancel()
+    logger.info("scanner/cancel: iptal flag'i set edildi")
+    return {"status": "cancel_requested"}
+
+
+@router.get(
+    "/scanner/status",
+    summary="Aktif scan durumunu göster",
+    response_model=dict,
+    responses={
+        200: {
+            "description": "Scan durum bilgisi",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "cancel_requested": False,
+                        "running_agent_run": None,
+                        "last_run_dir": None,
+                        "findings_count": 0,
+                    }
+                }
+            },
+        },
+        403: {"description": "Localhost dışı erişim engellendi"},
+    },
+)
+async def scanner_status(request: Request):
+    """Aktif scan hakkında durum bilgisi döndürür.
+
+    cancel_requested: İptal flag'inin set edilip edilmediği.
+    running_agent_run: DB'deki en son 'running' durumundaki scanner agent_run kaydı.
+    last_run_dir: data/scan_runs/ altındaki en yeni klasörün adı (run_id).
+    findings_count: En yeni run dizinindeki findings/*.jsonl dosya sayısı.
+
+    Yalnızca localhost erişimine açıktır; API key gerekmez.
+    """
+    from pathlib import Path
+    from ..guards.runtime_state import is_scan_cancel_requested
+
+    _require_localhost(request)
+
+    cancel_requested = is_scan_cancel_requested()
+
+    # En son çalışan agent_run kaydını oku
+    running_agent_run: dict | None = None
+    try:
+        from ..store.sqlite_store import SqliteStore
+        store = SqliteStore()
+        rows = await store.fetchall(
+            "SELECT id, session_id, project_id, started_at, status FROM agent_runs "
+            "WHERE agent_type = 'scanner' AND status = 'running' "
+            "ORDER BY started_at DESC LIMIT 1"
+        )
+        if rows:
+            row = rows[0]
+            running_agent_run = {
+                "id":         row["id"],
+                "session_id": row["session_id"],
+                "project_id": row["project_id"],
+                "started_at": row["started_at"],
+                "status":     row["status"],
+            }
+    except Exception as _err:  # noqa: BLE001
+        logger.debug("scanner_status: agent_runs sorgusu başarısız: %s", _err)
+
+    # scan_runs dizinindeki en yeni run_id'yi bul
+    runs_dir = Path(__file__).parent.parent.parent.parent / "data" / "scan_runs"
+    last_run_dir: str | None = None
+    findings_count: int = 0
+    try:
+        if runs_dir.exists():
+            subdirs = sorted(
+                (d for d in runs_dir.iterdir() if d.is_dir()),
+                key=lambda d: d.stat().st_mtime,
+            )
+            if subdirs:
+                newest = subdirs[-1]
+                last_run_dir = newest.name
+                findings_dir = newest / "findings"
+                if findings_dir.exists():
+                    findings_count = sum(1 for f in findings_dir.iterdir() if f.suffix == ".jsonl")
+    except Exception as _err:  # noqa: BLE001
+        logger.debug("scanner_status: scan_runs dizini okunamadı: %s", _err)
+
+    return {
+        "cancel_requested":  cancel_requested,
+        "running_agent_run": running_agent_run,
+        "last_run_dir":      last_run_dir,
+        "findings_count":    findings_count,
     }
