@@ -103,9 +103,12 @@ class HelpCommand:
                     {
                         "title": t("help.section_intelligence", lang),
                         "rows": [
-                            {"id": "cmd_scan",    "title": t("help.row_scan",    lang)},
-                            {"id": "cmd_backlog", "title": t("help.row_backlog", lang)},
-                            {"id": "cmd_agents",  "title": t("help.row_agents",  lang)},
+                            {"id": "cmd_scan",         "title": t("help.row_scan",           lang)},
+                            {"id": "scan_status",      "title": t("help.row_scan_status",    lang)},
+                            {"id": "scan_cancel",      "title": t("help.row_scan_cancel",    lang)},
+                            {"id": "cmd_backlog",      "title": t("help.row_backlog",        lang)},
+                            {"id": "backlog_status",   "title": t("help.row_backlog_status", lang)},
+                            {"id": "cmd_agents",       "title": t("help.row_agents",         lang)},
                         ],
                     },
                 ],

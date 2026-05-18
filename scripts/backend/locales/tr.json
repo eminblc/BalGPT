@@ -74,7 +74,7 @@
     "section_planning": "Planlama & Projeler",
     "section_system": "Sistem & Araçlar",
     "section_intelligence": "Tarama & Agent",
-    "fallback": "Komutlar:\n/help [/komut]   — Bu menü veya komut açıklaması\n/history [N|özet] — Son mesajlar\n/project [id]    — Aktif projeyi seç (TOTP)\n/lang <tr|en>    — Dil değiştir\n/model           — {model_hint}\n/beta        — Beta'dan çık\n\nProje oluşturma:\n  Menü → Yeni Proje → ad yaz → tür seç:\n  • Yazılım Projesi  (CLAUDE.md, BACKLOG.md ...)\n  • Görev Kaydet     (README + outputs/)\n  • Sadece Klasör    (boş klasör)\n\nSistem komutları:\n/root-reset  — Session sıfırla\n/restart     — Servisleri yeniden başlat\n/terminal <komut> — Shell komutu çalıştır (tehlikeli → admin TOTP)\n⚠️ Yıkıcı (matematik + admin TOTP):\n/shutdown    — Servisi kapat\n\nYedekleme:\n/export          — Temel yedek (.99rb)\n/export full     — Tam yedek (medya dahil)\n/export media    — Temel + medya\n/import          — .99rb dosyasından geri yükle\n\nZamanlama (TOTP):\n/schedule                              → listele\n/schedule ekle 0 9 * * * <açık>       → her sabah 9 — Bridge'e prompt\n/schedule mesaj 0 9 * * * <metin>     → her sabah 9 — sabit mesaj\n/schedule scan 0 */6 * * * sec proje  → her 6 saatte tarama cron'u\n/schedule backlog 0 8 * * * proje     → backlog executor cron'u\n/schedule sil|durdur|başlat <id>\nDoğal dil: 'Her sabah 9'da brief yaz' → Claude otomatik oluşturur\n\nTarama & Agent:\n/scan [security|bugfix] [--dry] — Proje taraması başlat\n/backlog [çalıştır|kuru|durum]  — BACKLOG.md maddeleri uygula\n/agents [detail|project|cancel] — Agent run'larını yönet\n\nKomut olmayan mesajlar Claude'a gider. 💬",
+    "fallback": "Komutlar:\n/help [/komut]   — Bu menü veya komut açıklaması\n/history [N|özet] — Son mesajlar\n/project [id]    — Aktif projeyi seç (TOTP)\n/lang <tr|en>    — Dil değiştir\n/model           — {model_hint}\n/beta        — Beta'dan çık\n\nProje oluşturma:\n  Menü → Yeni Proje → ad yaz → tür seç:\n  • Yazılım Projesi  (CLAUDE.md, BACKLOG.md ...)\n  • Görev Kaydet     (README + outputs/)\n  • Sadece Klasör    (boş klasör)\n\nSistem komutları:\n/root-reset  — Session sıfırla\n/restart     — Servisleri yeniden başlat\n/terminal <komut> — Shell komutu çalıştır (tehlikeli → admin TOTP)\n⚠️ Yıkıcı (matematik + admin TOTP):\n/shutdown    — Servisi kapat\n\nYedekleme:\n/export          — Temel yedek (.99rb)\n/export full     — Tam yedek (medya dahil)\n/export media    — Temel + medya\n/import          — .99rb dosyasından geri yükle\n\nZamanlama (TOTP):\n/schedule                              → listele\n/schedule ekle 0 9 * * * <açık>       → her sabah 9 — Bridge'e prompt\n/schedule mesaj 0 9 * * * <metin>     → her sabah 9 — sabit mesaj\n/schedule scan 0 */6 * * * sec proje  → her 6 saatte tarama cron'u\n/schedule backlog 0 8 * * * proje     → backlog executor cron'u\n/schedule sil|durdur|başlat <id>\nDoğal dil: 'Her sabah 9'da brief yaz' → Claude otomatik oluşturur\n\nTarama & Agent:\n/scan [security|bugfix] [--dry] — Proje taraması başlat\n/scan status                    — Canlı ilerleme (progress bar) + 🛑 Durdur butonu\n/scan cancel                    — Aktif taramayı durdur\n/backlog [çalıştır|kuru|durum]  — BACKLOG.md maddeleri uygula\n/backlog durum                  — Canlı backlog ilerleme\n/agents [detail|project|cancel] — Agent run'larını yönet\n\nKomut olmayan mesajlar Claude'a gider. 💬",
     "btn_chat": "💬 Sohbet",
     "btn_plans": "📋 Planlarım",
     "btn_projects": "📁 Projeler",
@@ -97,7 +97,10 @@
     "model_hint_anthropic": "/model sonnet|haiku|opus — aktif: {current}",
     "model_hint_ollama": "/model <model_adı> — aktif: {current}",
     "model_hint_gemini": "/model gemini-2.0-flash vb. — aktif: {current}",
-    "model_hint_default": "/model <model_adı> — aktif: {current}"
+    "model_hint_default": "/model <model_adı> — aktif: {current}",
+    "row_scan_status": "📊 Tarama Durumu",
+    "row_scan_cancel": "🛑 Taramayı Durdur",
+    "row_backlog_status": "📊 Backlog Durumu"
   },
   "restart": {
     "starting": "♻️ Servisler yeniden başlatılıyor...",

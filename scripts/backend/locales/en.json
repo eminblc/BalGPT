@@ -97,7 +97,10 @@
     "model_hint_anthropic": "/model sonnet|haiku|opus — active: {current}",
     "model_hint_ollama": "/model <model_name> — active: {current}",
     "model_hint_gemini": "/model gemini-2.0-flash etc. — active: {current}",
-    "model_hint_default": "/model <model_name> — active: {current}"
+    "model_hint_default": "/model <model_name> — active: {current}",
+    "row_scan_status": "📊 Scan Status",
+    "row_scan_cancel": "🛑 Stop Scan",
+    "row_backlog_status": "📊 Backlog Status"
   },
   "restart": {
     "starting": "♻️ Restarting services...",
