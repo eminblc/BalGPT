@@ -193,6 +193,30 @@ def init_db() -> None:
             awaiting_text  TEXT,
             updated_at     REAL NOT NULL
         );
+
+        -- ── Per-item token kullanımı — TOKEN-PER-ITEM-1 ───────────
+        -- Backlog item, scanner chunk, reviewer batch gibi tek bir
+        -- "iş birimine" ait token tüketimini kayıt altına alır.
+        -- token_usage tablosunun per-call kaydıyla tamamlayıcı (birbirini dışlamaz).
+        CREATE TABLE IF NOT EXISTS task_token_usage (
+            id            TEXT PRIMARY KEY,
+            task_id       TEXT NOT NULL,
+            task_type     TEXT NOT NULL,
+            run_id        TEXT,
+            model_id      TEXT NOT NULL DEFAULT '',
+            model_name    TEXT NOT NULL DEFAULT '',
+            backend       TEXT NOT NULL DEFAULT '',
+            input_tokens  INTEGER NOT NULL DEFAULT 0,
+            output_tokens INTEGER NOT NULL DEFAULT 0,
+            cache_read    INTEGER NOT NULL DEFAULT 0,
+            cache_write   INTEGER NOT NULL DEFAULT 0,
+            started_at    REAL,
+            finished_at   REAL,
+            created_at    REAL NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_task_token_type_ts ON task_token_usage(task_type, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_task_token_run_id  ON task_token_usage(run_id);
         """)
 
 

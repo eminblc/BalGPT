@@ -491,7 +491,10 @@
     "period_prompt": "📊 Token istatistikleri — zaman aralığı seç:",
     "btn_24h": "Son 24 Saat",
     "btn_7d": "Son 7 Gün",
-    "btn_30d": "Son 30 Gün"
+    "btn_30d": "Son 30 Gün",
+    "by_task_header": "📊 En Pahalı {limit} Görev Birimi (son {span})",
+    "by_task_row": "  • [{task_type}] {task_id}: {total} token ({calls} çağrı)",
+    "by_task_empty": "📭 Son {span} içinde görev-bazlı token kaydı bulunamadı."
   },
   "bridge_monitor": {
     "restart_timeout": "Bridge otomatik restart zaman aşımına uğradı. Manuel /restart gerekiyor.",

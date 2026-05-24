@@ -1,10 +1,15 @@
-"""/tokens komutu — LLM token kullanım istatistikleri (TOKEN-STATS-2)."""
+"""/tokens komutu — LLM token kullanım istatistikleri (TOKEN-STATS-2, TOKEN-PER-ITEM-1)."""
 from __future__ import annotations
 
 from .registry import registry
 from ..permission import Perm
 
 _VALID_SPANS = {"24h": 24, "7d": 168, "30d": 720}
+_TASK_TYPE_LABEL = {
+    "backlog_item":   "Backlog",
+    "scanner_chunk":  "Scanner",
+    "reviewer_batch": "Reviewer",
+}
 
 
 def _fmt(n: int) -> str:
@@ -41,7 +46,36 @@ class TokensCommand:
             await messenger.send_buttons(sender, t("tokens.period_prompt", lang), buttons)
             return
 
-        span_key = arg.strip().lower() or "24h"
+        # TOKEN-PER-ITEM-1: /tokens by-task [24h|7d] — en pahalı 10 görev birimi
+        stripped = arg.strip().lower()
+        if stripped.startswith("by-task"):
+            parts = stripped.split()
+            span_key = parts[1] if len(parts) > 1 else "24h"
+            if span_key not in _VALID_SPANS:
+                await messenger.send_text(sender, t("tokens.invalid_span", lang, span=span_key))
+                return
+            hours = _VALID_SPANS[span_key]
+            rows = await token_stat_repo.get_task_type_summary(hours)
+            if not rows:
+                await messenger.send_text(sender, t("tokens.by_task_empty", lang, span=span_key))
+                return
+            lines: list[str] = [t("tokens.by_task_header", lang, limit=len(rows), span=span_key), ""]
+            for row in rows:
+                label = _TASK_TYPE_LABEL.get(row["task_type"], row["task_type"])
+                lines.append(
+                    t(
+                        "tokens.by_task_row",
+                        lang,
+                        task_type=label,
+                        task_id=row["task_id"],
+                        total=_fmt(row["total_tokens"] or 0),
+                        calls=row["calls"],
+                    )
+                )
+            await messenger.send_text(sender, "\n".join(lines))
+            return
+
+        span_key = stripped or "24h"
         if span_key not in _VALID_SPANS:
             await messenger.send_text(sender, t("tokens.invalid_span", lang, span=span_key))
             return

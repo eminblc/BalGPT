@@ -39,7 +39,6 @@ const ACTIONS_LOG         = join(ROOT_DIR, "outputs/logs/root_actions.log");
 const BRIDGE_LOG          = join(ROOT_DIR, "outputs/logs/bridge.log");
 const ACTIVE_CONTEXT_PATH = join(ROOT_DIR, "data/active_context.json");
 const CONV_DIR            = join(ROOT_DIR, "data/conv_history");
-const GUARDRAILS_PATH     = join(ROOT_DIR, "GUARDRAILS.md");
 const ROUTES_PATH         = join(ROOT_DIR, ".claude-routes.json");
 const BROWSER_SEL_PATH    = join(ROOT_DIR, ".browser-selectors.json");
 const CLAUDE_MD_PATH      = join(ROOT_DIR, "CLAUDE.md");
@@ -170,7 +169,7 @@ function loadConvHistory(sessionId) {
  * - "Önceki talimatları unut" tarzı kalıplar satırın başından çıkarılır
  * - Mesaj 2000 karakterle sınırlandırılır
  */
-function _sanitizeConvMsg(msg) {
+function _sanitizeConvMsg(msg, maxChars = 2000) {
   return String(msg)
     // Tüm markdown başlık satırları (# Başlık ... ###### Başlık)
     .replace(/^#{1,6}\s+/gm, "")
@@ -180,7 +179,7 @@ function _sanitizeConvMsg(msg) {
     .replace(/^\[(?:SYSTEM|INSTRUCTION|INST|SYS)\][:\s]*/gim, "")
     // "Önceki talimatları unut" / "ignore previous instructions" kalıpları (satır başı)
     .replace(/^(?:ignore|forget|disregard)\s+(?:previous|all|prior)\s+(?:instructions?|prompts?|rules?)[^\n]*/gim, "[kaldırıldı]")
-    .slice(0, 2000);
+    .slice(0, maxChars);
 }
 
 /**
@@ -252,30 +251,6 @@ function formatConvHistorySummary(history) {
   }
   lines.push("_(Bu geçmiş oturum sıfırlandıktan sonra bağlamı korumak için eklendi.)_");
   return lines.join("\n");
-}
-
-// ── Guardrails kategori başlıkları okuyucu ────────────────────────────────────
-
-function readGuardrailHeaders() {
-  try {
-    if (!existsSync(GUARDRAILS_PATH)) return "";
-    const content = readFileSync(GUARDRAILS_PATH, "utf-8");
-    const headers = content
-      .split("\n")
-      .filter(line => /^## KATEGORİ/.test(line))
-      .map(line => `- ${line.replace(/^## /, "").trim()}`);
-    if (!headers.length) return "";
-    return [
-      "## Guardrails — Yasak İşlem Kategorileri",
-      "Aşağıdaki kategorilerdeki işlemler KESİNLİKLE YASAKTIR.",
-      "Tam liste: GUARDRAILS.md — yasak bir istek geldiğinde: \"Bu işlemi ben yapamam, sen yapmalısın.\"",
-      "",
-      ...headers,
-    ].join("\n");
-  } catch (err) {
-    console.error("[readGuardrailHeaders] GUARDRAILS.md okunamadı — guardrail başlıkları init_prompt'a eklenemedi:", err);
-    return "";
-  }
 }
 
 // ── Context Route İpucu ───────────────────────────────────────────────────────
@@ -528,7 +503,6 @@ function readActiveRootProjectInfo(ctx) {
 function buildInitPrompt(projectClaudeMd = "", convHistory = [], userMessage = "", sessionId = "", isResumed = false) {
   const activeCtx = readActiveContext();
   const activeCtxSection = formatActiveContext(activeCtx);
-  const guardrailsSection = readGuardrailHeaders();
   // FEAT-14: Kompakt özet format — son 3 tur, mesaj başına 300 karakter
   const convHistorySection = formatConvHistorySummary(convHistory);
   const activeProjectClaudeMd = readActiveProjectClaudeMd(activeCtx);
@@ -578,7 +552,7 @@ Proje kök dizini: ${ROOT_DIR}`;
 - outputs/logs/          → Loglar`;
 
   // CTX-LOSS-2: Devam eden (resumed) oturumda yalnızca dinamik bölümleri gönder.
-  // Statik bölümler (KESİN YASAKLAR, guardrails, WhatsApp talimatı, coreFiles vb.)
+  // Statik bölümler (KESİN YASAKLAR, WhatsApp talimatı, coreFiles vb.)
   // Anthropic tarafında oturum geçmişinde zaten mevcut — tekrar göndermek token israfı.
   // İSTİSNA: active_root_project set edilmişse agentIntro + coreFilesSection yenilenir;
   // çünkü proje kök dizini kısıtlaması cwd değişimlerinde garantilenmelidir (CTX-LOSS-2 root-project sızıntısı).
@@ -608,24 +582,23 @@ Proje kök dizini: ${ROOT_DIR}`;
 
   // CTX-LOSS-3: Sabit bölümler önce (Anthropic prefix-cache'i için), dinamik bölümler sonda.
   // currentDate ve claudeMdSizeNote artık coreFilesSection'dan sonra — bu sayede statik
-  // prefix (agentIntro + KESİN YASAKLAR + guardrails + Kod Kalitesi + coreFiles + Bağlamı Güncelle)
+  // prefix (agentIntro + KESİN YASAKLAR + Kod Kalitesi + coreFiles + Bağlamı Güncelle)
   // günlük olarak değişmez ve Anthropic tarafında önbelleğe alınabilir.
+  const { url: notifyUrl, to: notifyTo } = _notifyTarget();
   const base = `${agentIntro}
 
-## WhatsApp Bildirimi — Yalnızca araç kullanımında
+## Tool Bildirimi — Yalnızca araç kullanımında
 Bash, dosya okuma/yazma gibi araç çağrıları yaparken (sohbet/soru yanıtında HAYIR):
-curl -s -X POST ${FASTAPI_URL}/whatsapp/send \\
+curl -s -X POST ${notifyUrl} \\
   -H "Content-Type: application/json" \\
-  -d '{"to":"${WHATSAPP_OWNER}","text":"<ne yapıyorsun, tek kısa samimi cümle — ör: Dosyayı okuyorum…, Bakıyorum…, Düşünüyorum…, Test çalıştırıyorum…, Kodu güncelliyorum…>"}'
-Hata olursa: '{"to":"${WHATSAPP_OWNER}","text":"❌ Hata: <kısa açıklama>"}'
+  -d '{"to":"${notifyTo}","text":"<ne yapıyorsun, tek kısa samimi cümle — ör: Dosyayı okuyorum…, Bakıyorum…, Düşünüyorum…, Test çalıştırıyorum…, Kodu güncelliyorum…>"}'
+Hata olursa: '{"to":"${notifyTo}","text":"❌ Hata: <kısa açıklama>"}'
 
 ## KESİN YASAKLAR — İSTİSNASIZ, ASLA İHLAL ETME
 - Servisleri başlatma/durdurma/restart etme
 - \`pkill\`, \`kill\`, \`fuser -k\` ile process öldürme
 - \`.env\` dosyasını okuma veya yazma
 - Yasak bir işlem istenirse: "Bu işlemi ben yapamam, sen yapmalısın."
-
-${guardrailsSection}
 
 ## Kod Kalitesi — OOP ve SOLID
 - **SRP:** Bir modül tek sorumluluk taşır
@@ -778,7 +751,10 @@ function _logBridgeError(sessionId, errorType, errorMsg, latencyMs) {
   } catch {}
 }
 
-function runClaude(message, sessionFilePath, sessionId, projectDir = "", permModeOverride = "", modelOverride = "") {
+// Claude Code CLI --effort flag için izin verilen seviyeler (CLI 2.1.101+).
+const VALID_EFFORTS = new Set(["low", "medium", "high", "max"]);
+
+function runClaude(message, sessionFilePath, sessionId, projectDir = "", permModeOverride = "", modelOverride = "", effortOverride = "", thinkingOverride = false) {
   return new Promise((resolve, reject) => {
     const _runStart = Date.now(); // PERF-OPT-6: hata latency hesabı için
     const spawnEnv = { ...process.env };
@@ -800,6 +776,13 @@ function runClaude(message, sessionFilePath, sessionId, projectDir = "", permMod
     // Geçerli model ID formatı: alfanumerik + tire (path/flag injection önlemi)
     if (modelOverride && /^[a-zA-Z0-9_\-.]{1,64}$/.test(modelOverride)) {
       args.push("--model", modelOverride);
+    }
+    // Effort + Thinking iki bağımsız ayar (VS Code UX'iyle birebir aynı).
+    // CLI'ya --effort flag'i SADECE thinkingOverride=true iken emit edilir;
+    // kapalıyken effort seviyesi seçili olsa bile CLI varsayılan davranışını kullanır.
+    // Whitelist zorunlu (flag injection önlemi): low/medium/high/max.
+    if (thinkingOverride && effortOverride && VALID_EFFORTS.has(effortOverride)) {
+      args.push("--effort", effortOverride);
     }
 
     // Session UUID ile devam et (dosya path'i değil, UUID)
@@ -834,6 +817,11 @@ function runClaude(message, sessionFilePath, sessionId, projectDir = "", permMod
     let lastToolUse = null;
     // tool_use_id → { toolName, inputSummary } — tool_result ile eşleştirmek için
     const pendingTools = new Map();
+    // EMPTY-CLI-GUARD: toplam tool_use sayısı + son usage — sahte yanıt tespiti için
+    let totalToolCalls = 0;
+    let lastUsage = null;
+    // TOKEN-PER-ITEM-1: son result event'indeki model ID — caller'a iletilir
+    let lastModelId = "(unknown)";
 
     proc.stdout.on("data", (chunk) => {
       lineBuffer += chunk.toString();
@@ -850,6 +838,7 @@ function runClaude(message, sessionFilePath, sessionId, projectDir = "", permMod
               if (block.type === "tool_use") {
                 const inputSummary = summarizeToolInput(block.name, block.input);
                 pendingTools.set(block.id, { toolName: block.name, inputSummary });
+                totalToolCalls += 1;
                 logAction(sessionId, block.name, inputSummary, "");
                 // FEAT-4: son tool_use'u sakla — defer tespitinde kullanılır
                 lastToolUse = { toolUseID: block.id, toolName: block.name, toolInput: block.input };
@@ -883,6 +872,10 @@ function runClaude(message, sessionFilePath, sessionId, projectDir = "", permMod
               } catch {}
             }
             returnedSessionId = ev.session_id || null;
+            // EMPTY-CLI-GUARD: result event'inin usage'ını sakla (defensive check için)
+            if (ev.usage) lastUsage = ev.usage;
+            // TOKEN-PER-ITEM-1: model ID'yi sakla — caller'a (backlog executor vb.) iletilir
+            if (ev.model) lastModelId = ev.model;
             // PERF-1: Token tüketimini bridge.log'a yaz
             if (ev.usage) {
               try {
@@ -971,7 +964,7 @@ function runClaude(message, sessionFilePath, sessionId, projectDir = "", permMod
             const resumeMsg = approved
               ? message  // orijinal kullanıcı mesajı — Claude bağlamı korur
               : "The user denied the requested tool. Please inform the user and continue the task without it if possible.";
-            runClaude(resumeMsg, sessionFilePath, sessionId, projectDir, permModeOverride, modelOverride)
+            runClaude(resumeMsg, sessionFilePath, sessionId, projectDir, permModeOverride, modelOverride, effortOverride, thinkingOverride)
               .then(resolve)
               .catch(reject);
           },
@@ -998,7 +991,7 @@ function runClaude(message, sessionFilePath, sessionId, projectDir = "", permMod
           _logBridgeError(sessionId, "API_ERR", finalAnswer.slice(0, 200), Date.now() - _runStart);
           reject(new Error(finalAnswer));
         } else {
-          resolve({ answer: finalAnswer, resumedWith, returnedSessionId });
+          resolve({ answer: finalAnswer, resumedWith, returnedSessionId, usage: lastUsage, model_id: lastModelId, toolCallCount: totalToolCalls });
         }
       }
     });
@@ -1123,12 +1116,16 @@ app.post("/cancel", authenticate, async (req, res) => {
  * project_path: beta modunda Claude'un çalışma dizini (proje kök)
  */
 app.post("/query", authenticate, async (req, res) => {
-  const { session_id = "main", message, init_prompt = "", project_path = "", silent = false, perm_mode = "", model = "" } = req.body;
+  const { session_id = "main", message, init_prompt = "", project_path = "", silent = false, perm_mode = "", model = "", effort = "", thinking = false, bare = false } = req.body;
   if (!message) return res.status(400).json({ error: "message gerekli" });
 
   // SEC-M3: gelen kullanıcı mesajını finalMessage'a eklemeden önce sanitize et
   // (injection etiketleri, "önceki talimatları unut" kalıpları vb. temizlenir)
-  const safeMessage = _sanitizeConvMsg(message);
+  // /query gelen mesaj — scan/review/executor prompt'ları da bu yoldan geçer.
+  // 2000 char (konuşma geçmişi varsayılanı) reviewer prompt'unu (~25 KB) keserdi.
+  // 500 KB hem reviewer batch'leri (~50 finding) hem büyük scan chunk prompt'larını
+  // güvenle barındırır; Claude API zaten 200K-1M token kabul ediyor (~800 KB-4 MB).
+  const safeMessage = _sanitizeConvMsg(message, 500_000);
 
   // C2 / G1: path traversal ve symlink koruması için izin verilen kökler
   // PROJECTS_DIR boşsa (ayarlanmamış) yalnızca ROOT_DIR kökü izin verilir.
@@ -1158,7 +1155,9 @@ app.post("/query", authenticate, async (req, res) => {
     } catch {
       return res.status(400).json({ error: "Proje dizini çözümlenemedi" });
     }
-    if (!allowedRoots.some(root => realPath.startsWith(root))) {
+    // (realPath + "/").startsWith(root) → hem tam eşleşmeyi (root ile özdeş dizin)
+    // hem de alt dizin eşleşmesini yakalar; kötü niyetli "99-root-evil" yolunu engeller.
+    if (!allowedRoots.some(root => (realPath + "/").startsWith(root))) {
       return res.status(400).json({ error: "Proje dizini izin verilen alanın dışında" });
     }
     safeProjectPath = realPath;
@@ -1174,7 +1173,7 @@ app.post("/query", authenticate, async (req, res) => {
       if (
         existsSync(resolvedRootProj) &&
         !lstatSync(resolvedRootProj).isSymbolicLink() &&
-        allowedRoots.some(root => resolvedRootProj.startsWith(root))
+        allowedRoots.some(root => (resolvedRootProj + "/").startsWith(root))
       ) {
         safeProjectPath = resolvedRootProj;
       }
@@ -1190,14 +1189,17 @@ app.post("/query", authenticate, async (req, res) => {
   const isNew = !existsSync(sessionFile);
 
   // Oturum sıfırlanmışsa (ya da ilk kez başlıyorsa) önceki konuşmayı bağlam olarak ekle.
-  const convHistory = isNew ? loadConvHistory(session_id) : [];
+  // bare=true: scan/review/executor gibi tek-atımlı dahili çağrılar — geçmiş gerekmez.
+  const convHistory = (!bare && isNew) ? loadConvHistory(session_id) : [];
   // CTX-LOSS-2: Devam eden oturumda yalnızca dinamik bölümler; statik base Anthropic
   // geçmişinde zaten mevcut. Yeni / sıfırlanmış oturumda tam init_prompt gönderilir.
-  const initPrompt = buildInitPrompt(init_prompt, convHistory, message, session_id, !isNew);
-
-  // init_prompt her zaman eklenir: yeni session'da ilk kurulum, eski session'da
-  // Anthropic tarafında oturum süresi dolmuşsa bağlam kaybolmasın.
-  const finalMessage = initPrompt + "\n\n" + safeMessage;
+  // PERF-INIT-1: bare=true → init_prompt tamamen atlanır. Scan/review/executor gibi
+  // tek-atımlı dahili çağrılar prompt'larını kendileri kurar; agentIntro + KESİN YASAKLAR
+  // + WhatsApp bildirim talimatı + coreFiles bölümlerine ihtiyaç duymaz. Paralel chunk
+  // başına ~15KB token tasarrufu sağlar.
+  const finalMessage = bare
+    ? safeMessage
+    : buildInitPrompt(init_prompt, convHistory, message, session_id, !isNew) + "\n\n" + safeMessage;
 
   // silent=true: scheduler gibi arka plan çağrıları "⚙️ İşleniyor..." bildirimi göndermez
   // (ardışık scheduler sorguları WA rate limit'ini tetikler — AUD-O24)
@@ -1221,8 +1223,8 @@ app.post("/query", authenticate, async (req, res) => {
   }
 
   try {
-    const { answer, resumedWith, returnedSessionId } = await runClaude(
-      finalMessage, isNewForRun ? null : sessionFile, session_id, safeProjectPath, perm_mode, model
+    const { answer, resumedWith, returnedSessionId, usage, model_id, toolCallCount } = await runClaude(
+      finalMessage, isNewForRun ? null : sessionFile, session_id, safeProjectPath, perm_mode, model, effort, !!thinking
     );
     // Session UUID değiştiyse → Anthropic tarafında süresi dolmuş, sessizce sıfırlandı
     if (resumedWith && returnedSessionId && resumedWith !== returnedSessionId) {
@@ -1230,9 +1232,19 @@ app.post("/query", authenticate, async (req, res) => {
         `⚠️ *${session_id}* oturumu geçersizdi, otomatik sıfırlandı.\nBağlam yeniden yüklendi, konuşma geçmişi temizlendi.`
       );
     }
+    // EMPTY-CLI-GUARD: CLI hiç token tüketmediyse ve hiç araç çağırmadıysa
+    // → sessizce exit etmiş demektir (token quota, network, vs.). Sahte tamamlama
+    //   önlemek için 502 dön; runner _record_failure() çağıracak.
+    const inputTokens = usage?.input_tokens ?? 0;
+    if (inputTokens === 0 && (toolCallCount ?? 0) === 0) {
+      _logBridgeError(session_id, "EMPTY_CLI", `input_tokens=0 && tool_calls=0 (answer_len=${(answer || "").length})`, 0);
+      return res.status(502).json({ error: "empty_cli_response", session_id });
+    }
     // Her başarılı yanıt sonrası turu yerel geçmişe kaydet
-    saveConvTurn(session_id, message, answer);
-    res.json({ answer, session_id });
+    // bare=true: tek-atımlı dahili çağrılar — geçmiş tutmaya gerek yok (uniq session_id zaten)
+    if (!bare) saveConvTurn(session_id, message, answer);
+    // TOKEN-PER-ITEM-1: usage + model_id caller'a (backlog executor vb.) iletilir
+    res.json({ answer, session_id, usage: usage ?? null, model_id: model_id ?? null });
   } catch (err) {
     // FEAT-18: !cancel ile iptal edildi — sessiz dön, cancel_cmd yanıt gönderir
     if (cancelledSessions.has(session_id)) {
@@ -1248,15 +1260,22 @@ app.post("/query", authenticate, async (req, res) => {
       await sendWhatsAppNotification(
         `⚠️ *${session_id}* oturumu geçersizdi, otomatik sıfırlandı.\nBağlam yeniden yüklendi, konuşma geçmişi temizlendi.`
       );
-      // Hata senaryosunda da geçmiş ekle
-      const retryHistory = loadConvHistory(session_id);
-      const retryPrompt = buildInitPrompt(init_prompt, retryHistory, message, session_id);
-      const retryMessage = retryPrompt + "\n\n" + safeMessage;
+      // Hata senaryosunda da geçmiş ekle (bare=true: init/history atlanır)
+      const retryHistory = bare ? [] : loadConvHistory(session_id);
+      const retryMessage = bare
+        ? safeMessage
+        : buildInitPrompt(init_prompt, retryHistory, message, session_id) + "\n\n" + safeMessage;
       try {
         // IMP-BRIDGE-6: retry'da sessionFile path'ini geçir — UUID diske yazılsın
-        const { answer } = await runClaude(retryMessage, sessionFile, session_id, safeProjectPath, perm_mode, model);
-        saveConvTurn(session_id, message, answer);
-        return res.json({ answer, session_id });
+        const { answer, usage, model_id: retry_model_id, toolCallCount } = await runClaude(retryMessage, sessionFile, session_id, safeProjectPath, perm_mode, model, effort, !!thinking);
+        // EMPTY-CLI-GUARD: retry'da da sessiz exit kontrolü
+        const inputTokens = usage?.input_tokens ?? 0;
+        if (inputTokens === 0 && (toolCallCount ?? 0) === 0) {
+          _logBridgeError(session_id, "EMPTY_CLI", `retry: input_tokens=0 && tool_calls=0 (answer_len=${(answer || "").length})`, 0);
+          return res.status(502).json({ error: "empty_cli_response", session_id });
+        }
+        if (!bare) saveConvTurn(session_id, message, answer);
+        return res.json({ answer, session_id, usage: usage ?? null, model_id: retry_model_id ?? null });
       } catch (retryErr) {
         return res.status(500).json({ error: retryErr.message });
       }

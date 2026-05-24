@@ -14,15 +14,54 @@ from pathlib import Path
 
 from .config_loader import ScanConfigLoader
 from .pipeline import ScanPipeline
+from .scan_pause_store import ScanPauseStore
 
 logger = logging.getLogger(__name__)
 
 # Bridge'e eş zamanlı gidecek maksimum chunk sayısı
 _BRIDGE_CONCURRENCY = 3
 
-# Dosya başına maksimum karakter — token bütçesini korumak için
-# 2000 karakter ≈ 500 token/dosya; 10 dosya × 500 = 5000 token giriş (önceki: 15000)
-_MAX_CHARS_PER_FILE = 2_000
+
+def _strip_json_fence(text: str) -> str:
+    """LLM çıktısındaki markdown code fence'i soyar (```json...``` → içerik)."""
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        first_newline = stripped.find("\n")
+        if first_newline != -1:
+            stripped = stripped[first_newline + 1:]
+        if stripped.endswith("```"):
+            stripped = stripped[:-3]
+    return stripped.strip()
+
+
+class FileContentCache:
+    """Dosya içeriklerini belleğe alır.
+
+    AllScansRunner gibi çoklu tarama senaryolarında aynı dosyanın
+    her scan tipi için diskten tekrar okunmasını önler.
+    Thread-safe: GIL, dict get/set operasyonlarını korur.
+    """
+
+    def __init__(self) -> None:
+        self._cache: dict[str, str] = {}
+
+    def read(self, file_path: str, max_chars: int) -> str:
+        """Dosyayı cache'den döndürür; cache miss ise diskten okuyup saklar."""
+        if file_path in self._cache:
+            return self._cache[file_path]
+
+        path = Path(file_path)
+        if not path.exists():
+            result = "(dosya bulunamadı)"
+        else:
+            try:
+                raw = path.read_text(encoding="utf-8", errors="replace")
+                result = (raw[:max_chars] + "\n... (kesildi)") if len(raw) > max_chars else raw
+            except OSError as exc:
+                result = f"(okuma hatası: {exc})"
+
+        self._cache[file_path] = result
+        return result
 
 
 class ScannerAgent:
@@ -32,10 +71,11 @@ class ScannerAgent:
     SRP: Yalnızca scanner koordinasyonu — reviewer ayrı ReviewerAgent'ta.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, file_cache: FileContentCache | None = None) -> None:
         # Lazy-load — servis başlarken import hatası vermemek için
         self._pipeline: ScanPipeline | None = None
         self._config_loader: ScanConfigLoader | None = None
+        self._file_cache: FileContentCache = file_cache or FileContentCache()
 
     def _get_pipeline(self) -> ScanPipeline:
         if self._pipeline is None:
@@ -58,6 +98,11 @@ class ScannerAgent:
         notify_on_review: bool = True,
         scan_model: str | None = None,
         review_model: str | None = None,
+        scan_effort: str | None = None,
+        review_effort: str | None = None,
+        scan_thinking: bool = False,
+        review_thinking: bool = False,
+        run_id: str | None = None,
     ) -> str:
         """Tarama fazını başlatır, bulgular diske yazılır, run_id döndürür.
 
@@ -74,6 +119,16 @@ class ScannerAgent:
                                   Verilmezse get_scan_llm() varsayılan modeli kullanır.
             review_model:         Opsiyonel reviewer model alias ("haiku", "sonnet", "opus").
                                   Verilmezse ReviewerAgent varsayılan modeli kullanır.
+            scan_effort:          Opsiyonel scanner effort seviyesi
+                                  ("low" | "medium" | "high" | "max").
+            review_effort:        Opsiyonel reviewer effort seviyesi.
+                                  ReviewerAgent.run() üzerinden iletilir.
+            scan_thinking:        Scanner için Extended Thinking on/off toggle.
+                                  False (varsayılan) iken effort seçili olsa bile
+                                  gönderilmez (VS Code UX'iyle birebir aynı).
+            review_thinking:      Reviewer için Extended Thinking on/off toggle.
+            run_id:               Opsiyonel run ID. Verilirse mevcut state.json'dan resume edilir
+                                  (restart-safe resume senaryosu). None ise yeni ID üretilir.
 
         Returns:
             run_id (str) — caller veya ReviewerAgent bu ID ile bulguları okur.
@@ -84,6 +139,7 @@ class ScannerAgent:
         from ...store.repositories.project_repo import project_get
         from ...features.orchestrator.core import AgentLifecycleManager
         from ...adapters.llm.llm_factory import get_scan_llm
+        from ...guards.runtime_state import set_active_scan_run_id
 
         # Proje doğrulama — erken hata, agent run kaydedilmeden önce
         project = await project_get(project_id)
@@ -94,8 +150,9 @@ class ScannerAgent:
         if not project_root:
             raise ValueError(f"Proje yolu boş: {project_id!r}")
 
-        run_id = str(uuid.uuid4())
+        run_id = run_id or str(uuid.uuid4())
         started_at = time.time()
+        set_active_scan_run_id(run_id)
 
         lifecycle = AgentLifecycleManager()
         agent_run_id: str | None = None
@@ -113,13 +170,37 @@ class ScannerAgent:
             logger.warning("ScannerAgent: agent run kaydedilemedi: %s", _err)
 
         pipeline = self._get_pipeline()
-        llm = get_scan_llm(model=scan_model)
+        llm = get_scan_llm(model=scan_model, effort=scan_effort, thinking=scan_thinking)
 
         try:
+            # Pause/checkpoint state dosyasını başlat (mevcut ise resume, değilse yeni)
+            ScanPauseStore.init_state(
+                run_id=run_id,
+                scan_type=scan_type,
+                project_id=project_id,
+                started_at=started_at,
+                phase="scanner",
+            )
+
             # Phase 1 — prompt listesi üret
             config, chunk_prompts, run_dir = pipeline.build_scanner_prompts(
-                scan_type, project_root, run_id, include_third_party=include_third_party
+                scan_type, project_root, run_id,
+                include_third_party=include_third_party,
+                project_id=project_id,
             )
+
+            # Resume: tamamlanan chunk'ları filtrele (restart-safe)
+            completed_chunks = ScanPauseStore.get_completed_chunks(run_id)
+            if completed_chunks:
+                original_count = len(chunk_prompts)
+                chunk_prompts = [
+                    c for c in chunk_prompts
+                    if c["chunk_index"] not in completed_chunks
+                ]
+                logger.info(
+                    "ScannerAgent: resume — %d chunk tamamlanmış, %d chunk kaldı",
+                    len(completed_chunks), len(chunk_prompts),
+                )
 
             total_chunks = len(chunk_prompts)
             logger.info(
@@ -162,7 +243,15 @@ class ScannerAgent:
                 return run_id
 
             # Phase 1 — chunk'ları paralel LLM çağrısıyla çalıştır
-            await self._run_scanner_chunks(chunk_prompts, llm, run_dir, parallel)
+            # Config'deki concurrency değeri parallel parametresine göre önceliklidir;
+            # parallel yalnızca config'de tanımlı değilse fallback olarak kullanılır.
+            concurrency = config.get("concurrency", parallel)
+            await self._run_scanner_chunks(
+                chunk_prompts, llm, run_dir, concurrency,
+                max_chars_per_file=config.get("max_chars_per_file", 8_000),
+                max_output_tokens=config.get("max_output_tokens", 2_048),
+                run_id=run_id,
+            )
 
             # Ara meta bilgisini yaz (ReviewerAgent tarafından okunur)
             findings_count = len(list(run_dir.glob("findings/*.jsonl")))
@@ -192,18 +281,23 @@ class ScannerAgent:
                     agent_run_id, output=f"scanner tamamlandı run_id={run_id}"
                 )
 
+            set_active_scan_run_id(None)
+
             if auto_review:
                 # Lazy import — circular import riski yok (ayrı modül)
                 from .reviewer_agent import ReviewerAgent  # noqa: PLC0415
                 await ReviewerAgent().run(
                     run_id, dry_run=dry_run, notify=notify_on_review,
                     review_model=review_model,
+                    review_effort=review_effort,
+                    review_thinking=review_thinking,
                 )
 
             return run_id
 
         except Exception as exc:
             logger.error("ScannerAgent: başarısız run_id=%s hata=%s", run_id, exc)
+            set_active_scan_run_id(None)
             if agent_run_id:
                 try:
                     await lifecycle.mark_failed(agent_run_id, error_msg=str(exc))
@@ -227,12 +321,16 @@ class ScannerAgent:
         llm,
         run_dir: Path,
         parallel: int = _BRIDGE_CONCURRENCY,
+        max_chars_per_file: int = 8_000,
+        max_output_tokens: int = 2_048,
+        run_id: str = "",
     ) -> None:
         """Chunk prompt'larını sınırlı paralellikte Bridge üzerinden çalıştırır.
 
         parallel semaphore'u ile eş zamanlı Bridge çağrısı kısıtlanır.
         Tüm chunk'lar başarısızsa ilk hatayı yeniden fırlatır.
         İptal flag'i set edilmişse kalan chunk'lar atlanır.
+        Pause flag'i set edilmişse mevcut chunk biter, sonraki başlamaz (wait loop).
         """
         from ...guards.runtime_state import is_scan_cancel_requested
 
@@ -244,6 +342,16 @@ class ScannerAgent:
 
         async def _guarded(chunk: dict, idx: int) -> None:
             nonlocal completed
+            # Pause bekle — semaphore almadan önce; cancel gelirse çık
+            while run_id and ScanPauseStore.is_paused(run_id):
+                if is_scan_cancel_requested():
+                    logger.info("ScannerAgent: iptal istendi (pause beklerken)")
+                    return
+                logger.debug(
+                    "ScannerAgent: chunk %d pause bekliyor run_id=%s", idx, run_id
+                )
+                await asyncio.sleep(2.0)
+
             # İptal kontrolü — semaphore'a girmeden önce
             if is_scan_cancel_requested():
                 logger.info(
@@ -258,7 +366,14 @@ class ScannerAgent:
                         total - idx,
                     )
                     return
-                await self._run_single_chunk(chunk, llm)
+                await self._run_single_chunk(
+                    chunk, llm,
+                    max_chars_per_file=max_chars_per_file,
+                    max_output_tokens=max_output_tokens,
+                    run_id=run_id,
+                )
+                if run_id:
+                    ScanPauseStore.mark_chunk_done(run_id, chunk["chunk_index"])
                 async with lock:
                     completed += 1
                     elapsed = time.time() - start_time
@@ -283,7 +398,14 @@ class ScannerAgent:
         if errors and len(errors) == len(chunk_prompts):
             raise errors[0]
 
-    async def _run_single_chunk(self, chunk: dict, llm) -> None:
+    async def _run_single_chunk(
+        self,
+        chunk: dict,
+        llm,
+        max_chars_per_file: int = 8_000,
+        max_output_tokens: int = 2_048,
+        run_id: str = "",
+    ) -> None:
         """Tek bir chunk'ı LLM ile çalıştırır ve sonucu kaydeder.
 
         chunk dict anahtarları:
@@ -305,50 +427,70 @@ class ScannerAgent:
         else:
             files = rel_files
 
-        # Dosya içeriklerini oku ve prompt'a ekle
+        # Dosya içeriklerini oku — prompt'tan ayrı tut (cache için)
         file_sections = await asyncio.get_event_loop().run_in_executor(
-            None, self._read_files_sync, files
+            None, self._read_files_sync, files, max_chars_per_file
         )
-        full_prompt = base_prompt + "\n\n## Dosya İçerikleri\n" + file_sections
+        user_content = "## Dosya İçerikleri\n" + file_sections
 
         logger.debug(
-            "ScannerAgent: chunk %d — %d dosya, %d karakter prompt",
-            chunk_index, len(files), len(full_prompt),
+            "ScannerAgent: chunk %d — %d dosya, %d+%d karakter (system+user)",
+            chunk_index, len(files), len(base_prompt), len(user_content),
         )
 
+        # Prompt caching: base_prompt (wrapper+scanner_prompt) tüm chunk'larda
+        # aynı → system role'üne taşı + cache_system=True ile ephemeral cache
+        # marker ekle. İlk chunk cache yazar, sonraki ~300 chunk %10 fiyat öder.
         result = await llm.complete(
-            messages=[{"role": "user", "content": full_prompt}],
+            messages=[
+                {"role": "system", "content": base_prompt},
+                {"role": "user", "content": user_content},
+            ],
             model=None,
-            max_tokens=1024,  # max 20 bulgu × ~40 token = 800 token yeterli
+            max_tokens=max_output_tokens,
+            cache_system=True,
         )
 
         # output_file dizinini oluştur ve sonucu kaydet
+        # LLM bazen JSON'u markdown code fence içine sarar — temizle
         out_path = Path(output_file)
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(result.text, encoding="utf-8")
+        out_path.write_text(_strip_json_fence(result.text), encoding="utf-8")
 
         logger.debug(
             "ScannerAgent: chunk %d tamamlandı — %d output token",
             chunk_index, result.output_tokens,
         )
 
-    @staticmethod
-    def _read_files_sync(files: list[str]) -> str:
-        """Dosya içeriklerini okur, her dosyayı _MAX_CHARS_PER_FILE ile sınırlar.
+        # TOKEN-PER-ITEM-1: per-chunk token kullanımını kaydet
+        if run_id and result.input_tokens > 0:
+            try:
+                from ...store.repositories import token_stat_repo
+                await token_stat_repo.record_task_usage(
+                    task_id=f"{run_id}_{chunk_index}",
+                    task_type="scanner_chunk",
+                    run_id=run_id,
+                    model_id=result.model_id,
+                    model_name=result.model_name,
+                    backend=result.backend,
+                    input_tokens=result.input_tokens,
+                    output_tokens=result.output_tokens,
+                    cache_read=result.cache_read_input_tokens,
+                    cache_write=result.cache_creation_input_tokens,
+                )
+            except Exception as _te:
+                logger.warning(
+                    "ScannerAgent: per-chunk token kaydı başarısız (chunk=%d): %s",
+                    chunk_index, _te,
+                )
+
+    def _read_files_sync(self, files: list[str], max_chars_per_file: int = 8_000) -> str:
+        """Dosya içeriklerini cache üzerinden okur, her dosyayı max_chars_per_file ile sınırlar.
 
         Executor üzerinden çağrılır (sync I/O → asyncio uyumu).
         """
         parts: list[str] = []
         for file_path in files:
-            path = Path(file_path)
-            if not path.exists():
-                parts.append(f"=== {file_path} ===\n(dosya bulunamadı)\n")
-                continue
-            try:
-                content = path.read_text(encoding="utf-8", errors="replace")
-                if len(content) > _MAX_CHARS_PER_FILE:
-                    content = content[:_MAX_CHARS_PER_FILE] + "\n... (kesildi)"
-                parts.append(f"=== {file_path} ===\n{content}\n")
-            except OSError as exc:
-                parts.append(f"=== {file_path} ===\n(okuma hatası: {exc})\n")
+            content = self._file_cache.read(file_path, max_chars_per_file)
+            parts.append(f"=== {file_path} ===\n{content}\n")
         return "\n".join(parts)

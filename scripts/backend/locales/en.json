@@ -491,7 +491,10 @@
     "period_prompt": "📊 Token statistics — select time period:",
     "btn_24h": "Last 24 Hours",
     "btn_7d": "Last 7 Days",
-    "btn_30d": "Last 30 Days"
+    "btn_30d": "Last 30 Days",
+    "by_task_header": "📊 Top {limit} Task Units by Token Cost (last {span})",
+    "by_task_row": "  • [{task_type}] {task_id}: {total} tokens ({calls} calls)",
+    "by_task_empty": "📭 No per-task token records found in the last {span}."
   },
   "bridge_monitor": {
     "restart_timeout": "Bridge auto-restart timed out. Manual /restart required.",

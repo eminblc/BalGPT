@@ -23,6 +23,34 @@ from .parser import BacklogItem, BacklogParser
 
 logger = logging.getLogger(__name__)
 
+# Bridge'in HTTP 200 + boş `answer` ile sahte tamamlama döndürmesini engellemek
+# için minimum kabul edilebilir cevap uzunluğu. Claude Code gerçek iş yaptığında
+# en azından bir özet cümle (>= ~40 karakter) döner; bunun altı sessiz exit kabul
+# edilir ve item failed olarak işaretlenir.
+_MIN_ANSWER_LEN = 40
+
+# Process-wide serialization of backlog runs.
+# "Tümü" dosya seçiminde menu.py 3 ayrı POST atıyor; her biri kendi
+# BackgroundTask'ında BacklogExecutorAgent().run() çağırıyor. Lock olmadan
+# 3 run aynı progress.json'a aynı anda yazıyor (race) ve aynı cancel flag'ini
+# birbirinin altından temizliyor. Bu Lock tüm run() çağrılarını seri hale
+# getirir: ilk run bitmeden ikincisi başlamaz.
+_RUN_LOCK = asyncio.Lock()
+
+# Model alias → tam Claude Code CLI model ID'si (llm_factory._SCAN_MODEL_ALIASES ile senkron)
+_MODEL_ALIASES: dict[str, str] = {
+    "haiku":  "claude-haiku-4-5-20251001",
+    "sonnet": "claude-sonnet-4-6",
+    "opus":   "claude-opus-4-7",
+}
+
+
+def _resolve_model(model: str | None) -> str:
+    """Alias'ı tam model ID'sine çevir; alias değilse olduğu gibi döndür; boşsa "" döndür."""
+    if not model:
+        return ""
+    return _MODEL_ALIASES.get(model.lower().strip(), model.strip())
+
 
 class ExecutorResult(TypedDict):
     project_id: str
@@ -48,15 +76,27 @@ class BacklogExecutorAgent:
         max_items: int = 0,
         parallel: int = 2,
         dry_run: bool = False,
+        model: str | None = None,
+        backlog_path: str | None = None,
+        effort: str | None = None,
+        thinking: bool = False,
     ) -> ExecutorResult:
         """BACKLOG item'larını çalıştır.
 
         Args:
-            project_id: DB'deki proje ID'si.
-            prefix:     Yalnızca bu prefix'li item'ları işle (boşsa tümü).
-            max_items:  Tek çalışmada işlenecek maksimum item sayısı (0 = tümü).
-            parallel:   Eşzamanlı Bridge istekleri (Semaphore büyüklüğü).
-            dry_run:    True ise Bridge'e istek atmadan item'ları done olarak işaretle.
+            project_id:   DB'deki proje ID'si.
+            prefix:       Yalnızca bu prefix'li item'ları işle (boşsa tümü).
+            max_items:    Tek çalışmada işlenecek maksimum item sayısı (0 = tümü).
+            parallel:     Eşzamanlı Bridge istekleri (Semaphore büyüklüğü).
+            dry_run:      True ise Bridge'e istek atmadan item'ları done olarak işaretle.
+            model:        Opsiyonel model alias ("haiku" | "sonnet" | "opus") veya tam ad.
+                          Verilmezse Claude Code CLI varsayılan modeli kullanır.
+            backlog_path: Belirli BACKLOG.md dosyasının tam yolu. None → proje kökündeki BACKLOG.md.
+            effort:       Opsiyonel Claude Code CLI effort seviyesi
+                          ("low" | "medium" | "high" | "max").
+            thinking:     Extended Thinking on/off toggle. False (varsayılan) iken
+                          effort seviyesi seçili olsa bile Bridge'e gönderilmez
+                          (VS Code UX'iyle birebir aynı davranış).
 
         Returns:
             ExecutorResult — tamamlama istatistikleri.
@@ -64,6 +104,67 @@ class BacklogExecutorAgent:
         Raises:
             ValueError: Proje DB'de bulunamazsa.
             FileNotFoundError: Projede BACKLOG.md yoksa.
+        """
+        from ...guards.runtime_state import (
+            clear_backlog_cancel,
+            enter_backlog_run,
+            exit_backlog_run,
+            is_backlog_cancel_requested,
+        )
+
+        # Kuyruk sayacı + cancel-all-queued semantiği:
+        #  - enter_backlog_run() True döndürdüyse bu run kuyruğa giren ilk
+        #    run'dır → cancel flag'ini temizleyebilir (taze başlangıç).
+        #  - False döndürdüyse aynı kuyrukta bekleyen başka run(lar) var;
+        #    cancel state'ini miras alır → flag set ise hemen atlayacak.
+        is_first = enter_backlog_run()
+        try:
+            # Process-wide serialization: birden çok eşzamanlı run() (örn.
+            # "Tümü" dosya seçimi 3 paralel BackgroundTask başlatır) burada
+            # kuyruğa girer. progress.json + cancel race böylece elenir.
+            async with _RUN_LOCK:
+                if is_first:
+                    clear_backlog_cancel()
+                # Eğer bu run kuyrukta beklerken bir önceki run cancel
+                # alıp flag'i set ettiyse, hiç başlamadan dön.
+                if is_backlog_cancel_requested():
+                    logger.info(
+                        "BacklogExecutorAgent.run: %s — kuyrukta iken cancel "
+                        "görüldü, run atlandı (backlog_path=%s).",
+                        project_id, backlog_path or "BACKLOG.md",
+                    )
+                    return ExecutorResult(
+                        project_id=project_id,
+                        prefix=prefix,
+                        total=0,
+                        completed=0,
+                        failed=0,
+                        skipped=0,
+                        run_id="",
+                    )
+                return await self._run_locked(
+                    project_id, prefix, max_items, parallel, dry_run, model,
+                    backlog_path, effort, thinking,
+                )
+        finally:
+            exit_backlog_run()
+
+    async def _run_locked(
+        self,
+        project_id: str,
+        prefix: str,
+        max_items: int,
+        parallel: int,
+        dry_run: bool,
+        model: str | None,
+        backlog_path: str | None,
+        effort: str | None,
+        thinking: bool,
+    ) -> ExecutorResult:
+        """run()'ın gerçek gövdesi — _RUN_LOCK altında tek seferde bir kez koşar.
+
+        Cancel flag'i artık run() tarafından (kuyruk semantiğine uygun şekilde)
+        yönetiliyor; bu metot içeride flag'e dokunmaz, sadece okur.
         """
         started_at = time.time()
 
@@ -74,11 +175,22 @@ class BacklogExecutorAgent:
 
         project_root: str = project["path"]
 
-        # 2. BACKLOG.md kontrolü
-        backlog_path = Path(project_root) / "BACKLOG.md"
-        if not backlog_path.exists():
+        # 2. BACKLOG.md kontrolü — belirtilen yol varsa kullan, yoksa varsayılan
+        resolved_backlog = Path(backlog_path) if backlog_path else Path(project_root) / "BACKLOG.md"
+        if not resolved_backlog.exists():
             raise FileNotFoundError(
-                f"BACKLOG.md bulunamadı: {backlog_path}"
+                f"BACKLOG.md bulunamadı: {resolved_backlog}"
+            )
+
+        # 2b. Önceki run'dan kalan in_progress orphan'ları pending'e geri çevir.
+        # Çökme/iptal sonucu `- [~]` veya 🔄 prefix'li satırlar kalıyorsa,
+        # `get_pending_items` onları görmüyordu (sadece `- [ ]` döndürüyor).
+        try:
+            BacklogParser().reset_stranded_items(resolved_backlog)
+        except Exception as _reset_err:  # noqa: BLE001
+            logger.warning(
+                "BacklogExecutorAgent.run: stranded item recovery başarısız (%s) — %s",
+                resolved_backlog.name, _reset_err,
             )
 
         # 3. Run kaydı oluştur
@@ -94,7 +206,7 @@ class BacklogExecutorAgent:
 
         # 4. Pending item'ları al
         parser = BacklogParser()
-        items = parser.get_pending_items(backlog_path, prefix)
+        items = parser.get_pending_items(resolved_backlog, prefix)
         if max_items and max_items > 0:
             items = items[:max_items]
 
@@ -102,13 +214,14 @@ class BacklogExecutorAgent:
         _PROGRESS_FILE = Path(__file__).parent.parent.parent.parent.parent / "data" / "backlog_progress.json"
         import json as _json
         _progress = {
-            "run_id":      run_id,
-            "project_id":  project_id,
-            "total_items": len(items),
-            "completed":   0,
-            "failed":      0,
-            "started_at":  started_at,
-            "status":      "running",
+            "run_id":        run_id,
+            "project_id":    project_id,
+            "backlog_file":  resolved_backlog.name,
+            "total_items":   len(items),
+            "completed":     0,
+            "failed":        0,
+            "started_at":    started_at,
+            "status":        "running",
         }
         try:
             _PROGRESS_FILE.write_text(_json.dumps(_progress, ensure_ascii=False), encoding="utf-8")
@@ -135,10 +248,16 @@ class BacklogExecutorAgent:
         sem = asyncio.Semaphore(parallel)
         file_lock = asyncio.Lock()  # BACKLOG.md concurrent yazma koruması
         progress_lock = asyncio.Lock()  # progress.json eşzamanlı yazma koruması
+        resolved_model = _resolve_model(model)
+        # Effort whitelist — geçersiz/None → "" (Bridge body'ye eklenmez)
+        resolved_effort = effort if effort in {"low", "medium", "high", "max"} else ""
+        # Thinking off iken effort gönderilmez (VS Code UX'iyle birebir aynı)
+        effective_effort = resolved_effort if thinking else ""
         tasks = [
             self._execute_item(
-                item, backlog_path, project_root, sem, dry_run, file_lock,
-                _progress, _PROGRESS_FILE, progress_lock,
+                item, resolved_backlog, project_root, sem, dry_run, file_lock,
+                _progress, _PROGRESS_FILE, progress_lock, resolved_model,
+                effective_effort, bool(thinking), run_id,
             )
             for item in items
         ]
@@ -159,6 +278,9 @@ class BacklogExecutorAgent:
         summary = f"completed={completed} failed={failed} total={len(items)}"
         await lifecycle.mark_completed(agent_run_id, output=summary)
         logger.info("BacklogExecutorAgent.run: %s — %s", project_id, summary)
+
+        # BACKLOG.md dışındaki dosyalar tamamen bitince backlog_dones/ klasörüne taşı
+        self._maybe_archive_backlog(resolved_backlog, project_root, parser)
 
         # Tamamlanma bildirimi — tüm işler bittikten sonra tek seferde
         try:
@@ -206,6 +328,10 @@ class BacklogExecutorAgent:
         progress: dict,
         progress_file: Path,
         progress_lock: asyncio.Lock,
+        model: str = "",
+        effort: str = "",
+        thinking: bool = False,
+        run_id: str = "",
     ) -> bool:
         """Tek bir BACKLOG item'ını işle.
 
@@ -219,11 +345,21 @@ class BacklogExecutorAgent:
             progress:      Paylaşılan ilerleme dict'i (run() tarafından oluşturulur).
             progress_file: progress.json Path'i.
             progress_lock: progress dict/dosyasına eşzamanlı erişim kilidi.
+            model:         Bridge'e gönderilecek Claude Code CLI model ID'si (alias çözülmüş).
+                           Boş string → Bridge default'unu kullanır.
 
         Returns:
             True → başarı, False → hata.
         """
         async with sem:
+            from ...guards.runtime_state import is_backlog_cancel_requested
+            if is_backlog_cancel_requested():
+                logger.info(
+                    "BacklogExecutorAgent._execute_item: %s — iptal nedeniyle atlandı",
+                    item["item_id"],
+                )
+                return False
+
             parser = BacklogParser()
             async with file_lock:
                 parser.mark_in_progress(backlog_path, item["item_id"])
@@ -261,59 +397,191 @@ class BacklogExecutorAgent:
                     "message": prompt,
                     "init_prompt": "",
                     "silent": True,
+                    # PERF-INIT-1: Bridge'in 15KB'lık agentIntro init prompt'unu atla —
+                    # executor prompt'u zaten dosya bağlamını + kuralları kendi sağlıyor.
+                    "bare": True,
                 }
+                if model:
+                    body["model"] = model
+                # Effort + thinking iki bağımsız ayar: thinking off iken Bridge'e
+                # effort gönderilmez (yukarıda effective_effort=""ye düşürüldü).
+                if effort and thinking:
+                    body["effort"] = effort
+                    body["thinking"] = True
                 _pp = Path(project_root).resolve()
                 if str(_pp).startswith(str(_root_dir.resolve()) + "/") or _pp == _root_dir.resolve():
                     body["project_path"] = str(_pp)
                 async with httpx.AsyncClient(timeout=1800.0) as client:
                     response = await client.post(url, json=body, headers=headers)
 
-                if response.status_code == 200:
-                    async with file_lock:
-                        parser.mark_done(backlog_path, item["item_id"])
-                    async with progress_lock:
-                        progress["completed"] += 1
-                        try:
-                            import json as _json
-                            progress_file.write_text(_json.dumps(progress, ensure_ascii=False), encoding="utf-8")
-                        except Exception:
-                            pass
-                    logger.info(
-                        "BacklogExecutorAgent._execute_item: %s tamamlandı.",
-                        item["item_id"],
+                if response.status_code != 200:
+                    logger.error(
+                        "BacklogExecutorAgent._execute_item: %s — HTTP %d",
+                        item["item_id"], response.status_code,
                     )
-                    return True
+                    await self._record_failure(
+                        item, backlog_path, parser, file_lock,
+                        progress, progress_file, progress_lock,
+                    )
+                    return False
 
-                logger.error(
-                    "BacklogExecutorAgent._execute_item: %s — HTTP %d",
-                    item["item_id"], response.status_code,
-                )
+                # HTTP 200 yeterli değil: Bridge, Claude Code CLI exit code 0 ile
+                # boş cevap verirse de 200 döner (server.js:988). Sahte tamamlamayı
+                # önlemek için response body'sini doğrula.
+                try:
+                    payload = response.json()
+                except Exception as parse_err:  # noqa: BLE001
+                    logger.error(
+                        "BacklogExecutorAgent._execute_item: %s — JSON parse hatası: %s",
+                        item["item_id"], parse_err,
+                    )
+                    await self._record_failure(
+                        item, backlog_path, parser, file_lock,
+                        progress, progress_file, progress_lock,
+                    )
+                    return False
+
+                answer = (payload.get("answer") or "").strip()
+                cancelled = bool(payload.get("cancelled"))
+                if cancelled or len(answer) < _MIN_ANSWER_LEN:
+                    logger.error(
+                        "BacklogExecutorAgent._execute_item: %s — Bridge boş/eksik yanıt "
+                        "döndü (cancelled=%s, answer_len=%d). Sahte tamamlama önlendi.",
+                        item["item_id"], cancelled, len(answer),
+                    )
+                    await self._record_failure(
+                        item, backlog_path, parser, file_lock,
+                        progress, progress_file, progress_lock,
+                    )
+                    return False
+
                 async with file_lock:
-                    parser.mark_failed(backlog_path, item["item_id"])
+                    parser.mark_done(backlog_path, item["item_id"])
                 async with progress_lock:
-                    progress["failed"] += 1
+                    progress["completed"] += 1
                     try:
                         import json as _json
                         progress_file.write_text(_json.dumps(progress, ensure_ascii=False), encoding="utf-8")
                     except Exception:
                         pass
-                return False
+                logger.info(
+                    "BacklogExecutorAgent._execute_item: %s tamamlandı (answer_len=%d).",
+                    item["item_id"], len(answer),
+                )
+                # TOKEN-PER-ITEM-1: Bridge'den dönen usage verisini kaydet
+                await self._record_item_token_usage(item["item_id"], run_id, payload)
+                return True
 
             except Exception as exc:  # noqa: BLE001
                 logger.exception(
                     "BacklogExecutorAgent._execute_item: %s için istisna — %s",
                     item["item_id"], exc,
                 )
-                async with file_lock:
-                    parser.mark_failed(backlog_path, item["item_id"])
-                async with progress_lock:
-                    progress["failed"] += 1
-                    try:
-                        import json as _json
-                        progress_file.write_text(_json.dumps(progress, ensure_ascii=False), encoding="utf-8")
-                    except Exception:
-                        pass
+                await self._record_failure(
+                    item, backlog_path, parser, file_lock,
+                    progress, progress_file, progress_lock,
+                )
                 return False
+
+    async def _record_failure(
+        self,
+        item: BacklogItem,
+        backlog_path: Path,
+        parser: BacklogParser,
+        file_lock: asyncio.Lock,
+        progress: dict,
+        progress_file: Path,
+        progress_lock: asyncio.Lock,
+    ) -> None:
+        """Item'ı failed olarak işaretle ve progress.json'ı güncelle.
+
+        SRP: Hata yolu üç ayrı şube tarafından kullanılıyordu (HTTP error,
+        boş yanıt doğrulaması, exception). Tek helper hâline alındı.
+        """
+        async with file_lock:
+            parser.mark_failed(backlog_path, item["item_id"])
+        async with progress_lock:
+            progress["failed"] += 1
+            try:
+                import json as _json
+                progress_file.write_text(_json.dumps(progress, ensure_ascii=False), encoding="utf-8")
+            except Exception:
+                pass
+
+    async def _record_item_token_usage(
+        self,
+        item_id: str,
+        run_id: str,
+        payload: dict,
+    ) -> None:
+        """Bridge yanıtından usage verisini okuyarak task_token_usage tablosuna yazar.
+
+        TOKEN-PER-ITEM-1: hata durumunda sessizce atlar — token kaydı kritik değil.
+        """
+        usage = payload.get("usage") or {}
+        input_tokens: int = usage.get("input_tokens", 0)
+        if input_tokens <= 0:
+            return  # usage bilgisi yok — eski Bridge sürümü veya dry-run
+
+        try:
+            from ...store.repositories import token_stat_repo
+            model_id: str = payload.get("model_id") or "(unknown)"
+            await token_stat_repo.record_task_usage(
+                task_id=item_id,
+                task_type="backlog_item",
+                run_id=run_id or None,
+                model_id=model_id,
+                model_name=model_id,
+                backend="bridge",
+                input_tokens=input_tokens,
+                output_tokens=usage.get("output_tokens", 0),
+                cache_read=usage.get("cache_read_input_tokens", 0),
+                cache_write=usage.get("cache_creation_input_tokens", 0),
+            )
+        except Exception as _te:
+            logger.warning(
+                "BacklogExecutorAgent: per-item token kaydı başarısız (%s): %s",
+                item_id, _te,
+            )
+
+    def _maybe_archive_backlog(
+        self,
+        backlog_file: Path,
+        project_root: str,
+        parser: BacklogParser,
+    ) -> None:
+        """BACKLOG.md dışındaki dosyayı, hiç pending item kalmadıysa backlog_dones/ klasörüne taşır.
+
+        Koşullar:
+          - Dosya adı tam olarak "BACKLOG.md" değil (proje ana backlog'u korunur).
+          - Dosyada hâlâ `- [ ]` pending item yok (tamamlanmış ya da başarısız olmuş).
+        """
+        if backlog_file.name == "BACKLOG.md":
+            return
+
+        remaining = parser.get_pending_items(backlog_file, prefix="")
+        if remaining:
+            logger.debug(
+                "_maybe_archive_backlog: %s içinde %d pending item kaldı — taşınmıyor",
+                backlog_file.name, len(remaining),
+            )
+            return
+
+        done_dir = Path(project_root) / "backlog_dones"
+        try:
+            done_dir.mkdir(parents=True, exist_ok=True)
+            dest = done_dir / backlog_file.name
+            # Aynı isimli dosya zaten varsa üzerine yaz
+            backlog_file.rename(dest)
+            logger.info(
+                "_maybe_archive_backlog: %s → backlog_dones/%s",
+                backlog_file.name, backlog_file.name,
+            )
+        except Exception as _err:
+            logger.warning(
+                "_maybe_archive_backlog: taşıma başarısız %s — %s",
+                backlog_file.name, _err,
+            )
 
     def _build_prompt(self, item: BacklogItem, project_root: str) -> str:
         """Bridge'e gönderilecek implementation promptunu oluştur.
@@ -325,12 +593,21 @@ class BacklogExecutorAgent:
         Returns:
             Prompt metni.
         """
+        comments_path = str(Path(project_root) / "EXECUTORS_COMMENTS.md")
         return (
-            f"Sen {project_root} dizininde çalışan bir kod asistanısın.\n"
-            f"Aşağıdaki BACKLOG maddesini implement et:\n\n"
-            f"{item['text']}\n\n"
-            f"Talimatlar:\n"
-            f"- Gerekli dosyaları oku, değişiklikleri yaz\n"
-            f"- Mümkün olan en minimal değişikliği yap\n"
-            f"- Tamamladığında kısa bir özet ver"
+            f"Proje: `{project_root}`\n\n"
+            f"Görev:\n{item['text']}\n\n"
+            f"Kurallar:\n"
+            f"- Minimal değişiklik yap; bittiğinde kısa Türkçe özet ver.\n"
+            f"- Tüm git komutları `git -C \"{project_root}\" ...` formatında — başka dizinde git ÇALIŞTIRMA, başka repo'ya dokunma.\n"
+            f"- `git -C \"{project_root}\" status --porcelain` boşsa (hiç değişiklik yok) commit ATMA, durumu raporla ve bitir.\n"
+            f"- `git -C \"{project_root}\" remote` boşsa commit ATMA; doluysa Conventional Commit mesajıyla (`feat:`/`fix:`/`refactor:`/`chore:`) commit at.\n"
+            f"- `git push` YAPMA (kullanıcı ayrıca isterse yapılır).\n"
+            f"- Kullanıcıya soru sormana veya görevi atlaman gerektiğinde (belirsizlik, eksik bilgi, "
+            f"kullanıcı kararı gerektiren durum, risk vs.) DURMA ve SORU SORMA. "
+            f"Bunun yerine `{comments_path}` dosyasına şu formatta bir madde EKLE "
+            f"(dosya yoksa oluştur, varsa mevcut içeriğe append et — üzerine YAZMA):\n"
+            f"  `- [{item['item_id']}] <yorumun veya sorun>`\n"
+            f"  Ardından görevi mümkün olduğunca tamamlamaya çalış; tamamen blokluysa "
+            f"kısa bir özet ver ve bitir."
         )
