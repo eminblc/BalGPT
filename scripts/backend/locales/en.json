@@ -88,6 +88,8 @@
     "row_shutdown": "Shutdown / Restart",
     "row_lang": "Change Language",
     "row_model": "Change Model",
+    "row_effort": "Effort Level",
+    "row_thinking": "Extended Thinking",
     "row_tokens": "Token Statistics",
     "row_export": "Backup",
     "row_import": "Restore from Backup",
@@ -338,7 +340,8 @@
     "connection_error": "⚠️ Could not connect to Bridge — service may be down.\nUse /restart to restart.",
     "unavailable": "⚠️ Agent is not responding right now. Try again shortly.",
     "doc_port_error": "⚠️ Project API port not found: {id}",
-    "doc_send_error": "⚠️ Could not send file. Try again shortly."
+    "doc_send_error": "⚠️ Could not send file. Try again shortly.",
+    "send_partial_error": "⚠️ Part of the response could not be delivered. Please ask again to continue."
   },
   "media": {
     "pdf_received": "📄 PDF received: *{filename}*\nHow would you like to create the project?",
@@ -416,6 +419,35 @@
     "btn_sonnet": "Sonnet",
     "btn_haiku": "Haiku",
     "btn_opus": "Opus"
+  },
+  "effort": {
+    "select_prompt": "🎚️ Active effort level: {level}\n\nSelect a level:",
+    "section_title": "Effort Level",
+    "ask_scanner": "🎚️ Pick Scanner effort level:",
+    "ask_reviewer": "🎚️ Pick Reviewer effort level:",
+    "ask_backlog": "🎚️ Pick Backlog Executor effort level:",
+    "changed": "✅ Effort level changed to: {level}",
+    "already_active": "ℹ️ {level} is already the active effort level.",
+    "invalid": "⚠️ Invalid effort level: {level} (accepted: low, medium, high, max)",
+    "btn_low": "🔹 Low",
+    "btn_medium": "🔸 Medium",
+    "btn_high": "🔶 High",
+    "btn_max": "🔴 Max"
+  },
+  "thinking": {
+    "select_prompt": "🧠 Extended Thinking: {state}\n\nChange:",
+    "ask_scanner": "🧠 Extended Thinking for Scanner?",
+    "ask_reviewer": "🧠 Extended Thinking for Reviewer?",
+    "ask_backlog": "🧠 Extended Thinking for Backlog Executor?",
+    "on": "On",
+    "off": "Off",
+    "btn_on": "🟢 On",
+    "btn_off": "⭕ Off",
+    "turned_on": "✅ Extended Thinking enabled.",
+    "turned_off": "✅ Extended Thinking disabled.",
+    "already_on": "ℹ️ Extended Thinking is already on.",
+    "already_off": "ℹ️ Extended Thinking is already off.",
+    "invalid": "⚠️ Invalid value: {value} (accepted: on, off, toggle)"
   },
   "lock": {
     "locked": "🔒 Application locked.",
@@ -578,12 +610,34 @@
     "project_empty": "No runs found for project {project_id}.",
     "scanner_done": "🔍 Scan complete — {count} findings",
     "reviewer_done": "📋 Review complete — {accepted} accepted / {rejected} rejected",
+    "reviewer_done_rich": "📋 *{scan_type}* review complete\nProject: {project}\n✅ {accepted} added ({severity_breakdown})\n❌ {rejected} rejected\nAdded: {backlog_ids}",
     "executor_done": "🛠 Executor complete — {completed}/{total} items"
+  },
+  "dashboard": {
+    "header": "📊 *Dashboard — Active Work*",
+    "active_project": "🎯 Active project: *{project}*",
+    "no_active_project": "🎯 Active project: — (none)",
+    "scanner_idle": "🔍 Scanner: ⏹ idle",
+    "scanner_active": "🔍 Scanner: {icon} *{scan_type}* · phase: {phase}",
+    "scanner_chunk_unit": "chunk",
+    "scanner_batch_unit": "batch",
+    "backlog_idle": "🛠 Backlog executor: ⏹ idle",
+    "backlog_active": "🛠 Backlog executor: ▶️ *{project}*",
+    "backlog_queue": "📥 In queue: {n} file(s) waiting",
+    "agents_empty": "🤖 Active agents: none",
+    "agents_header": "🤖 Active agents ({count}):",
+    "agents_more": "  … and {count} more (/agents active)",
+    "scheduler_empty": "⏰ Scheduled jobs: none",
+    "scheduler_unavailable": "⏰ Scheduler: unavailable",
+    "scheduler_header": "⏰ Scheduled jobs ({active}/{total} active):",
+    "scheduler_more": "  … and {count} more (/schedule)",
+    "one_time": "one-time",
+    "footer": "_(Detail: /scan status · /backlog status · /agents · /schedule)_"
   },
   "scan_all": {
     "summary_header": "📊 *All Scans Complete*\n",
     "dry_note": " _(dry run — BACKLOG not updated)_",
-    "summary_row": "• *{scan_type}*: ✅{accepted} added · ❌{rejected} rejected · ♻️{duplicate} duplicate",
+    "summary_row": "• *{scan_type}*: ✅{accepted} added ({severity_breakdown}) · ❌{rejected} rejected · ♻️{duplicate} duplicate",
     "summary_error": "• *{scan_type}*: ⚠️ error",
     "summary_total": "🔢 *Total:* {accepted} added to BACKLOG · {rejected} rejected · {duplicate} duplicates · {errors} scan errors"
   },
@@ -625,7 +679,23 @@
     "btn_cancel": "🛑 Stop",
     "cancel_ok": "✅ Cancellation request sent. Scan will stop after the current chunk finishes.",
     "cancel_fail": "⚠️ Could not send cancellation request.",
-    "already_running": "⚠️ A scan is already running. Wait for it to finish or stop it with /scan cancel."
+    "already_running": "⚠️ A scan is already running. Wait for it to finish or stop it with /scan cancel.",
+    "pause_ok": "⏸ Pause request sent. Scan will stop after the current chunk/batch finishes.",
+    "pause_fail": "⚠️ Could not send pause request.",
+    "pause_none": "⚠️ No active scan to pause.",
+    "resume_ok": "▶️ Resuming scan…",
+    "resume_fail": "⚠️ Could not send resume request.",
+    "resume_none": "⚠️ No paused scan to resume.",
+    "btn_pause": "⏸ Pause",
+    "status_paused": "⏸ *Paused* — use /scan resume to continue",
+    "status_scanner_header": "🔍 Scan in progress — *scanner phase* ({scan_type})",
+    "status_reviewer_header": "🔍 Scan in progress — *reviewer phase* ({scan_type})",
+    "status_scanner_progress": "Completed chunks: {done}/{total}",
+    "status_reviewer_progress": "Completed batches: {done}",
+    "list_header": "📋 Last 10 Scan Runs",
+    "list_empty": "No scan runs found.",
+    "list_row": "• `{run_id}` | {scan_type} | {phase} | {status}",
+    "reviewer_done_rich": "📋 *{scan_type}* review complete\nProject: {project}\n✅ {accepted} added ({severity_breakdown})\n❌ {rejected} rejected\nAdded: {backlog_ids}"
   },
   "backlog": {
     "select_action": "Select backlog executor action:",
@@ -644,7 +714,13 @@
     "status_running_header": "🛠 Backlog executor running (Project: {project})",
     "status_elapsed": "⏱ Elapsed: {minutes} min",
     "status_eta": " · Est. remaining: ~{minutes} min",
-    "status_done_row": "✅ {project}: {completed}/{total} completed, {failed} failed"
+    "status_queue": "📥 In queue: {n} file(s) waiting",
+    "status_done_row": "✅ {project}: {completed}/{total} completed, {failed} failed",
+    "btn_stop": "🛑 Stop",
+    "cancel_ok": "⛔ Backlog executor stop request sent.",
+    "select_file": "📂 Which BACKLOG file would you like to run?",
+    "file_all": "🗂 All files",
+    "no_file_found": "⚠️ No BACKLOG file found in this project."
   },
   "nl_schedule": {
     "confirm_header": "📅 Here's what I understood — do you confirm?",
@@ -660,19 +736,23 @@
   "scan_model": {
     "ask": "🤖 Which model should scan?\n\n⚡ Haiku — fast and cheap\n⚖️ Sonnet — balanced (recommended)\n🔬 Opus — deep analysis, slower",
     "ask_review": "🔍 Which model should review findings?\n\n⚡ Haiku — fast\n⚖️ Sonnet — balanced (recommended)\n🔬 Opus — deep analysis",
+    "ask_backlog": "🤖 Which model should implement backlog items?\n\n⚡ Haiku — fast and cheap\n⚖️ Sonnet — balanced (recommended)\n🔬 Opus — deep analysis, slower",
     "btn_haiku": "⚡ Haiku (Fast)",
     "btn_sonnet": "⚖️ Sonnet (Balanced) ★",
     "btn_opus": "🔬 Opus (Deep)"
   },
   "parallel": {
-    "scan_ask": "🔍 *{name}* scan\n*Project:* {project}{dry}\n\nHow many parallel agents?\n\n💡 4 parallel ≈ ~5 min  |  1 parallel ≈ ~15 min",
+    "scan_ask": "🔍 *{name}* scan\n*Project:* {project}{dry}\n\nHow many parallel agents?\n\n💡 1=safe, 4=recommended, 16=fast (rate-limit risk)",
     "backlog_ask": "📋 Backlog executor\n*Project:* {project}{prefix}\n\nHow many parallel agents?\n\n💡 Fewer agents = safer, no conflicts",
     "btn": "{n} agent",
     "btn_rec": "{n} agent ★",
+    "section_title": "Parallel count",
     "no_pending": "⚠️ No pending operation. Start with /scan or /backlog first.",
     "scan_launched": "🚀 Scan started — {parallel} parallel agents\n⏳ You'll be notified when done.",
     "backlog_launched": "🚀 Backlog started — {parallel} parallel agents\n⏳ You'll be notified when done.",
-    "dry_label": " (dry run)"
+    "dry_label": " (dry run)",
+    "backlog_launched_multi": "🚀 {count} BACKLOG files started — {parallel} parallel agents\n⏳ You will be notified when complete.",
+    "trigger_failed": "❌ Trigger failed (HTTP {status}).\n{detail}"
   },
   "noroot": {
     "confirm_ask": "No root project selected. Would you like to continue with 99-root?",

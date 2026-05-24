@@ -87,10 +87,14 @@ class TelegramMessenger:
                     f"{self._base}/sendMessage",
                     json={"chat_id": to, "text": part, "parse_mode": "Markdown"},
                 )
-                if res.status_code == 400 and "can't parse entities" in res.text:
+                # MSG-TRUNC-1: Herhangi bir 400 hatası → plain text fallback.
+                # Telegram Markdown v1, eşleşmemiş ` veya _ karakterlerinde mesajı
+                # sessizce keserek kısmi görüntüleme yapabilir. Tüm 400 durumlarında
+                # (can't parse entities, message is too long, vb.) plain text'e düş.
+                if res.status_code == 400:
                     logger.warning(
-                        "Telegram Markdown parse hatası (plain text fallback): to=%s body=%s",
-                        to, res.text[:200],
+                        "Telegram Markdown hatası (plain text fallback): to=%s status=%d body=%s",
+                        to, res.status_code, res.text[:200],
                     )
                     res = await client.post(
                         f"{self._base}/sendMessage",

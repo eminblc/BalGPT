@@ -88,6 +88,8 @@
     "row_shutdown": "Kapat / Restart",
     "row_lang": "Dil Değiştir",
     "row_model": "Model Değiştir",
+    "row_effort": "Effort Seviyesi",
+    "row_thinking": "Extended Thinking",
     "row_tokens": "Token İstatistikleri",
     "row_export": "Yedek Al",
     "row_import": "Yedekten Geri Yükle",
@@ -338,7 +340,8 @@
     "connection_error": "⚠️ Bridge'e bağlanılamadı — servis çökmüş olabilir.\n/restart ile yeniden başlatabilirsin.",
     "unavailable": "⚠️ Ajan şu an yanıt vermiyor. Birazdan tekrar dene.",
     "doc_port_error": "⚠️ Proje API portu bulunamadı: {id}",
-    "doc_send_error": "⚠️ Dosya iletilemedi. Birazdan tekrar dene."
+    "doc_send_error": "⚠️ Dosya iletilemedi. Birazdan tekrar dene.",
+    "send_partial_error": "⚠️ Yanıtın bir kısmı gönderilemedi. Devam etmek için tekrar sor."
   },
   "media": {
     "pdf_received": "📄 PDF alındı: *{filename}*\nNasıl bir proje oluşturalım?",
@@ -416,6 +419,35 @@
     "btn_sonnet": "Sonnet",
     "btn_haiku": "Haiku",
     "btn_opus": "Opus"
+  },
+  "effort": {
+    "select_prompt": "🎚️ Aktif effort seviyesi: {level}\n\nBir seviye seç:",
+    "section_title": "Effort Seviyesi",
+    "ask_scanner": "🎚️ Scanner effort seviyesini seç:",
+    "ask_reviewer": "🎚️ Reviewer effort seviyesini seç:",
+    "ask_backlog": "🎚️ Backlog Executor effort seviyesini seç:",
+    "changed": "✅ Effort seviyesi değiştirildi: {level}",
+    "already_active": "ℹ️ {level} zaten aktif effort seviyesi.",
+    "invalid": "⚠️ Geçersiz effort seviyesi: {level} (kabul edilenler: low, medium, high, max)",
+    "btn_low": "🔹 Düşük",
+    "btn_medium": "🔸 Orta",
+    "btn_high": "🔶 Yüksek",
+    "btn_max": "🔴 Maks"
+  },
+  "thinking": {
+    "select_prompt": "🧠 Extended Thinking: {state}\n\nDeğiştir:",
+    "ask_scanner": "🧠 Scanner için Extended Thinking?",
+    "ask_reviewer": "🧠 Reviewer için Extended Thinking?",
+    "ask_backlog": "🧠 Backlog Executor için Extended Thinking?",
+    "on": "Açık",
+    "off": "Kapalı",
+    "btn_on": "🟢 Açık",
+    "btn_off": "⭕ Kapalı",
+    "turned_on": "✅ Extended Thinking açıldı.",
+    "turned_off": "✅ Extended Thinking kapatıldı.",
+    "already_on": "ℹ️ Extended Thinking zaten açık.",
+    "already_off": "ℹ️ Extended Thinking zaten kapalı.",
+    "invalid": "⚠️ Geçersiz değer: {value} (kabul edilenler: on, off, toggle)"
   },
   "lock": {
     "locked": "🔒 Uygulama kilitlendi.",
@@ -578,7 +610,29 @@
     "project_empty": "{project_id} projesine ait run bulunamadı.",
     "scanner_done": "🔍 Tarama tamamlandı — {count} bulgu",
     "reviewer_done": "📋 Review tamamlandı — {accepted} kabul / {rejected} red",
+    "reviewer_done_rich": "📋 *{scan_type}* review tamamlandı\nProje: {project}\n✅ {accepted} eklendi ({severity_breakdown})\n❌ {rejected} reddedildi\nEklenen: {backlog_ids}",
     "executor_done": "🛠 Executor tamamlandı — {completed}/{total} madde"
+  },
+  "dashboard": {
+    "header": "📊 *Dashboard — Aktif İşler*",
+    "active_project": "🎯 Aktif proje: *{project}*",
+    "no_active_project": "🎯 Aktif proje: — (yok)",
+    "scanner_idle": "🔍 Scanner: ⏹ boşta",
+    "scanner_active": "🔍 Scanner: {icon} *{scan_type}* · faz: {phase}",
+    "scanner_chunk_unit": "chunk",
+    "scanner_batch_unit": "batch",
+    "backlog_idle": "🛠 Backlog executor: ⏹ boşta",
+    "backlog_active": "🛠 Backlog executor: ▶️ *{project}*",
+    "backlog_queue": "📥 Kuyrukta: {n} dosya bekliyor",
+    "agents_empty": "🤖 Aktif agent: yok",
+    "agents_header": "🤖 Aktif agent'lar ({count}):",
+    "agents_more": "  … ve {count} tane daha (/agents active)",
+    "scheduler_empty": "⏰ Zamanlanmış job: yok",
+    "scheduler_unavailable": "⏰ Scheduler: erişilemiyor",
+    "scheduler_header": "⏰ Zamanlanmış job'lar ({active}/{total} aktif):",
+    "scheduler_more": "  … ve {count} tane daha (/schedule)",
+    "one_time": "tek seferlik",
+    "footer": "_(Detay: /scan status · /backlog durum · /agents · /schedule)_"
   },
   "scan": {
     "select_type": "Tarama tipi seç:",
@@ -618,12 +672,28 @@
     "btn_cancel": "🛑 Durdur",
     "cancel_ok": "✅ İptal isteği gönderildi. Mevcut chunk tamamlandıktan sonra tarama durur.",
     "cancel_fail": "⚠️ İptal isteği gönderilemedi.",
-    "already_running": "⚠️ Zaten bir tarama çalışıyor. Bitmesini bekleyin ya da /scan cancel ile durdurun."
+    "already_running": "⚠️ Zaten bir tarama çalışıyor. Bitmesini bekleyin ya da /scan cancel ile durdurun.",
+    "pause_ok": "⏸ Duraklatma isteği gönderildi. Mevcut chunk/batch tamamlandıktan sonra tarama durur.",
+    "pause_fail": "⚠️ Duraklatma isteği gönderilemedi.",
+    "pause_none": "⚠️ Duraklatılacak aktif tarama bulunamadı.",
+    "resume_ok": "▶️ Tarama devam ettiriliyor…",
+    "resume_fail": "⚠️ Devam ettirme isteği gönderilemedi.",
+    "resume_none": "⚠️ Devam ettirilecek duraklatılmış tarama bulunamadı.",
+    "btn_pause": "⏸ Duraklat",
+    "status_paused": "⏸ *Duraklatıldı* — devam ettirmek için /scan resume",
+    "status_scanner_header": "🔍 Tarama devam ediyor — *scanner fazı* ({scan_type})",
+    "status_reviewer_header": "🔍 Tarama devam ediyor — *reviewer fazı* ({scan_type})",
+    "status_scanner_progress": "Tamamlanan chunk: {done}/{total}",
+    "status_reviewer_progress": "Tamamlanan batch: {done} batch",
+    "list_header": "📋 Son 10 Tarama Run'u",
+    "list_empty": "Henüz tarama run'u bulunamadı.",
+    "list_row": "• `{run_id}` | {scan_type} | {phase} | {status}",
+    "reviewer_done_rich": "📋 *{scan_type}* review tamamlandı\nProje: {project}\n✅ {accepted} eklendi ({severity_breakdown})\n❌ {rejected} reddedildi\nEklenen: {backlog_ids}"
   },
   "scan_all": {
     "summary_header": "📊 *Tüm Taramalar Tamamlandı*\n",
     "dry_note": " _(kuru çalışma — BACKLOG güncellenmedi)_",
-    "summary_row": "• *{scan_type}*: ✅{accepted} eklendi · ❌{rejected} reddedildi · ♻️{duplicate} tekrar",
+    "summary_row": "• *{scan_type}*: ✅{accepted} eklendi ({severity_breakdown}) · ❌{rejected} reddedildi · ♻️{duplicate} tekrar",
     "summary_error": "• *{scan_type}*: ⚠️ hata",
     "summary_total": "🔢 *Toplam:* {accepted} BACKLOG'a eklendi · {rejected} reddedildi · {duplicate} tekrar · {errors} tarama hatası"
   },
@@ -644,7 +714,13 @@
     "status_running_header": "🛠 Backlog executor çalışıyor (Proje: {project})",
     "status_elapsed": "⏱ Geçen: {minutes} dk",
     "status_eta": " · Tahmini kalan: ~{minutes} dk",
-    "status_done_row": "✅ {project}: {completed}/{total} tamamlandı, {failed} başarısız"
+    "status_queue": "📥 Kuyrukta: {n} dosya bekliyor",
+    "status_done_row": "✅ {project}: {completed}/{total} tamamlandı, {failed} başarısız",
+    "btn_stop": "🛑 Durdur",
+    "cancel_ok": "⛔ Backlog executor durdurma isteği gönderildi.",
+    "select_file": "📂 Hangi BACKLOG dosyasını uygulamak istiyorsun?",
+    "file_all": "🗂 Tümü",
+    "no_file_found": "⚠️ Bu projede BACKLOG dosyası bulunamadı."
   },
   "nl_schedule": {
     "confirm_header": "📅 Şunu anlıyorum — onaylıyor musun?",
@@ -660,19 +736,23 @@
   "scan_model": {
     "ask": "🤖 Hangi modelle taransın?\n\n⚡ Haiku — hızlı ve ucuz\n⚖️ Sonnet — dengeli (önerilen)\n🔬 Opus — derin analiz, yavaş",
     "ask_review": "🔍 Reviewer için hangi model kullanılsın?\n\n⚡ Haiku — hızlı\n⚖️ Sonnet — dengeli (önerilen)\n🔬 Opus — derin analiz",
+    "ask_backlog": "🤖 Backlog item'larını hangi modelle implement edelim?\n\n⚡ Haiku — hızlı ve ucuz\n⚖️ Sonnet — dengeli (önerilen)\n🔬 Opus — derin analiz, yavaş",
     "btn_haiku": "⚡ Haiku (Hızlı)",
     "btn_sonnet": "⚖️ Sonnet (Dengeli) ★",
     "btn_opus": "🔬 Opus (Derin)"
   },
   "parallel": {
-    "scan_ask": "🔍 *{name}* taraması\n*Proje:* {project}{dry}\n\nKaç paralel agent ile taransın?\n\n💡 4 paralel ≈ ~5 dk  |  1 paralel ≈ ~15 dk",
+    "scan_ask": "🔍 *{name}* taraması\n*Proje:* {project}{dry}\n\nKaç paralel agent ile taransın?\n\n💡 1=güvenli, 4=önerilen, 16=hızlı (rate-limit riski)",
     "backlog_ask": "📋 Backlog executor\n*Proje:* {project}{prefix}\n\nKaç paralel agent ile çalışsın?\n\n💡 Az paralel → daha güvenli, birbirine karışmaz",
     "btn": "{n} agent",
     "btn_rec": "{n} agent ★",
+    "section_title": "Paralel sayısı",
     "no_pending": "⚠️ Bekleyen işlem yok. Önce /scan veya /backlog başlatın.",
     "scan_launched": "🚀 Tarama başlatıldı — {parallel} paralel agent\n⏳ Tamamlanınca bildirim gelecek.",
     "backlog_launched": "🚀 Backlog başlatıldı — {parallel} paralel agent\n⏳ Tamamlanınca bildirim gelecek.",
-    "dry_label": " (kuru çalıştırma)"
+    "dry_label": " (kuru çalıştırma)",
+    "backlog_launched_multi": "🚀 {count} BACKLOG dosyası başlatıldı — {parallel} paralel agent\n⏳ Tamamlanınca bildirim gelecek.",
+    "trigger_failed": "❌ Tetikleme başarısız (HTTP {status}).\n{detail}"
   },
   "noroot": {
     "confirm_ask": "Root project seçili değil. 99-root projesi için devam etmek istiyor musunuz?",

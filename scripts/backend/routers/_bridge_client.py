@@ -260,12 +260,24 @@ async def forward(sender: str, text: str, session: dict) -> None:
 
     # Bridge yanıtını gönder — send_text hataları bridge hatasıyla karışmasın
     if answer:
+        # MSG-TRUNC-1: Gönderim öncesi yanıt uzunluğunu logla (truncation tespiti için).
+        logger.info(
+            "Yanıt gönderiliyor: sender=%s len=%d",
+            _mask_phone(sender), len(answer),
+        )
         try:
             await get_messenger().send_text(sender, answer)
             if settings.conv_history_enabled:
                 log_outbound(sender, "text", answer, context_id=context)
         except Exception as send_exc:
             logger.error("Yanıt gönderilemedi: sender=%s error=%s", _mask_phone(sender), send_exc)
+            # MSG-TRUNC-1: Kısmi gönderim sonrası kullanıcıya bildir (birden fazla parça varsa
+            # ilk parça gönderilmiş olabilir; kullanıcı devam etmesi için bilgilendirilmeli).
+            lang = session.get("lang", "tr")
+            try:
+                await get_messenger().send_text(sender, t("bridge.send_partial_error", lang))
+            except Exception:
+                pass
 
 
 async def _forward_to_project(
@@ -285,31 +297,48 @@ async def _forward_to_main_bridge(
     client: httpx.AsyncClient, session_id: str, text: str
 ) -> httpx.Response:
     """Ana mod: 99-root bridge — ConnectError'da retry."""
-    from ..guards.runtime_state import get_active_model
+    from ..guards.runtime_state import get_active_effort, get_active_model, get_active_thinking
     from ..app_types import ACTIVE_CONTEXT_PATH
     active_model = get_active_model() or settings.default_model
+    active_effort = get_active_effort()
+    active_thinking = get_active_thinking()
     # CTX-LOSS-1: CLAUDE.md gönderilmiyor — Claude Code CLI cwd'deki CLAUDE.md'yi
     # otomatik yüklüyor; init_prompt'a tekrar koymak çift bağlam (~6800 token/sorgu) yaratıyordu.
     body: dict = {"session_id": session_id, "message": text, "init_prompt": ""}
     if active_model:
         body["model"] = active_model
-    # ROOT-PROJECT-CTX: active_context.json'dan active_root_project.path oku;
-    # Bridge allowedRoots yalnızca ROOT_DIR + PROJECTS_DIR'ı kabul eder;
-    # yalnızca ROOT_DIR altındaki path'leri açıkça gönder — harici projeler
-    # için Bridge kendi active_context.json fallback'ini kullanır.
+    # Thinking iki bağımsız ayar: effort seviyesi + on/off. Thinking off iken
+    # effort gönderilmez (VS Code UX'iyle birebir aynı davranış).
+    if active_thinking and active_effort:
+        body["effort"] = active_effort
+        body["thinking"] = True
+    # ROOT-PROJECT-CTX: aktif proje cascading lookup (active_root_project →
+    # active_project fallback). Bridge allowedRoots yalnızca ROOT_DIR +
+    # PROJECTS_DIR'ı kabul eder; yalnızca ROOT_DIR altındaki path'leri açıkça
+    # gönder — harici projeler için Bridge kendi active_context.json
+    # fallback'ini kullanır.
     try:
         from ..app_types import ACTIVE_CONTEXT_PATH as _CTX_PATH
+        from ..guards.commands._root_project_helpers import get_active_root_project
         _root_dir = _CTX_PATH.parent.parent  # 99-root dizini
-        _ctx_text = _CTX_PATH.read_text(encoding="utf-8")
-        _ctx = _json.loads(_ctx_text)
-        _project_path = (_ctx.get("active_root_project") or {}).get("path", "")
+        _active = get_active_root_project() or {}
+        _project_path = _active.get("path", "")
         if _project_path:
             from pathlib import Path as _Path
             _pp = _Path(_project_path).resolve()
             if str(_pp).startswith(str(_root_dir) + "/") or _pp == _root_dir:
                 body["project_path"] = str(_pp)
     except Exception:
-        pass  # JSON parse hatası veya dosya yok — sessizce devam et
+        pass  # helper veya dosya hatası — sessizce devam et
+    # Her ana sohbet sorgusu için aktif model/effort/thinking ayarlarını logla;
+    # kullanıcı /model, /effort, /thinking değişikliklerinin Bridge'e gerçekten
+    # yansıdığını doğrulayabilsin (scan/backlog trigger log'larıyla aynı pattern).
+    logger.info(
+        "bridge/query: session_id=%s len=%d model=%s effort=%s thinking=%s project_path=%s",
+        session_id, len(text),
+        active_model, active_effort, active_thinking,
+        body.get("project_path", "—"),
+    )
     r: httpx.Response | None = None
     for _attempt in range(_BRIDGE_CONNECT_RETRIES):
         try:
