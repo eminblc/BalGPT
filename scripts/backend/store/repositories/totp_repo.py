@@ -30,7 +30,7 @@ def _sync_totp_record_failure(sender: str, totp_type: str, lockout_duration: flo
     with _conn() as con:
         con.execute(
             """INSERT INTO totp_lockouts (sender, totp_type, fail_count, locked_until)
-               VALUES (?, ?, 1, 0)
+               VALUES (:sender, :totp_type, 1, 0)
                ON CONFLICT(sender, totp_type) DO UPDATE SET
                  fail_count = fail_count + 1,
                  locked_until = CASE WHEN fail_count + 1 >= 3 THEN :locked_until ELSE 0 END""",
