@@ -720,6 +720,7 @@
     "cancel_ok": "⛔ Backlog executor stop request sent.",
     "select_file": "📂 Which BACKLOG file would you like to run?",
     "file_all": "🗂 All files",
+    "section_title": "BACKLOG Files",
     "no_file_found": "⚠️ No BACKLOG file found in this project."
   },
   "nl_schedule": {

@@ -720,6 +720,7 @@
     "cancel_ok": "⛔ Backlog executor durdurma isteği gönderildi.",
     "select_file": "📂 Hangi BACKLOG dosyasını uygulamak istiyorsun?",
     "file_all": "🗂 Tümü",
+    "section_title": "BACKLOG Dosyaları",
     "no_file_found": "⚠️ Bu projede BACKLOG dosyası bulunamadı."
   },
   "nl_schedule": {
