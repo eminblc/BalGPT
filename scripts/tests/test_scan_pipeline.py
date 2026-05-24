@@ -304,10 +304,10 @@ class TestFileResolver:
         resolver = self._make_resolver()
         files = [f"f{i}.py" for i in range(20)]
         chunks = resolver.split_into_chunks(files)
-        # default chunk_size=15
+        # default chunk_size=10
         assert len(chunks) == 2
-        assert len(chunks[0]) == 15
-        assert len(chunks[1]) == 5
+        assert len(chunks[0]) == 10
+        assert len(chunks[1]) == 10
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -336,18 +336,19 @@ class TestScannerOrchestrator:
         # scanner_prompt içeriği prompt'a dahil edilmeli
         assert "SQL injection" in prompts[0]["prompt"]
 
-    def test_build_prompts_contains_project_path(self, tmp_path):
+    def test_build_prompts_project_path_in_chunk_meta(self, tmp_path):
+        """project_path artık prompt metnine değil chunk dict'ine konuyor (token tasarrufu)."""
         orch = self._make_orchestrator(tmp_path)
         chunks = [["main.py"]]
         prompts = orch._build_prompts(chunks, _MINIMAL_CONFIG, "/tmp/myproject")
-        assert "/tmp/myproject" in prompts[0]["prompt"]
+        assert prompts[0]["project_path"] == "/tmp/myproject"
 
-    def test_build_prompts_contains_file_names(self, tmp_path):
+    def test_build_prompts_files_in_chunk_meta(self, tmp_path):
+        """Dosya listesi prompt metninde değil chunk dict'inde — scanner_agent runtime'da içerik ekler."""
         orch = self._make_orchestrator(tmp_path)
         chunks = [["src/auth.py", "src/db.py"]]
         prompts = orch._build_prompts(chunks, _MINIMAL_CONFIG, "/tmp/proj")
-        assert "src/auth.py" in prompts[0]["prompt"]
-        assert "src/db.py" in prompts[0]["prompt"]
+        assert prompts[0]["files"] == ["src/auth.py", "src/db.py"]
 
     def test_build_prompts_chunk_index_set(self, tmp_path):
         orch = self._make_orchestrator(tmp_path)
@@ -501,6 +502,22 @@ class TestFindingReviewer:
         prompt = reviewer.build_reviewer_prompt(_MINIMAL_CONFIG, [_SAMPLE_FINDING])
         assert "SEC-001" in prompt
 
+    def test_backlog_summary_includes_all_prefixes(self, tmp_path):
+        """Cross-prefix duplicate için tüm prefix'li item'lar özet'e dahil edilmeli."""
+        backlog = tmp_path / "BACKLOG.md"
+        backlog.write_text(
+            "- [ ] [SEC-001] SQL injection\n"
+            "- [ ] [BUG-007] null pointer\n"
+            "- [ ] [PERF-002] N+1 query\n",
+            encoding="utf-8",
+        )
+        reviewer = self._make_reviewer(tmp_path, backlog)
+        # config "BUG" prefix kullansa bile SEC ve PERF item'ları görünmeli
+        prompt = reviewer.build_reviewer_prompt(_MINIMAL_CONFIG, [_SAMPLE_FINDING])
+        assert "SEC-001" in prompt
+        assert "BUG-007" in prompt
+        assert "PERF-002" in prompt
+
     def test_build_reviewer_prompt_backlog_missing(self, tmp_path):
         backlog = tmp_path / "BACKLOG.md"  # var olmayan dosya
         reviewer = self._make_reviewer(tmp_path, backlog)
@@ -576,6 +593,87 @@ class TestFindingReviewer:
             {"id": "abc12345", "verdict": "accepted", "reason": "valid"}
         ])
         raw = f"İşte değerlendirmem:\n{json_part}\nUmarım yardımcı olur."
+        reviewer = self._make_reviewer(tmp_path, tmp_path / "BACKLOG.md")
+        result = reviewer.parse_review_output(raw, findings)
+        assert len(result) == 1
+        assert result[0]["verdict"] == "accepted"
+
+    # ── SCAN-REV-1 regression testleri ──────────────────────────────────────
+
+    def test_parse_review_output_inner_brackets_before_json(self, tmp_path):
+        """SCAN-REV-1: Kriter listesi vb. iç köşeli parantezler JSON'u bozmamalı.
+
+        find('[')..rfind(']') yaklaşımı ilk `[` i kriter listesinde bulur;
+        balanced-bracket yaklaşımı doğru dış diziyi seçer.
+        """
+        findings = [_SAMPLE_FINDING, _SAMPLE_FINDING_2]
+        json_array = json.dumps([
+            {"id": "abc12345", "verdict": "accepted", "reason": "Gerçek sorun", "backlog_id": None},
+            {"id": "def67890", "verdict": "rejected", "reason": "False positive", "backlog_id": None},
+        ])
+        # İç köşeli parantezler (kriter listesi) JSON array'den ÖNCE geliyor
+        raw = (
+            "Değerlendirme kriterleri: [kritik, yüksek, orta] seviyeler kontrol edildi.\n"
+            f"{json_array}"
+        )
+        reviewer = self._make_reviewer(tmp_path, tmp_path / "BACKLOG.md")
+        result = reviewer.parse_review_output(raw, findings)
+        assert len(result) == 2
+        verdicts = {r["id"]: r["verdict"] for r in result}
+        assert verdicts["abc12345"] == "accepted"
+        assert verdicts["def67890"] == "rejected"
+
+    def test_parse_review_output_markdown_code_fence_json(self, tmp_path):
+        """SCAN-REV-1: ```json ... ``` fence içindeki JSON array parse edilmeli."""
+        findings = [_SAMPLE_FINDING]
+        json_array = json.dumps([
+            {"id": "abc12345", "verdict": "accepted", "reason": "Gerçek sorun", "backlog_id": None},
+        ])
+        raw = f"Sonuç:\n```json\n{json_array}\n```"
+        reviewer = self._make_reviewer(tmp_path, tmp_path / "BACKLOG.md")
+        result = reviewer.parse_review_output(raw, findings)
+        assert len(result) == 1
+        assert result[0]["verdict"] == "accepted"
+
+    def test_parse_review_output_markdown_fence_no_lang_tag(self, tmp_path):
+        """SCAN-REV-1: ``` (lang tag'siz) fence içindeki JSON da parse edilmeli."""
+        findings = [_SAMPLE_FINDING]
+        json_array = json.dumps([
+            {"id": "abc12345", "verdict": "rejected", "reason": "FP", "backlog_id": None},
+        ])
+        raw = f"```\n{json_array}\n```"
+        reviewer = self._make_reviewer(tmp_path, tmp_path / "BACKLOG.md")
+        result = reviewer.parse_review_output(raw, findings)
+        assert len(result) == 1
+        assert result[0]["verdict"] == "rejected"
+
+    def test_parse_review_output_inner_brackets_after_json(self, tmp_path):
+        """SCAN-REV-1: JSON'dan SONRA gelen iç parantezler rfind'ı yanıltmamalı."""
+        findings = [_SAMPLE_FINDING]
+        json_array = json.dumps([
+            {"id": "abc12345", "verdict": "duplicate", "reason": "Zaten var", "backlog_id": None},
+        ])
+        raw = (
+            f"{json_array}\n"
+            "Not: [güvenlik, performans] kategorileri tarandı."
+        )
+        reviewer = self._make_reviewer(tmp_path, tmp_path / "BACKLOG.md")
+        result = reviewer.parse_review_output(raw, findings)
+        assert len(result) == 1
+        assert result[0]["verdict"] == "duplicate"
+
+    def test_parse_review_output_multiple_inner_brackets(self, tmp_path):
+        """SCAN-REV-1: Birden fazla iç parantez grubu arasından doğru JSON seçilmeli."""
+        findings = [_SAMPLE_FINDING]
+        json_array = json.dumps([
+            {"id": "abc12345", "verdict": "accepted", "reason": "ok", "backlog_id": None},
+        ])
+        raw = (
+            "Kontrol edilen dosyalar: [main.py, auth.py]\n"
+            "Kategoriler: [injection, xss, csrf]\n"
+            f"{json_array}\n"
+            "Özet: [1 kabul, 0 ret]"
+        )
         reviewer = self._make_reviewer(tmp_path, tmp_path / "BACKLOG.md")
         result = reviewer.parse_review_output(raw, findings)
         assert len(result) == 1
