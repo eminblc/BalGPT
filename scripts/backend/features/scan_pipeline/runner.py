@@ -19,10 +19,6 @@ from .scanner import ScannerOrchestrator
 
 logger = logging.getLogger(__name__)
 
-# Proje kök dizini göre BACKLOG yolu
-_PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.parent
-_BACKLOG_PATH = _PROJECT_ROOT / "BACKLOG.md"
-
 # Dosya başına maksimum karakter — token bütçesini korumak için
 _MAX_CHARS_PER_FILE = 4_000
 
@@ -81,6 +77,8 @@ class ScanRunner:
         if not project_root:
             raise ValueError(f"Proje yolu boş: {project_id!r}")
 
+        backlog_path = Path(project_root) / "BACKLOG.md"
+
         run_id = str(uuid.uuid4())
         started_at = time.time()
         session_id = f"scan_{scan_type}_{project_id}"
@@ -106,7 +104,7 @@ class ScanRunner:
         try:
             # Phase 1 — prompt listesi üret
             config, chunk_prompts, run_dir = pipeline.build_scanner_prompts(
-                scan_type, project_root, run_id
+                scan_type, project_root, run_id, project_id=project_id
             )
 
             if not chunk_prompts:
@@ -118,11 +116,12 @@ class ScanRunner:
                 return result
 
             # Phase 1 — chunk'ları paralel LLM çağrısıyla çalıştır
-            await self._run_scanner_chunks(chunk_prompts, llm, run_dir)
+            concurrency = config.get("concurrency", 3)
+            await self._run_scanner_chunks(chunk_prompts, llm, run_dir, concurrency)
 
             # Phase 2 — findings topla, reviewer prompt üret
             findings, reviewer_prompt = pipeline.collect_and_build_reviewer_prompt(
-                config, run_dir, project_root, _BACKLOG_PATH
+                config, run_dir, project_root, backlog_path
             )
 
             reviewer_output = ""
@@ -146,7 +145,7 @@ class ScanRunner:
                 run_dir=run_dir,
                 findings=findings,
                 reviewer_output=reviewer_output,
-                backlog_path=_BACKLOG_PATH,
+                backlog_path=backlog_path,
                 run_id=run_id,
                 project_id=project_id,
                 project_path=project_root,
@@ -179,18 +178,30 @@ class ScanRunner:
         chunk_prompts: list[dict],
         llm,
         run_dir: Path,
+        concurrency: int = 3,
     ) -> None:
-        """Chunk prompt'larını paralel LLM çağrılarıyla çalıştırır.
+        """Chunk prompt'larını sınırlı paralellikte LLM çağrılarıyla çalıştırır.
 
         Her chunk için dosya içeriklerini okur, LLM'e gönderir, çıktıyı kaydeder.
         Tek bir chunk'ın başarısızlığı diğerlerini durdurmaz.
+        concurrency semaphore'u ile eş zamanlı API çağrısı kısıtlanır —
+        limitsiz gather API rate-limit hatalarına yol açar.
         """
-        tasks = [
-            self._run_single_chunk(chunk, llm)
-            for chunk in chunk_prompts
-        ]
+        sem = asyncio.Semaphore(concurrency)
+
+        async def _guarded(chunk: dict) -> None:
+            async with sem:
+                await self._run_single_chunk(chunk, llm)
+
+        tasks = [_guarded(chunk) for chunk in chunk_prompts]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
+        success = sum(1 for r in results if not isinstance(r, Exception))
+        fail = sum(1 for r in results if isinstance(r, Exception))
+        logger.info(
+            "ScanRunner: %d/%d chunk tamamlandı, %d başarısız",
+            success, len(chunk_prompts), fail,
+        )
         for i, res in enumerate(results):
             if isinstance(res, Exception):
                 logger.error(
@@ -211,21 +222,28 @@ class ScanRunner:
         base_prompt: str = chunk["prompt"]
         output_file: str = chunk["output_file"]
 
-        # Dosya içeriklerini oku ve prompt'a ekle
+        # Dosya içeriklerini oku — prompt'tan ayrı tut (cache için)
         file_sections = await asyncio.get_event_loop().run_in_executor(
             None, self._read_files_sync, files
         )
-        full_prompt = base_prompt + "\n\n## Dosya İçerikleri\n" + file_sections
+        user_content = "## Dosya İçerikleri\n" + file_sections
 
         logger.debug(
-            "ScanRunner: chunk %d — %d dosya, %d karakter prompt",
-            chunk_index, len(files), len(full_prompt),
+            "ScanRunner: chunk %d — %d dosya, %d+%d karakter (system+user)",
+            chunk_index, len(files), len(base_prompt), len(user_content),
         )
 
+        # Prompt caching: base_prompt (wrapper+scanner_prompt) tüm chunk'larda
+        # aynı → system role'üne taşıyıp cache_system=True ile ephemeral cache
+        # marker ekle. İlk chunk cache yazar, sonraki 299 chunk %10 fiyat öder.
         result = await llm.complete(
-            messages=[{"role": "user", "content": full_prompt}],
+            messages=[
+                {"role": "system", "content": base_prompt},
+                {"role": "user", "content": user_content},
+            ],
             model=None,
             max_tokens=2048,
+            cache_system=True,
         )
 
         # output_file dizinini oluştur ve sonucu kaydet

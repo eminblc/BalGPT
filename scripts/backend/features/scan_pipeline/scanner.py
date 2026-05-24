@@ -1,7 +1,6 @@
 """Paralel scanner agent orkestratörü."""
 import json
 import logging
-import uuid
 from pathlib import Path
 
 from .models import ScanConfig, ScanFinding
@@ -9,27 +8,14 @@ from .file_resolver import FileResolver
 
 logger = logging.getLogger(__name__)
 
-# Sub-agent için minimal prompt şablonu — CLAUDE.md/conv history YOK
+# Minimal prompt şablonu — token bütçesi sıkı, CLAUDE.md/conv history yok.
+# Sadece kriterler + JSON kuralı. Dosya listesi ve içerikleri runtime'da eklenir.
 _SCANNER_AGENT_PROMPT = """\
-Sen bir güvenlik/kod kalitesi tarayıcısısın. Sadece aşağıdaki dosyaları tara.
-
-## Arama Kriterleri
 {scanner_prompt}
 
-## Hedef Dosyalar
-Proje kök: {project_path}
-Dosyalar: {file_list}
-
-## Çıktı Formatı (YALNIZCA bu JSON array — başka hiçbir şey yazma)
-[
-  {{"id":"{example_id}","file":"göreceli/yol.ts","line":42,"severity":"high","category":"auth","title":"Kısa başlık","description":"1-2 cümle.","snippet":"ilgili kod satırı"}},
-  ...
-]
-
-Bulgu yoksa: []
-Her dosyadaki severity: critical|high|medium|low|info
-Maksimum {max_findings} bulgu döndür.
-Sadece gerçek sorunları raporla — false positive ekleme.
+Sadece JSON array dön (markdown/açıklama yok). Şema:
+{{"id":str8,"file":str,"line":int,"severity":"critical|high|medium|low|info","category":str,"title":str,"description":str,"snippet":str}}
+Yoksa []. Max {max_findings}.
 """
 
 
@@ -61,7 +47,7 @@ class ScannerOrchestrator:
             return []
 
         chunks = self._resolver.split_into_chunks(
-            files, chunk_size=10
+            files, chunk_size=config.get("chunk_size", 5)
         )
         logger.info(
             "ScannerOrchestrator: %d dosya → %d chunk → paralel agent",
@@ -88,10 +74,7 @@ class ScannerOrchestrator:
         for i, chunk in enumerate(chunks):
             prompt = _SCANNER_AGENT_PROMPT.format(
                 scanner_prompt=config["scanner_prompt"],
-                project_path=project_path,
-                file_list="\n".join(f"  - {f}" for f in chunk),
-                example_id=uuid.uuid4().hex[:8],
-                max_findings=config.get("max_findings_per_agent", 20),
+                max_findings=config.get("max_findings_per_agent", 50),
             )
             result.append({
                 "chunk_index": i,
@@ -108,13 +91,29 @@ class ScannerOrchestrator:
         findings_dir = self._output_dir / "findings"
         if not findings_dir.exists():
             return []
-        for f in sorted(findings_dir.glob("chunk_*.jsonl")):
+        chunk_files = sorted(findings_dir.glob("chunk_*.jsonl"))
+        logger.info(
+            "ScannerOrchestrator: %d chunk dosyası okunuyor (run_dir=%s)",
+            len(chunk_files), self._output_dir,
+        )
+        for f in chunk_files:
             try:
-                data = json.loads(f.read_text(encoding="utf-8"))
+                raw = f.read_text(encoding="utf-8")
+                try:
+                    data = json.loads(raw)
+                except json.JSONDecodeError:
+                    # LLM markdown fence içine sarmışsa ilk [ … son ] al
+                    start = raw.find("[")
+                    end = raw.rfind("]") + 1
+                    data = json.loads(raw[start:end]) if start != -1 and end > start else []
                 if isinstance(data, list):
                     findings.extend(data)
             except Exception as e:
                 logger.warning("Findings okuma hatası %s: %s", f, e)
+        logger.info(
+            "ScannerOrchestrator: %d chunk dosyasından %d bulgu toplandı",
+            len(chunk_files), len(findings),
+        )
         return findings
 
     def write_findings(self, chunk_index: int, findings: list[ScanFinding]) -> None:
