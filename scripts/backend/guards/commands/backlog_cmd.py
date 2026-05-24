@@ -37,15 +37,8 @@ class BacklogCommand:
 
         # /backlog → buton menüsü
         if not sub:
-            import json
-            from pathlib import Path
-            _CTX_FILE = Path(__file__).parent.parent.parent.parent.parent / "data" / "active_context.json"
-            root_project: dict | None = None
-            try:
-                ctx = json.loads(_CTX_FILE.read_text(encoding="utf-8"))
-                root_project = ctx.get("active_root_project")
-            except Exception:  # noqa: BLE001
-                pass
+            from ._root_project_helpers import get_active_root_project
+            root_project = get_active_root_project()
 
             if root_project:
                 pid = root_project.get("id", "")
@@ -86,25 +79,10 @@ class BacklogCommand:
             prefix     = parts[2] if len(parts) > 2 else ""
             max_items  = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 0
 
-            # Paralel seçim ekranı göster; tetikleme parallel_ handler'da yapılır
-            session["_pending_parallel"] = {
-                "cmd": "backlog",
-                "params": {
-                    "project_id": project_id,
-                    "prefix":     prefix,
-                    "max_items":  max_items,
-                    "dry_run":    False,
-                },
-            }
-            prefix_label = f" · prefix: {prefix}" if prefix else ""
-            await messenger.send_buttons(
-                sender,
-                t("parallel.backlog_ask", lang, project=project_id, prefix=prefix_label),
-                [
-                    {"id": "parallel_1", "title": t("parallel.btn_rec", lang, n=1)},
-                    {"id": "parallel_2", "title": t("parallel.btn",     lang, n=2)},
-                    {"id": "parallel_3", "title": t("parallel.btn",     lang, n=3)},
-                ],
+            await self._run_with_file_select(
+                sender, session, lang, messenger,
+                project_id=project_id, prefix=prefix,
+                max_items=max_items, dry_run=False,
             )
             return
 
@@ -116,25 +94,10 @@ class BacklogCommand:
             project_id = parts[1]
             prefix     = parts[2] if len(parts) > 2 else ""
 
-            session["_pending_parallel"] = {
-                "cmd": "backlog",
-                "params": {
-                    "project_id": project_id,
-                    "prefix":     prefix,
-                    "max_items":  0,
-                    "dry_run":    True,
-                },
-            }
-            prefix_label = f" · prefix: {prefix}" if prefix else ""
-            dry_label    = t("parallel.dry_label", lang)
-            await messenger.send_buttons(
-                sender,
-                t("parallel.backlog_ask", lang, project=f"{project_id}{dry_label}", prefix=prefix_label),
-                [
-                    {"id": "parallel_1", "title": t("parallel.btn_rec", lang, n=1)},
-                    {"id": "parallel_2", "title": t("parallel.btn",     lang, n=2)},
-                    {"id": "parallel_3", "title": t("parallel.btn",     lang, n=3)},
-                ],
+            await self._run_with_file_select(
+                sender, session, lang, messenger,
+                project_id=project_id, prefix=prefix,
+                max_items=0, dry_run=True,
             )
             return
 
@@ -146,47 +109,70 @@ class BacklogCommand:
         await messenger.send_text(sender, t("backlog.usage", lang))
 
     @staticmethod
-    async def _trigger(
+    async def _run_with_file_select(
         sender: str,
+        session: dict,
+        lang: str,
+        messenger,
+        *,
         project_id: str,
         prefix: str,
         max_items: int,
-        parallel: int,
         dry_run: bool,
-        lang: str,
-        messenger,
     ) -> None:
-        """Backlog executor'ı tetikler ve kullanıcıya bildirim gönderir."""
+        """BACKLOG dosyalarını tarar; birden fazlaysa dosya seçim ekranı gösterir.
+
+        Tek dosyada doğrudan paralel seçimine, sıfır dosyada hata mesajına geçer.
+        Buton akışındaki _hp_backlog_button ile simetrik davranış sağlar.
+        """
+        from pathlib import Path as _Path
+        from ...features.menu import _scan_backlog_files, _name_from_path
         from ...i18n import t
-        import httpx as _httpx
 
-        mode = t("backlog.mode_dry", lang) if dry_run else t("backlog.mode_full", lang)
-        await messenger.send_text(
+        backlog_files = await _scan_backlog_files(project_id)
+
+        if len(backlog_files) == 0:
+            await messenger.send_text(sender, t("backlog.no_file_found", lang))
+            return
+
+        base_params: dict = {
+            "project_id": project_id,
+            "prefix":     prefix,
+            "max_items":  max_items,
+            "dry_run":    dry_run,
+        }
+
+        if len(backlog_files) == 1:
+            fpath = backlog_files[0]
+            if _Path(fpath).name != "BACKLOG.md":
+                base_params["backlog_path"] = fpath
+            session["_pending_parallel"] = {"cmd": "backlog", "params": base_params}
+            prefix_label = f" · prefix: {prefix}" if prefix else ""
+            display_proj = f"{project_id}{t('parallel.dry_label', lang)}" if dry_run else project_id
+            await messenger.send_buttons(
+                sender,
+                t("parallel.backlog_ask", lang, project=display_proj, prefix=prefix_label),
+                [
+                    {"id": "parallel_1", "title": t("parallel.btn_rec", lang, n=1)},
+                    {"id": "parallel_2", "title": t("parallel.btn",     lang, n=2)},
+                    {"id": "parallel_3", "title": t("parallel.btn",     lang, n=3)},
+                ],
+            )
+            return
+
+        # Birden fazla dosya → dosya seçim ekranı
+        session["_backlog_files"]   = backlog_files
+        session["_pending_parallel"] = {"cmd": "backlog", "params": base_params}
+        buttons = [
+            {"id": f"backlogfile_{i}", "title": _name_from_path(f)}
+            for i, f in enumerate(backlog_files[:3])
+        ]
+        buttons.append({"id": "backlogfile_all", "title": t("backlog.file_all", lang)})
+        await messenger.send_buttons(
             sender,
-            t(
-                "backlog.starting",
-                lang,
-                project=project_id,
-                prefix=prefix or t("backlog.prefix_all", lang),
-                max_items=max_items,
-                mode=mode,
-            ),
+            t("backlog.select_file", lang),
+            buttons,
         )
-
-        try:
-            async with _httpx.AsyncClient(timeout=5.0) as client:
-                await client.post(
-                    "http://localhost:8010/internal/backlog/execute",
-                    json={
-                        "project_id": project_id,
-                        "prefix":     prefix,
-                        "max_items":  max_items,
-                        "parallel":   parallel,
-                        "dry_run":    dry_run,
-                    },
-                )
-        except Exception as exc:
-            log.warning("backlog_cmd: trigger başarısız — %s", exc)
 
     @staticmethod
     async def _show_status(sender: str, lang: str, messenger) -> None:
@@ -204,16 +190,18 @@ class BacklogCommand:
         except Exception as _exc:
             log.warning("backlog_cmd: status endpoint erişilemedi — %s", _exc)
 
-        status     = data.get("status", "")
-        total      = data.get("total_items", 0)
-        completed  = data.get("completed", 0)
-        failed     = data.get("failed", 0)
-        started_at = data.get("started_at")
-        project_id = data.get("project_id", "?")
+        status         = data.get("status", "")
+        total          = data.get("total_items", 0)
+        completed      = data.get("completed", 0)
+        failed         = data.get("failed", 0)
+        started_at     = data.get("started_at")
+        project_id     = data.get("project_id", "?")
+        backlog_file   = data.get("backlog_file", "")
+        queued_pending = int(data.get("queued_pending", 0))
 
         if status == "running":
             pct    = int(completed / total * 100) if total else 0
-            filled = pct // 10
+            filled = min(pct // 10, 10)
             bar    = "▓" * filled + "░" * (10 - filled)
             elapsed = int((time.time() - started_at) / 60) if started_at else 0
             eta_str = ""
@@ -221,12 +209,19 @@ class BacklogCommand:
                 rate    = (time.time() - started_at) / completed
                 eta_sec = int(rate * (total - completed))
                 eta_str = t("backlog.status_eta", lang, minutes=max(1, eta_sec // 60))
+            file_line = f"\n📄 {backlog_file}" if backlog_file and backlog_file != "BACKLOG.md" else ""
             lines = [
-                t("backlog.status_running_header", lang, project=project_id),
+                t("backlog.status_running_header", lang, project=project_id) + file_line,
                 f"[{bar}] {completed}/{total} item (%{pct})",
                 t("backlog.status_elapsed", lang, minutes=elapsed) + eta_str,
             ]
-            await messenger.send_text(sender, "\n".join(lines))
+            if queued_pending > 0:
+                lines.append(t("backlog.status_queue", lang, n=queued_pending))
+            await messenger.send_buttons(
+                sender,
+                "\n".join(lines),
+                [{"id": "backlog_cancel", "title": t("backlog.btn_stop", lang)}],
+            )
             return
 
         if status == "completed":
