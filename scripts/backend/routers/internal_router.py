@@ -11,7 +11,26 @@ from collections import defaultdict
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# Effort whitelist — scan/backlog trigger body'lerinde validate edilir.
+# "off" / None / boş → effort gönderilmez; geçersiz değer 422 döner.
+_VALID_EFFORT_VALUES = {"low", "medium", "high", "max"}
+
+
+def _validate_effort(value: str | None) -> str | None:
+    """Effort string'ini whitelist'e karşı doğrula; 'off'/'' → None."""
+    if value is None:
+        return None
+    v = value.strip().lower()
+    if not v or v == "off":
+        return None
+    if v not in _VALID_EFFORT_VALUES:
+        raise ValueError(
+            f"Geçersiz effort seviyesi: {value!r}. "
+            f"Kabul edilenler: {sorted(_VALID_EFFORT_VALUES)} | off"
+        )
+    return v
 from typing import Optional
 
 from ..guards import get_perm_mgr, get_session_mgr
@@ -316,6 +335,10 @@ async def _run_scanner_task(
     notify_on_review: bool,
     scan_model: "str | None",
     review_model: "str | None",
+    scan_effort: "str | None" = None,
+    review_effort: "str | None" = None,
+    scan_thinking: bool = False,
+    review_thinking: bool = False,
 ) -> None:
     """ScannerAgent.run()'ı scan lock içinde çalıştır; bitince kilidi serbest bırak."""
     from ..guards.runtime_state import set_scan_running
@@ -324,6 +347,8 @@ async def _run_scanner_task(
         await ScannerAgent().run(
             scan_type, project_id, auto_review, dry_run, parallel,
             include_third_party, notify_on_review, scan_model, review_model,
+            scan_effort=scan_effort, review_effort=review_effort,
+            scan_thinking=scan_thinking, review_thinking=review_thinking,
         )
     finally:
         set_scan_running(False)
@@ -336,6 +361,10 @@ async def _run_all_scans_task(
     include_third_party: bool,
     scan_model: "str | None",
     review_model: "str | None",
+    scan_effort: "str | None" = None,
+    review_effort: "str | None" = None,
+    scan_thinking: bool = False,
+    review_thinking: bool = False,
 ) -> None:
     """AllScansRunner.run()'ı scan lock içinde çalıştır; bitince kilidi serbest bırak."""
     from ..guards.runtime_state import set_scan_running
@@ -343,6 +372,8 @@ async def _run_all_scans_task(
     try:
         await AllScansRunner().run(
             project_id, parallel, dry_run, include_third_party, scan_model, review_model,
+            scan_effort=scan_effort, review_effort=review_effort,
+            scan_thinking=scan_thinking, review_thinking=review_thinking,
         )
     finally:
         set_scan_running(False)
@@ -376,10 +407,19 @@ class ScannerTriggerRequest(BaseModel):
     project_id: str
     auto_review: bool = True
     dry_run: bool = False
-    parallel: int = Field(default=3, ge=1, le=10)
+    parallel: int = Field(default=3, ge=1, le=64)
     include_third_party: bool = False
     scan_model: str | None = None    # "haiku" | "sonnet" | "opus" | tam model adı
     review_model: str | None = None  # "haiku" | "sonnet" | "opus" | tam model adı
+    scan_effort: str | None = None    # "low" | "medium" | "high" | "max" | "off" / None
+    review_effort: str | None = None  # aynı whitelist
+    scan_thinking: bool = False       # Extended Thinking on/off (effort'tan bağımsız)
+    review_thinking: bool = False
+
+    @field_validator("scan_effort", "review_effort", mode="before")
+    @classmethod
+    def _check_efforts(cls, v):
+        return _validate_effort(v)
 
 
 class ReviewerTriggerRequest(BaseModel):
@@ -391,8 +431,17 @@ class BacklogExecuteRequest(BaseModel):
     project_id: str
     prefix: str = ""
     max_items: int = Field(default=0, ge=0, le=100)  # 0 = tüm pending item'lar
-    parallel: int = Field(default=2, ge=1, le=10)
+    parallel: int = Field(default=2, ge=1, le=64)
     dry_run: bool = False
+    model: str | None = None  # "haiku" | "sonnet" | "opus" | tam Claude Code model adı
+    effort: str | None = None  # "low" | "medium" | "high" | "max" | "off" / None
+    thinking: bool = False    # Extended Thinking on/off (effort'tan bağımsız)
+    backlog_path: str | None = None  # Belirli BACKLOG.md dosyası; None → proje kökündeki BACKLOG.md
+
+    @field_validator("effort", mode="before")
+    @classmethod
+    def _check_effort(cls, v):
+        return _validate_effort(v)
 
 
 @router.post(
@@ -501,10 +550,17 @@ async def trigger_scanner(
         _run_scanner_task,
         body.scan_type, body.project_id, body.auto_review, body.dry_run, body.parallel,
         body.include_third_party, True, body.scan_model, body.review_model,
+        body.scan_effort, body.review_effort,
+        body.scan_thinking, body.review_thinking,
     )
     logger.info(
-        "scanner/trigger: kuyruğa alındı scan_type=%s project_id=%s auto_review=%s dry_run=%s",
+        "scanner/trigger: kuyruğa alındı scan_type=%s project_id=%s auto_review=%s dry_run=%s "
+        "parallel=%d scan_model=%s scan_effort=%s scan_thinking=%s "
+        "review_model=%s review_effort=%s review_thinking=%s",
         body.scan_type, body.project_id, body.auto_review, body.dry_run,
+        body.parallel,
+        body.scan_model, body.scan_effort, body.scan_thinking,
+        body.review_model, body.review_effort, body.review_thinking,
     )
     return {
         "status": "queued",
@@ -519,11 +575,20 @@ async def trigger_scanner(
 
 class AllScansTriggerRequest(BaseModel):
     project_id: str
-    parallel: int = Field(default=3, ge=1, le=10)
+    parallel: int = Field(default=3, ge=1, le=64)
     dry_run: bool = False
     include_third_party: bool = False
     scan_model: str | None = None    # "haiku" | "sonnet" | "opus" | tam model adı
     review_model: str | None = None  # "haiku" | "sonnet" | "opus" | tam model adı
+    scan_effort: str | None = None    # "low" | "medium" | "high" | "max" | "off" / None
+    review_effort: str | None = None
+    scan_thinking: bool = False       # Extended Thinking on/off
+    review_thinking: bool = False
+
+    @field_validator("scan_effort", "review_effort", mode="before")
+    @classmethod
+    def _check_efforts(cls, v):
+        return _validate_effort(v)
 
 
 @router.post(
@@ -555,10 +620,16 @@ async def trigger_all_scans(
         _run_all_scans_task,
         body.project_id, body.parallel, body.dry_run, body.include_third_party,
         body.scan_model, body.review_model,
+        body.scan_effort, body.review_effort,
+        body.scan_thinking, body.review_thinking,
     )
     logger.info(
-        "scanner/trigger-all: kuyruğa alındı project_id=%s parallel=%d dry_run=%s",
+        "scanner/trigger-all: kuyruğa alındı project_id=%s parallel=%d dry_run=%s "
+        "scan_model=%s scan_effort=%s scan_thinking=%s "
+        "review_model=%s review_effort=%s review_thinking=%s",
         body.project_id, body.parallel, body.dry_run,
+        body.scan_model, body.scan_effort, body.scan_thinking,
+        body.review_model, body.review_effort, body.review_thinking,
     )
     return {"status": "queued", "project_id": body.project_id, "parallel": body.parallel}
 
@@ -632,10 +703,14 @@ async def execute_backlog(
     background_tasks.add_task(
         BacklogExecutorAgent().run,
         body.project_id, body.prefix, body.max_items, body.parallel, body.dry_run,
+        body.model, body.backlog_path, body.effort, body.thinking,
     )
     logger.info(
-        "backlog/execute: kuyruğa alındı project_id=%s prefix=%r max_items=%d parallel=%d dry_run=%s",
-        body.project_id, body.prefix, body.max_items, body.parallel, body.dry_run,
+        "backlog/execute: kuyruğa alındı project_id=%s prefix=%r max_items=%d "
+        "parallel=%d dry_run=%s model=%s effort=%s thinking=%s backlog_path=%s",
+        body.project_id, body.prefix, body.max_items,
+        body.parallel, body.dry_run,
+        body.model, body.effort, body.thinking, body.backlog_path,
     )
     return {
         "status": "queued",
@@ -645,7 +720,45 @@ async def execute_backlog(
     }
 
 
-# ── Scanner cancel / status ────────────────────────────────────────
+# ── Scanner cancel / pause / resume / status ──────────────────────
+
+
+@router.post(
+    "/scanner/pause",
+    summary="Aktif scan'i duraklat",
+    response_model=dict,
+)
+async def pause_scanner(request: Request):
+    """Devam eden scan pipeline'ını duraklat.
+
+    Global pause flag'i + aktif run_id'nin state.json'u güncellenir.
+    Yalnızca localhost erişimine açıktır; API key gerekmez.
+    """
+    _require_localhost(request)
+    from ..guards.runtime_state import request_scan_pause, get_active_scan_run_id
+    run_id = get_active_scan_run_id()
+    request_scan_pause()
+    logger.info("scanner/pause: pause flag'i set edildi run_id=%s", run_id)
+    return {"status": "pause_requested", "run_id": run_id}
+
+
+@router.post(
+    "/scanner/resume",
+    summary="Duraklatılmış scan'i devam ettir",
+    response_model=dict,
+)
+async def resume_scanner(request: Request):
+    """Duraklatılmış scan pipeline'ını devam ettirir.
+
+    Global pause flag'i + aktif run_id'nin state.json'u temizlenir.
+    Yalnızca localhost erişimine açıktır; API key gerekmez.
+    """
+    _require_localhost(request)
+    from ..guards.runtime_state import request_scan_resume, get_active_scan_run_id
+    run_id = get_active_scan_run_id()
+    request_scan_resume()
+    logger.info("scanner/resume: pause flag'i temizlendi run_id=%s", run_id)
+    return {"status": "resumed", "run_id": run_id}
 
 
 @router.post(
@@ -705,11 +818,17 @@ async def scanner_status(request: Request):
     Yalnızca localhost erişimine açıktır; API key gerekmez.
     """
     from pathlib import Path
-    from ..guards.runtime_state import is_scan_cancel_requested
+    from ..guards.runtime_state import (
+        is_scan_cancel_requested,
+        is_scan_pause_requested,
+        get_active_scan_run_id,
+    )
 
     _require_localhost(request)
 
     cancel_requested = is_scan_cancel_requested()
+    pause_requested  = is_scan_pause_requested()
+    active_run_id    = get_active_scan_run_id()
 
     # En son çalışan agent_run kaydını oku
     running_agent_run: dict | None = None
@@ -740,44 +859,111 @@ async def scanner_status(request: Request):
     except Exception as _err:  # noqa: BLE001
         logger.warning("scanner_status: agent_runs sorgusu başarısız: %s", _err)
 
-    # scan_runs dizinindeki en yeni run_id'yi bul + progress.json oku
+    # scan_runs altında progress.json oku.
+    # ÖNCELİK: active_run_id varsa onun dizinini doğrudan çöz (canlı scan).
+    # Yoksa fallback: dizindeki en yeni mtime'lı klasör (son tamamlanan scan).
+    # iter_run_dirs meta.json gerektirir — scan çalışırken meta.json henüz
+    # olmayabilir; resolve_run_dir nested + düz yerleşimi meta.json'suz bulur.
     runs_dir = Path(__file__).parent.parent.parent.parent / "data" / "scan_runs"
     last_run_dir: str | None = None
     findings_count: int = 0
     total_chunks: int = 0
     scan_type: str | None = None
     scan_started_at: float | None = None
+
+    def _read_run_dir(d: "Path") -> None:
+        """run_dir'den findings_count, total_chunks, scan_type, started_at oku."""
+        nonlocal findings_count, total_chunks, scan_type, scan_started_at
+        findings_dir = d / "findings"
+        if findings_dir.exists():
+            findings_count = sum(1 for f in findings_dir.iterdir() if f.suffix == ".jsonl")
+        progress_file = d / "progress.json"
+        if progress_file.exists():
+            import json as _json
+            prog = _json.loads(progress_file.read_text(encoding="utf-8"))
+            total_chunks    = prog.get("total_chunks", 0)
+            scan_type       = prog.get("scan_type")
+            scan_started_at = prog.get("started_at")
+
     try:
+        from ..features.scan_pipeline.pipeline import iter_run_dirs, resolve_run_dir
         if runs_dir.exists():
-            subdirs = sorted(
-                (d for d in runs_dir.iterdir() if d.is_dir()),
-                key=lambda d: d.stat().st_mtime,
-            )
-            if subdirs:
-                newest = subdirs[-1]
-                last_run_dir = newest.name
-                findings_dir = newest / "findings"
-                if findings_dir.exists():
-                    findings_count = sum(1 for f in findings_dir.iterdir() if f.suffix == ".jsonl")
-                progress_file = newest / "progress.json"
-                if progress_file.exists():
-                    import json as _json
-                    prog = _json.loads(progress_file.read_text(encoding="utf-8"))
-                    total_chunks    = prog.get("total_chunks", 0)
-                    scan_type       = prog.get("scan_type")
-                    scan_started_at = prog.get("started_at")
+            # 1) Aktif run varsa doğrudan çöz — meta.json olmasa da çalışır
+            active_dir = None
+            if active_run_id:
+                candidate = resolve_run_dir(active_run_id, runs_dir)
+                if candidate.is_dir() and (candidate / "progress.json").exists():
+                    active_dir = candidate
+            if active_dir is not None:
+                last_run_dir = active_dir.name
+                _read_run_dir(active_dir)
+            else:
+                # 2) Aktif run dizini yok → en yeni tamamlanan scan'i göster
+                all_run_dirs = list(iter_run_dirs(runs_dir))
+                if all_run_dirs:
+                    newest = sorted(all_run_dirs, key=lambda d: d.stat().st_mtime)[-1]
+                    last_run_dir = newest.name
+                    _read_run_dir(newest)
     except Exception as _err:  # noqa: BLE001
         logger.debug("scanner_status: scan_runs dizini okunamadı: %s", _err)
 
+    # state.json'dan faz ve checkpoint bilgisi
+    phase: str | None = None
+    completed_chunks: int = 0
+    completed_batches: int = 0
+    total_batches: int = 0
+    try:
+        if active_run_id:
+            from ..features.scan_pipeline.scan_pause_store import ScanPauseStore
+            state = ScanPauseStore.get_state(active_run_id)
+            phase             = state.get("phase")
+            completed_chunks  = len(state.get("completed_chunks", []))
+            completed_batches = len(state.get("completed_batches", []))
+            total_batches     = int(state.get("total_batches", 0) or 0)
+        elif last_run_dir:
+            # Aktif run_id yoksa son run dizininden oku
+            from ..features.scan_pipeline.scan_pause_store import ScanPauseStore
+            state = ScanPauseStore.get_state(last_run_dir)
+            phase             = state.get("phase")
+            completed_chunks  = len(state.get("completed_chunks", []))
+            completed_batches = len(state.get("completed_batches", []))
+            total_batches     = int(state.get("total_batches", 0) or 0)
+    except Exception as _err:  # noqa: BLE001
+        logger.debug("scanner_status: state.json okunamadı: %s", _err)
+
     return {
         "cancel_requested":  cancel_requested,
+        "pause_requested":   pause_requested,
+        "active_run_id":     active_run_id,
         "running_agent_run": running_agent_run,
         "last_run_dir":      last_run_dir,
         "findings_count":    findings_count,
         "total_chunks":      total_chunks,
         "scan_type":         scan_type,
         "started_at":        scan_started_at,
+        "phase":             phase,
+        "completed_chunks":  completed_chunks,
+        "completed_batches": completed_batches,
+        "total_batches":     total_batches,
     }
+
+
+@router.post(
+    "/backlog/cancel",
+    summary="Backlog executor'ı durdur",
+    response_model=dict,
+)
+async def cancel_backlog(request: Request):
+    """Devam eden backlog executor'ın iptalini talep eder.
+
+    Flag set edilir; bir sonraki item başlamadan önce executor durur.
+    Yalnızca localhost erişimine açıktır; API key gerekmez.
+    """
+    _require_localhost(request)
+    from ..guards.runtime_state import request_backlog_cancel
+    request_backlog_cancel()
+    logger.info("backlog/cancel: iptal flag'i set edildi")
+    return {"status": "cancel_requested"}
 
 
 @router.get(
@@ -788,18 +974,70 @@ async def scanner_status(request: Request):
 async def backlog_status(request: Request):
     """Backlog executor ilerleme bilgisini döndürür (progress.json okur).
 
+    Servis yeniden başlatılmasından sonra progress.json "running" gösteriyorsa
+    DB'deki backlog_executor agent_run kaydı kontrol edilir; aktif run yoksa
+    status "idle" olarak düzeltilir.
+
     Yalnızca localhost erişimine açıktır; API key gerekmez.
     """
     _require_localhost(request)
 
+    from ..guards.runtime_state import get_backlog_queue_size
+    # queue_size: aktif + bekleyen toplam run sayısı (Tümü akışında 3, tek
+    # dosyada 1). UI buradan "X dosya bekliyor" satırını oluşturuyor.
+    queue_size = get_backlog_queue_size()
+    queued_pending = max(0, queue_size - 1)
+
     progress_file = Path(__file__).parent.parent.parent.parent / "data" / "backlog_progress.json"
     if not progress_file.exists():
-        return {"status": "idle", "message": "Backlog executor çalışmıyor"}
+        return {
+            "status": "idle",
+            "message": "Backlog executor çalışmıyor",
+            "queue_size": queue_size,
+            "queued_pending": queued_pending,
+        }
 
     try:
         import json as _json
         prog = _json.loads(progress_file.read_text(encoding="utf-8"))
-        return prog
     except Exception as _err:
         logger.debug("backlog_status: progress.json okunamadı: %s", _err)
-        return {"status": "error", "message": str(_err)}
+        return {
+            "status": "error",
+            "message": str(_err),
+            "queue_size": queue_size,
+            "queued_pending": queued_pending,
+        }
+
+    # Restart sonrası "running" takılması: DB'de aktif run yoksa idle döndür
+    if prog.get("status") == "running":
+        has_active = False
+        try:
+            import asyncio as _asyncio
+            from ..store._connection import _conn as _db_conn
+
+            def _check_active() -> bool:
+                with _db_conn() as con:
+                    row = con.execute(
+                        "SELECT 1 FROM agent_runs WHERE agent_type='backlog_executor' "
+                        "AND status='running' LIMIT 1"
+                    ).fetchone()
+                    return row is not None
+
+            has_active = await _asyncio.get_event_loop().run_in_executor(None, _check_active)
+        except Exception as _db_err:
+            logger.debug("backlog_status: DB kontrol başarısız: %s", _db_err)
+            has_active = True  # DB okunamazsa progress.json'a güven
+
+        if not has_active:
+            logger.info("backlog_status: aktif run yok — status 'idle' olarak düzeltildi")
+            return {
+                "status": "idle",
+                "message": "Backlog executor çalışmıyor",
+                "queue_size": queue_size,
+                "queued_pending": queued_pending,
+            }
+
+    prog["queue_size"] = queue_size
+    prog["queued_pending"] = queued_pending
+    return prog
