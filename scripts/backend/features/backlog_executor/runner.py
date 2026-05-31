@@ -609,5 +609,11 @@ class BacklogExecutorAgent:
             f"(dosya yoksa oluştur, varsa mevcut içeriğe append et — üzerine YAZMA):\n"
             f"  `- [{item['item_id']}] <yorumun veya sorun>`\n"
             f"  Ardından görevi mümkün olduğunca tamamlamaya çalış; tamamen blokluysa "
-            f"kısa bir özet ver ve bitir."
+            f"kısa bir özet ver ve bitir.\n\n"
+            f"**Önemli not:** Bu görev Claude Code tarafından otomatik oluşturulmuştur; "
+            f"halüsinasyon (var olmayan dosya/satır/sembol) içerebilir. "
+            f"Eğer görev bir halüsinasyon ise (dosya yok, satır numarası tutmuyor, sorun gerçekte mevcut değil vb.) "
+            f"`{comments_path}` dosyasına şu formatta bir madde EKLE:\n"
+            f"  `- [{item['item_id']}] HALÜSINASYON: <kısa açıklama>`\n"
+            f"  Ardından görevi bitir."
         )
