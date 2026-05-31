@@ -598,7 +598,7 @@ class BacklogExecutorAgent:
             f"Proje: `{project_root}`\n\n"
             f"Görev:\n{item['text']}\n\n"
             f"Kurallar:\n"
-            f"- Minimal değişiklik yap.\n"
+            f"- Minimal değişiklik yap. İş bitiminde tek cümle yaz: \"yapıldı.\" veya \"yapılamadı.\"\n"
             f"- Tüm git komutları `git -C \"{project_root}\" ...` formatında — başka dizinde git ÇALIŞTIRMA, başka repo'ya dokunma.\n"
             f"- `git -C \"{project_root}\" status --porcelain` boşsa (hiç değişiklik yok) commit ATMA, durumu raporla ve bitir.\n"
             f"- `git -C \"{project_root}\" remote` boşsa commit ATMA; doluysa Conventional Commit mesajıyla (`feat:`/`fix:`/`refactor:`/`chore:`) commit at.\n"
