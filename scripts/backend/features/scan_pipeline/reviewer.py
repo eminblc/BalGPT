@@ -1,5 +1,6 @@
 """Findings reviewer — accepted/rejected/duplicate kararları."""
 import datetime
+import fcntl
 import json
 import logging
 import re
@@ -105,39 +106,42 @@ class FindingReviewer:
         )
 
     def _extract_backlog_summary(self, prefix: str) -> str:
-        """BACKLOG'dan TÜM aktif item satırlarını kompakt formatta çek.
+        """BACKLOG'dan aktif item satırlarını kompakt formatta çek.
 
-        Cross-prefix duplicate tespiti için tüm prefix'leri kapsar
-        (örn. BUG taraması bir SEC-XXX item ile aynı sorunu kapsıyorsa
-        reviewer artık görebilir). Her satır ``ID: kısa-başlık`` formatına
-        sıkıştırılır — token tasarrufu için tam metin yerine.
+        Önce mevcut scan prefix'ine ait tüm satırları (sınırsız) alır, ardından
+        diğer prefix'lerden en fazla 200 satır ekler — cross-prefix duplicate
+        tespiti için. Toplam çıktı 60 000 karakteri aşarsa kesilir.
         """
         if not self._backlog_path.exists():
             return "(BACKLOG bulunamadı)"
 
-        # Tire ile başlayan item satırları; checkbox opsiyonel:
-        #   - [ ] [SEC-001] title    →  checkbox + bracket ID
-        #   - [SEC-001] title        →  sadece bracket ID
-        #   - [ ] SEC-001 title      →  checkbox + düz ID
         item_re = re.compile(
             r"^\s*-\s*"
-            r"(?:\[[ x~!]\]\s+)?"                                   # opsiyonel checkbox
-            r"\[?([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)\]?\s*"             # item ID
-            r"(.{0,80})"                                            # kısa başlık
+            r"(?:\[[ x~!]\]\s+)?"
+            r"\[?([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)\]?\s*"
+            r"(.{0,80})"
         )
-        relevant: list[str] = []
+
+        same_prefix: list[str] = []
+        other_prefix: list[str] = []
+
         for line in self._backlog_path.read_text(encoding="utf-8").splitlines():
             m = item_re.match(line)
             if not m:
                 continue
             item_id = m.group(1)
-            title = m.group(2).strip().rstrip("—-* ").rstrip("*").strip()
-            # Kalın yıldızları temizle
-            title = title.replace("**", "")
-            relevant.append(f"{item_id}: {title}")
-            if len(relevant) >= 100:
-                break
-        return "\n".join(relevant) if relevant else "(BACKLOG'da aktif item yok)"
+            title = m.group(2).strip().rstrip("—-* ").rstrip("*").strip().replace("**", "")
+            entry = f"{item_id}: {title}"
+            if item_id.startswith(f"{prefix}-"):
+                same_prefix.append(entry)
+            elif len(other_prefix) < 200:
+                other_prefix.append(entry)
+
+        lines = same_prefix + other_prefix
+        result = "\n".join(lines)
+        if len(result) > 60_000:
+            result = result[:60_000] + "\n... (kesildi)"
+        return result if result else "(BACKLOG'da aktif item yok)"
 
     def parse_review_output(
         self,
@@ -407,18 +411,111 @@ class FindingReviewer:
             counter += 1
         return entries
 
+    def append_reviewed_to_backlog(
+        self,
+        reviewed: list[ReviewedFinding],
+        config: ScanConfig,
+        scan_run_id: str,
+    ) -> None:
+        """Kabul edilen bulguları atomik olarak BACKLOG'a ekle.
+
+        _count_existing → generate_backlog_entries → append_to_backlog üçlüsü
+        tek dosya kilidi altında çalışır; paralel scan yazımlarında ID çakışması
+        ve duplicate yazma önlenir.
+        """
+        if not self._backlog_path.exists():
+            return
+        accepted = [r for r in reviewed if r["verdict"] == "accepted"]
+        if not accepted:
+            return
+
+        lock_path = self._backlog_path.with_suffix(".lock")
+        with lock_path.open("a") as lock_fh:
+            fcntl.flock(lock_fh, fcntl.LOCK_EX)
+            try:
+                content = self._backlog_path.read_text(encoding="utf-8")
+                prefix = config["backlog_prefix"]
+                existing_count = sum(1 for l in content.splitlines() if f"[{prefix}-" in l)
+                entries = self.generate_backlog_entries(reviewed, config, existing_count)
+                new_entries = self._filter_existing(entries, content)
+                if not new_entries:
+                    logger.info(
+                        "BACKLOG güncellenmedi: tüm %d madde zaten mevcut", len(entries)
+                    )
+                    return
+                section_header = f"\n## {config['name']} Taraması ({scan_run_id[:8]})\n"
+                new_content = (
+                    content.rstrip()
+                    + "\n"
+                    + section_header
+                    + "\n".join(new_entries)
+                    + "\n"
+                )
+                self._backlog_path.write_text(new_content, encoding="utf-8")
+                skipped = len(entries) - len(new_entries)
+                logger.info(
+                    "BACKLOG güncellendi: %d madde eklendi, %d duplicate atlandı",
+                    len(new_entries),
+                    skipped,
+                )
+            finally:
+                fcntl.flock(lock_fh, fcntl.LOCK_UN)
+
+    # `` `file:line` `` veya `` `file` `` backtick referansını yakala
+    _FILE_REF_RE = re.compile(r"`([^`]+)`")
+
     def append_to_backlog(
         self,
         entries: list[str],
         config: ScanConfig,
         scan_run_id: str,
     ) -> None:
-        """Accepted findings'i BACKLOG.md'ye ekle."""
+        """Accepted findings'i BACKLOG.md'ye ekle.
+
+        Dosya kilidi (fcntl) ile concurrent write race'i önlenir.
+        Her entry için backtick içindeki file:line referansı BACKLOG'da
+        zaten varsa o entry atlanır — LLM reviewer'ın kaçırdığı
+        duplicate'lere karşı son savunma hattı.
+        """
         if not entries or not self._backlog_path.exists():
             return
 
-        content = self._backlog_path.read_text(encoding="utf-8")
-        section_header = f"\n## {config['name']} Taraması ({scan_run_id[:8]})\n"
-        new_content = content.rstrip() + "\n" + section_header + "\n".join(entries) + "\n"
-        self._backlog_path.write_text(new_content, encoding="utf-8")
-        logger.info("BACKLOG güncellendi: %d madde eklendi", len(entries))
+        lock_path = self._backlog_path.with_suffix(".lock")
+        with lock_path.open("a") as lock_fh:
+            fcntl.flock(lock_fh, fcntl.LOCK_EX)
+            try:
+                content = self._backlog_path.read_text(encoding="utf-8")
+                new_entries = self._filter_existing(entries, content)
+                if not new_entries:
+                    logger.info(
+                        "BACKLOG güncellenmedi: tüm %d madde zaten mevcut", len(entries)
+                    )
+                    return
+                section_header = f"\n## {config['name']} Taraması ({scan_run_id[:8]})\n"
+                new_content = (
+                    content.rstrip()
+                    + "\n"
+                    + section_header
+                    + "\n".join(new_entries)
+                    + "\n"
+                )
+                self._backlog_path.write_text(new_content, encoding="utf-8")
+                skipped = len(entries) - len(new_entries)
+                logger.info(
+                    "BACKLOG güncellendi: %d madde eklendi, %d duplicate atlandı",
+                    len(new_entries),
+                    skipped,
+                )
+            finally:
+                fcntl.flock(lock_fh, fcntl.LOCK_UN)
+
+    def _filter_existing(self, entries: list[str], backlog_content: str) -> list[str]:
+        """BACKLOG'da zaten var olan file:line referansına sahip entry'leri filtrele."""
+        new: list[str] = []
+        for entry in entries:
+            m = self._FILE_REF_RE.search(entry)
+            if m and m.group(1) in backlog_content:
+                logger.debug("BACKLOG dedup: atlandı — zaten mevcut: %s", m.group(1))
+                continue
+            new.append(entry)
+        return new

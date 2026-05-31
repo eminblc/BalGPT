@@ -22,6 +22,44 @@ logger = logging.getLogger(__name__)
 _RUNS_DIR = Path(__file__).parent.parent.parent.parent.parent / "data" / "scan_runs"
 
 
+def resolve_run_dir(run_id: str, runs_root: Path = _RUNS_DIR) -> Path:
+    """Bir run_id için run dizinini çözer; iki yerleşimi de destekler.
+
+    Yeni yerleşim: `<runs_root>/<project_id>/<run_id>/`.
+    Eski (düz) yerleşim: `<runs_root>/<run_id>/`.
+
+    Çözümlenemezse (henüz oluşturulmamış run) düz yerleşim yolu döner — caller
+    `mkdir(parents=True)` ile oluşturursa düz yerleşim doğal olarak korunur;
+    yeni runlar yazıcı kodda project_id'li yolu açıkça verir.
+    """
+    matches = list(runs_root.glob(f"*/{run_id}"))
+    if matches and matches[0].is_dir():
+        return matches[0]
+    legacy = runs_root / run_id
+    if legacy.is_dir():
+        return legacy
+    return legacy
+
+
+def iter_run_dirs(runs_root: Path = _RUNS_DIR):
+    """Tüm run dizinlerini iter eder; düz ve nested yerleşim eş zamanlı desteklenir."""
+    if not runs_root.exists():
+        return
+    for entry in runs_root.iterdir():
+        if not entry.is_dir():
+            continue
+        if (entry / "meta.json").exists():
+            yield entry
+            continue
+        # Nested: entry bir project_id dizini — alt seviyeyi tara
+        try:
+            for sub in entry.iterdir():
+                if sub.is_dir() and (sub / "meta.json").exists():
+                    yield sub
+        except OSError:
+            continue
+
+
 class ScanPipeline:
     """
     Tam scan pipeline koordinatörü.
@@ -38,22 +76,33 @@ class ScanPipeline:
         """Mevcut scan tiplerini döndür."""
         return self._config_loader.list_available()
 
-    def get_run_dir(self, run_id: str) -> Path:
-        """Scan run çıktı dizini."""
-        return _RUNS_DIR / run_id
+    def get_run_dir(self, run_id: str, project_id: str | None = None) -> Path:
+        """Scan run çıktı dizini.
+
+        project_id verilirse yeni nested yerleşim kullanılır:
+        `data/scan_runs/<project_id>/<run_id>/`. Verilmezse mevcut bir runı
+        bulmaya çalışır (nested veya düz); bulunamazsa düz yol döner.
+        """
+        if project_id:
+            return _RUNS_DIR / project_id / run_id
+        return resolve_run_dir(run_id)
 
     def get_recent_runs(self, limit: int = 10) -> list[dict]:
         """Son scan run'larını listele (meta.json dosyasından)."""
         if not _RUNS_DIR.exists():
             return []
-        runs = []
-        for d in sorted(_RUNS_DIR.iterdir(), reverse=True)[:limit]:
+        run_dirs = sorted(
+            iter_run_dirs(_RUNS_DIR),
+            key=lambda d: d.stat().st_mtime,
+            reverse=True,
+        )[:limit]
+        runs: list[dict] = []
+        for d in run_dirs:
             meta_file = d / "meta.json"
-            if meta_file.exists():
-                try:
-                    runs.append(json.loads(meta_file.read_text()))
-                except Exception:
-                    pass
+            try:
+                runs.append(json.loads(meta_file.read_text()))
+            except Exception:
+                pass
         return runs
 
     def _write_meta(self, run_dir: Path, result: ScanResult) -> None:
@@ -72,14 +121,18 @@ class ScanPipeline:
         project_path: str,
         run_id: str,
         include_third_party: bool = False,
+        project_id: str | None = None,
     ) -> tuple[ScanConfig, list[dict], Path]:
         """
         Phase 1 için prompt listesi üret.
         Döndürür: (config, prompt_list, run_dir)
         prompt_list: [{"chunk_index": N, "files": [...], "prompt": "...", "output_file": "..."}]
+
+        project_id verildiğinde nested layout kullanılır:
+        `data/scan_runs/<project_id>/<run_id>/` (önerilen).
         """
         config = self._config_loader.load(scan_type)
-        run_dir = self.get_run_dir(run_id)
+        run_dir = self.get_run_dir(run_id, project_id)
         orchestrator = ScannerOrchestrator(run_dir)
         prompts = self._build_prompts_sync(orchestrator, config, project_path, include_third_party)
         return config, prompts, run_dir
@@ -96,7 +149,7 @@ class ScanPipeline:
         if include_third_party:
             exclude = [p for p in exclude if p not in self._THIRD_PARTY_DIRS]
         files = resolver.resolve(project_path, config["target_patterns"], exclude)
-        chunks = resolver.split_into_chunks(files, chunk_size=10)
+        chunks = resolver.split_into_chunks(files, chunk_size=config.get("chunk_size", 5))
         return orchestrator._build_prompts(chunks, config, project_path)
 
     def collect_and_build_reviewer_prompt(
@@ -147,10 +200,51 @@ class ScanPipeline:
         duplicate = [r for r in reviewed if r["verdict"] == "duplicate"]
 
         if not dry_run and accepted:
-            # Mevcut prefix sayısını BACKLOG'dan çek
-            existing_count = self._count_existing(backlog_path, config["backlog_prefix"])
-            entries = reviewer.generate_backlog_entries(reviewed, config, existing_count)
-            reviewer.append_to_backlog(entries, config, run_id)
+            reviewer.append_reviewed_to_backlog(reviewed, config, run_id)
+
+        result: ScanResult = {
+            "run_id": run_id,
+            "scan_type": config["type"],
+            "project_id": project_id,
+            "project_path": project_path,
+            "started_at": started_at,
+            "completed_at": time.time(),
+            "status": "completed",
+            "total_findings": len(findings),
+            "accepted": len(accepted),
+            "rejected": len(rejected),
+            "duplicate": len(duplicate),
+            "output_dir": str(run_dir),
+        }
+        self._write_meta(run_dir, result)
+        return result
+
+    def finalize_from_reviewed(
+        self,
+        config: ScanConfig,
+        run_dir: Path,
+        findings: list[ScanFinding],
+        reviewed: list[ReviewedFinding],
+        backlog_path: Path,
+        run_id: str,
+        project_id: str,
+        project_path: str,
+        started_at: float,
+        dry_run: bool = False,
+    ) -> ScanResult:
+        """Parse adımı atlanmış, zaten parse edilmiş reviewed listesiyle finalize eder.
+
+        Batch review akışında kullanılır; LLM çıktısının parse'ı dışarıda yapılmıştır.
+        """
+        reviewer = FindingReviewer(run_dir, backlog_path)
+        reviewer.write_review(reviewed)
+
+        accepted  = [r for r in reviewed if r["verdict"] == "accepted"]
+        rejected  = [r for r in reviewed if r["verdict"] == "rejected"]
+        duplicate = [r for r in reviewed if r["verdict"] == "duplicate"]
+
+        if not dry_run and accepted:
+            reviewer.append_reviewed_to_backlog(reviewed, config, run_id)
 
         result: ScanResult = {
             "run_id": run_id,
