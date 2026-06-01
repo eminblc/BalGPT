@@ -443,11 +443,19 @@ class BacklogExecutorAgent:
 
                 answer = (payload.get("answer") or "").strip()
                 cancelled = bool(payload.get("cancelled"))
-                if cancelled or len(answer) < _MIN_ANSWER_LEN:
+                # EXEC-PROMPT-001: Prompt sözleşmesi modelden son satırda
+                # `STATUS: ok` veya `STATUS: failed` ister. Bu satır mevcutsa
+                # mekanik olarak okunur; yoksa eski davranış (uzunluk eşiği)
+                # geriye-uyumluluk için korunur.
+                status_line = answer.splitlines()[-1].strip().upper() if answer else ""
+                status_failed = status_line == "STATUS: FAILED"
+                status_ok = status_line == "STATUS: OK"
+                if cancelled or len(answer) < _MIN_ANSWER_LEN or status_failed:
                     logger.error(
                         "BacklogExecutorAgent._execute_item: %s — Bridge boş/eksik yanıt "
-                        "döndü (cancelled=%s, answer_len=%d). Sahte tamamlama önlendi.",
-                        item["item_id"], cancelled, len(answer),
+                        "veya STATUS: failed döndü (cancelled=%s, answer_len=%d, "
+                        "status_failed=%s). Sahte tamamlama önlendi.",
+                        item["item_id"], cancelled, len(answer), status_failed,
                     )
                     await self._record_failure(
                         item, backlog_path, parser, file_lock,
@@ -465,8 +473,9 @@ class BacklogExecutorAgent:
                     except Exception:
                         pass
                 logger.info(
-                    "BacklogExecutorAgent._execute_item: %s tamamlandı (answer_len=%d).",
-                    item["item_id"], len(answer),
+                    "BacklogExecutorAgent._execute_item: %s tamamlandı "
+                    "(answer_len=%d, status_ok=%s).",
+                    item["item_id"], len(answer), status_ok,
                 )
                 # TOKEN-PER-ITEM-1: Bridge'den dönen usage verisini kaydet
                 await self._record_item_token_usage(item["item_id"], run_id, payload)
@@ -598,7 +607,14 @@ class BacklogExecutorAgent:
             f"Proje: `{project_root}`\n\n"
             f"Görev:\n{item['text']}\n\n"
             f"Kurallar:\n"
-            f"- Minimal değişiklik yap. İş bitiminde tek cümle yaz: \"yapıldı.\" veya \"yapılamadı.\"\n"
+            f"- Minimal değişiklik yap. Yalnızca görev için gerekli olanı düzenle.\n"
+            f"- İş bitiminde 1–3 cümlelik ANLAMLI özet yaz: ne değiştirdiğini, hangi dosyaları "
+            f"etkilediğini ya da yapılamadıysa nedenini (engel, eksik bilgi, halüsinasyon) net "
+            f"açıkla. \"yapıldı.\" / \"yapılamadı.\" gibi tek kelimelik cevaplar YASAK — "
+            f"yanıtın < 40 karakter ise executor item'ı failed kabul eder.\n"
+            f"- Mesajın SON SATIRI mutlaka `STATUS: ok` veya `STATUS: failed` olmalı "
+            f"(büyük harfli, başka karakter yok). Executor bu satıra göre item'ı done/failed "
+            f"olarak işaretler; satır eksikse uzunluk eşiğine düşer.\n"
             f"- Tüm git komutları `git -C \"{project_root}\" ...` formatında — başka dizinde git ÇALIŞTIRMA, başka repo'ya dokunma.\n"
             f"- `git -C \"{project_root}\" status --porcelain` boşsa (hiç değişiklik yok) commit ATMA, durumu raporla ve bitir.\n"
             f"- `git -C \"{project_root}\" remote` boşsa commit ATMA; doluysa Conventional Commit mesajıyla (`feat:`/`fix:`/`refactor:`/`chore:`) commit at.\n"
