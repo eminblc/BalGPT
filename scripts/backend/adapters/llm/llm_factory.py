@@ -77,20 +77,45 @@ def _accepts_default_model(cls: type) -> bool:
         return False
 
 
+def _accepts_default_effort(cls: type) -> bool:
+    """Sınıfın __init__ metodu `default_effort` parametresi alıyor mu?
+
+    AnthropicProvider ve BridgeLLMProvider destekler; OllamaProvider/GeminiProvider
+    desteklemez — sessiz TypeError önlenir.
+    """
+    try:
+        sig = inspect.signature(cls.__init__)
+        return "default_effort" in sig.parameters
+    except (ValueError, TypeError):
+        return False
+
+
 # Scan için model alias → tam model adı (model_cmd.py ile senkron)
 _SCAN_MODEL_ALIASES: dict[str, str] = {
     "haiku":  "claude-haiku-4-5-20251001",
     "sonnet": "claude-sonnet-4-6",
-    "opus":   "claude-opus-4-7",
+    "opus":   "claude-opus-4-8",
+    "fable":  "claude-fable-5",
 }
 
 
-def get_scan_llm(model: str | None = None) -> AbstractLLMProvider:
+def get_scan_llm(
+    model: str | None = None,
+    effort: str | None = None,
+    thinking: bool = False,
+) -> AbstractLLMProvider:
     """Scan/review görevleri için LLM provider döndürür.
 
     Args:
         model: Opsiyonel alias veya tam model adı (ör. "haiku", "sonnet", "opus").
                Verilmezse varsayılan model kullanılır.
+        effort: Opsiyonel effort seviyesi ("low" | "medium" | "high" | "max").
+                thinking=True iken AnthropicProvider için extended thinking
+                budget_tokens'ına çevrilir; BridgeLLMProvider için Bridge'e
+                effort + thinking alanı olarak iletilir. thinking=False iken
+                effort gönderilmez (VS Code UX'iyle birebir aynı davranış).
+        thinking: Extended Thinking on/off toggle. False (varsayılan) iken
+                  effort seviyesi seçili olsa bile gönderilmez.
 
     Öncelik sırası:
     1. LLM_BACKEND=anthropic ve ANTHROPIC_API_KEY tanımlı → AnthropicProvider
@@ -102,23 +127,47 @@ def get_scan_llm(model: str | None = None) -> AbstractLLMProvider:
     """
     resolved = settings.llm_backend.lower().strip()
 
+    # Alias → tam model adı (Anthropic ve Bridge için ortak)
+    resolved_model = _SCAN_MODEL_ALIASES.get(model or "", model) if model else None
+    # Effort sanitize: "off" / boş / geçersiz → None (provider'lar zaten None'ı handle ediyor)
+    resolved_effort = effort if effort in {"low", "medium", "high", "max"} else None
+
     if resolved == "anthropic":
         try:
             key = settings.anthropic_api_key.get_secret_value()
             if key and key.strip():
-                # Alias varsa tam model adına çevir, yoksa olduğu gibi kullan
-                resolved_model = _SCAN_MODEL_ALIASES.get(model or "", model) if model else None
                 logger.debug(
-                    "get_scan_llm: Anthropic API key mevcut, AnthropicProvider kullanılıyor model=%s",
-                    resolved_model,
+                    "get_scan_llm: Anthropic API key mevcut, AnthropicProvider model=%s effort=%s thinking=%s",
+                    resolved_model, resolved_effort, thinking,
                 )
+                kwargs: dict = {"default_thinking": bool(thinking)}
                 if resolved_model:
-                    return AnthropicProvider(default_model=resolved_model)
-                return AnthropicProvider()
+                    kwargs["default_model"] = resolved_model
+                if resolved_effort:
+                    kwargs["default_effort"] = resolved_effort
+                return AnthropicProvider(**kwargs)
         except Exception:
             pass
-        logger.debug("get_scan_llm: Anthropic API key yok, Bridge fallback kullanılıyor")
-        return BridgeLLMProvider()
+        logger.debug(
+            "get_scan_llm: Anthropic API key yok, Bridge fallback model=%s effort=%s thinking=%s",
+            resolved_model, resolved_effort, thinking,
+        )
+        return BridgeLLMProvider(
+            default_model=resolved_model,
+            default_effort=resolved_effort,
+            default_thinking=bool(thinking),
+        )
+
+    if resolved == "bridge":
+        logger.debug(
+            "get_scan_llm: Bridge backend, BridgeLLMProvider model=%s effort=%s thinking=%s",
+            resolved_model, resolved_effort, thinking,
+        )
+        return BridgeLLMProvider(
+            default_model=resolved_model,
+            default_effort=resolved_effort,
+            default_thinking=bool(thinking),
+        )
 
     return get_llm(resolved)
 

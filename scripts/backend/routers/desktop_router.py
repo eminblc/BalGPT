@@ -153,6 +153,9 @@ class DesktopRequest(BaseModel):
     # Admin TOTP gate — ilk çağrıda zorunlu; TTL boyunca sonraki çağrılarda boş geçilebilir
     code: Optional[str] = None
 
+    # i18n — yanıt mesajları bu dilde döner (IMP-ROUTER-8)
+    lang: str = "tr"
+
     @field_validator("action")
     @classmethod
     def validate_action(cls, v: str) -> str:

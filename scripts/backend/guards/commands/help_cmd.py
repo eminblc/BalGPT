@@ -95,6 +95,8 @@ class HelpCommand:
                             {"id": "cmd_shutdown",      "title": t("help.row_shutdown",      lang)},
                             {"id": "cmd_lang",          "title": t("help.row_lang",          lang)},
                             {"id": "cmd_model",         "title": t("help.row_model",         lang)},
+                            {"id": "cmd_effort",        "title": t("help.row_effort",        lang)},
+                            {"id": "cmd_thinking",      "title": t("help.row_thinking",      lang)},
                             {"id": "cmd_tokens",        "title": t("help.row_tokens",        lang)},
                             {"id": "cmd_export",        "title": t("help.row_export",        lang)},
                             {"id": "cmd_import",        "title": t("help.row_import",        lang)},

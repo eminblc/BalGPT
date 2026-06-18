@@ -51,6 +51,53 @@ def set_active_model(model: str | None) -> None:
     with _state_lock:
         _active_model = model
 
+
+# ── Aktif effort seviyesi ────────────────────────────────────────────────────
+# Claude Code CLI `--effort <low|medium|high|max>` flag'i için aktif seviye.
+# None = CLI varsayılanı kullan; /effort komutuyla değiştirilir, restart sonrası
+# DB'den (user_settings) geri yüklenir.
+_VALID_EFFORTS: frozenset[str] = frozenset({"low", "medium", "high", "max"})
+_active_effort: str | None = None
+
+
+def get_active_effort() -> str | None:
+    """Çalışma zamanında seçilen effort seviyesini döndürür; ayarlanmamışsa None."""
+    with _state_lock:
+        return _active_effort
+
+
+def set_active_effort(effort: str | None) -> None:
+    """Çalışma zamanı effort seviyesini global olarak değiştirir.
+
+    Geçersiz değer (low/medium/high/max dışı) sessizce yok sayılır; None ile
+    sıfırlanabilir (CLI varsayılanına dön).
+    """
+    global _active_effort
+    with _state_lock:
+        if effort is None or effort in _VALID_EFFORTS:
+            _active_effort = effort
+
+
+# ── Aktif Extended Thinking toggle ───────────────────────────────────────────
+# VS Code'daki "Thinking" toggle'ının Telegram karşılığı (effort'tan bağımsız).
+# False (varsayılan) → effort seviyesi seçili olsa bile thinking payload/flag gönderilmez.
+# True               → effort seviyesi seçili ise thinking + budget_tokens ile gönderilir.
+# DB'de "thinking" key'i altında "1"/"0" olarak kalıcı.
+_active_thinking: bool = False
+
+
+def get_active_thinking() -> bool:
+    """Extended Thinking şu an aktif mi?"""
+    with _state_lock:
+        return _active_thinking
+
+
+def set_active_thinking(enabled: bool) -> None:
+    """Extended Thinking toggle'ını global olarak değiştirir."""
+    global _active_thinking
+    with _state_lock:
+        _active_thinking = bool(enabled)
+
 # Bridge son durum bildirimleri: { number: {"text": str, "ts": float} }
 _last_status: dict[str, dict] = {}
 
@@ -129,3 +176,125 @@ def is_scan_running() -> bool:
     """Halihazırda bir scan çalışıyor mu?"""
     with _state_lock:
         return _scan_running
+
+
+# ── Aktif scan run_id takibi ─────────────────────────────────────────────────
+# AllScansRunner ve dış komutların (pause/resume) aktif run_id'yi bilmesi için.
+_active_scan_run_id: str | None = None
+
+
+def set_active_scan_run_id(run_id: str | None) -> None:
+    """Aktif scan run_id'sini kaydet (scan başlarken set, bitince None)."""
+    global _active_scan_run_id
+    with _state_lock:
+        _active_scan_run_id = run_id
+
+
+def get_active_scan_run_id() -> str | None:
+    """Şu an çalışan scan'in run_id'sini döndürür; yoksa None."""
+    with _state_lock:
+        return _active_scan_run_id
+
+
+# ── Global scan duraklatma ───────────────────────────────────────────────────
+# AllScansRunner scan_type döngüsü başında kontrol eder.
+# ScannerAgent/ReviewerAgent için per-run_id pause: ScanPauseStore kullanır.
+_scan_pause_requested: bool = False
+
+
+def request_scan_pause() -> None:
+    """Aktif scan'i durdur (global flag + aktif run_id'nin dosya state'i)."""
+    global _scan_pause_requested
+    from ..features.scan_pipeline.scan_pause_store import ScanPauseStore  # noqa: PLC0415
+    with _state_lock:
+        _scan_pause_requested = True
+        run_id = _active_scan_run_id
+    if run_id:
+        ScanPauseStore.request_pause(run_id)
+
+
+def request_scan_resume() -> None:
+    """Duraklatılmış scan'i devam ettir (global flag + aktif run_id'nin dosya state'i)."""
+    global _scan_pause_requested
+    from ..features.scan_pipeline.scan_pause_store import ScanPauseStore  # noqa: PLC0415
+    with _state_lock:
+        _scan_pause_requested = False
+        run_id = _active_scan_run_id
+    if run_id:
+        ScanPauseStore.request_resume(run_id)
+
+
+def clear_scan_pause() -> None:
+    """Global pause flag'ini sıfırla; yeni bir scan başlamadan önce çağrılmalı."""
+    global _scan_pause_requested
+    with _state_lock:
+        _scan_pause_requested = False
+
+
+def is_scan_pause_requested() -> bool:
+    """Global pause flag'i set edilmişse True döner."""
+    with _state_lock:
+        return _scan_pause_requested
+
+
+# ── Backlog executor iptali ──────────────────────────────────────────────────
+# True → devam eden backlog executor her yeni item öncesinde durmalı.
+# BacklogExecutorAgent.run() başlangıcında clear_backlog_cancel() çağırır.
+_backlog_cancel_requested: bool = False
+
+
+def request_backlog_cancel() -> None:
+    """Aktif backlog executor'ın iptalini iste."""
+    global _backlog_cancel_requested
+    with _state_lock:
+        _backlog_cancel_requested = True
+
+
+def clear_backlog_cancel() -> None:
+    """İptal flag'ini sıfırla; yeni bir executor başlamadan önce çağrılmalı."""
+    global _backlog_cancel_requested
+    with _state_lock:
+        _backlog_cancel_requested = False
+
+
+def is_backlog_cancel_requested() -> bool:
+    """Backlog executor iptal flag'i set edilmişse True döner."""
+    with _state_lock:
+        return _backlog_cancel_requested
+
+
+# ── Backlog executor kuyruk sayacı ─────────────────────────────────────────
+# Aktif + kuyrukta bekleyen run sayısı. "Tümü" akışında 3 ayrı POST geldiğinde
+# 3 olur; her run() exit'inde 1 azalır. is_first kararı, ilk run'ın cancel
+# flag'ini temizleme yetkisi olduğunu söyler — sonradan gelen kuyruklananlar
+# (counter > 1 iken enter olanlar) cancel state'ini paylaşır.
+_active_backlog_runs: int = 0
+
+
+def enter_backlog_run() -> bool:
+    """Kuyruğa yeni bir backlog run kaydet; bu run, kuyruğa giren ilk mi?
+
+    Returns:
+        True → kuyruk şu ana kadar boştu; bu run ``clear_backlog_cancel()``
+        çağırma yetkisine sahiptir (taze başlangıç).
+        False → bu run kuyruğa bağlı; önceki cancel state'i miras alır.
+    """
+    global _active_backlog_runs
+    with _state_lock:
+        was_empty = (_active_backlog_runs == 0)
+        _active_backlog_runs += 1
+        return was_empty
+
+
+def exit_backlog_run() -> None:
+    """run() exit'inde kuyruk sayacını azalt."""
+    global _active_backlog_runs
+    with _state_lock:
+        if _active_backlog_runs > 0:
+            _active_backlog_runs -= 1
+
+
+def get_backlog_queue_size() -> int:
+    """Aktif + bekleyen backlog run sayısı (0 → idle)."""
+    with _state_lock:
+        return _active_backlog_runs

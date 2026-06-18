@@ -126,7 +126,9 @@ jobs:
           python3 -c "
           import json, re, glob
           src = open('install.sh').read() + ''.join(open(f).read() for f in glob.glob('lib/*.sh'))
-          refs = set(re.findall(r'_S_[A-Z][A-Z0-9_]*', src))
+          # Skip comment lines to avoid false positives (e.g. _S_KEY in a comment)
+          non_comment = '\n'.join(l for l in src.split('\n') if not l.strip().startswith('#'))
+          refs = set(re.findall(r'_S_[A-Z][A-Z0-9_]*', non_comment))
           for lang in ('tr', 'en'):
               keys = {'_S_' + k for k in json.load(open(f'locales/install_{lang}.json'))}
               missing = refs - keys

@@ -418,7 +418,8 @@
     "select_prompt": "🤖 Active model: {model} (backend: {backend})\n\nSelect a model:",
     "btn_sonnet": "Sonnet",
     "btn_haiku": "Haiku",
-    "btn_opus": "Opus"
+    "btn_opus": "Opus",
+    "btn_fable": "Fable 5"
   },
   "effort": {
     "select_prompt": "🎚️ Active effort level: {level}\n\nSelect a level:",

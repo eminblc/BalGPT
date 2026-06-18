@@ -328,11 +328,24 @@ async def _execute_one_shot_task(task_id: str) -> None:
         elif action_type == "run_backlog_executor":
             project_id_exec = payload.get("project_id", "")
             prefix = payload.get("prefix", "")
-            max_items = int(payload.get("max_items", 3))
-            parallel = int(payload.get("parallel", 2))
+            try:
+                max_items = int(payload.get("max_items", 3))
+            except (ValueError, TypeError):
+                max_items = 3
+            try:
+                parallel = int(payload.get("parallel", 2))
+            except (ValueError, TypeError):
+                parallel = 2
             dry_run_exec = payload.get("dry_run", False)
+            model_exec = payload.get("model")
+            backlog_path_exec = payload.get("backlog_path")
+            effort_exec = payload.get("effort")
+            thinking_exec = bool(payload.get("thinking", False))
             from .backlog_executor.runner import BacklogExecutorAgent
-            await BacklogExecutorAgent().run(project_id_exec, prefix, max_items, parallel, dry_run_exec)
+            await BacklogExecutorAgent().run(
+                project_id_exec, prefix, max_items, parallel, dry_run_exec, model_exec,
+                backlog_path_exec, effort_exec, thinking_exec,
+            )
         await db.task_update_status(task_id, "succeeded")
         if run_id is not None:
             try:
@@ -622,11 +635,24 @@ async def _execute_task(task_id: str) -> None:
         elif action_type == "run_backlog_executor":
             project_id_exec = payload.get("project_id", "")
             prefix = payload.get("prefix", "")
-            max_items = int(payload.get("max_items", 3))
-            parallel = int(payload.get("parallel", 2))
+            try:
+                max_items = int(payload.get("max_items", 3))
+            except (ValueError, TypeError):
+                max_items = 3
+            try:
+                parallel = int(payload.get("parallel", 2))
+            except (ValueError, TypeError):
+                parallel = 2
             dry_run_exec = payload.get("dry_run", False)
+            model_exec = payload.get("model")
+            backlog_path_exec = payload.get("backlog_path")
+            effort_exec = payload.get("effort")
+            thinking_exec = bool(payload.get("thinking", False))
             from .backlog_executor.runner import BacklogExecutorAgent
-            await BacklogExecutorAgent().run(project_id_exec, prefix, max_items, parallel, dry_run_exec)
+            await BacklogExecutorAgent().run(
+                project_id_exec, prefix, max_items, parallel, dry_run_exec, model_exec,
+                backlog_path_exec, effort_exec, thinking_exec,
+            )
         # Cron job'lar tamamlandıktan sonra "scheduled" durumuna geri döner
         await db.task_update_status(task_id, "scheduled")
         if run_id is not None:
@@ -754,7 +780,7 @@ def _register_auto_backup_job() -> None:
         **fields,
     )
     logger.info(
-        "Otomatik yedekleme kaydedildi: cron=%r job_id=%s",
+        "Auto backup job registered: cron=%r job_id=%s",
         cfg.auto_backup_cron, _AUTO_BACKUP_JOB_ID,
     )
 
@@ -763,12 +789,12 @@ async def _run_auto_backup() -> None:
     """APScheduler tarafından çağrılan otomatik yedekleme entrypoint'i."""
     from .backup._auto_backup import get_auto_backup_job
 
-    logger.info("Otomatik yedekleme tetiklendi")
+    logger.info("Auto backup triggered")
     try:
         job = get_auto_backup_job()
         await job.run()
     except Exception as exc:
-        logger.exception("Otomatik yedekleme beklenmedik hata: %s", exc)
+        logger.exception("Auto backup unexpected error: %s", exc)
 
 
 # ── Yardımcı ─────────────────────────────────────────────────────

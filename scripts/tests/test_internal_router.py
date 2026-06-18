@@ -525,3 +525,86 @@ async def test_require_localhost_allows_ipv4_mapped_loopback():
     mock_req.client.host = "::ffff:127.0.0.1"
     # Hata fırlatmamalı
     _require_localhost(mock_req)
+
+
+# ── Effort field validators ──────────────────────────────────────
+
+
+def test_scanner_trigger_request_accepts_valid_effort():
+    """scan_effort + review_effort whitelist'teki değerler kabul edilmeli."""
+    from backend.routers.internal_router import ScannerTriggerRequest
+    req = ScannerTriggerRequest(
+        scan_type="security", project_id="p1",
+        scan_effort="high", review_effort="medium",
+    )
+    assert req.scan_effort == "high"
+    assert req.review_effort == "medium"
+
+
+def test_scanner_trigger_request_off_normalizes_to_none():
+    """scan_effort='off' Pydantic seviyesinde None'a normalize edilmeli."""
+    from backend.routers.internal_router import ScannerTriggerRequest
+    req = ScannerTriggerRequest(
+        scan_type="security", project_id="p1",
+        scan_effort="off", review_effort="",
+    )
+    assert req.scan_effort is None
+    assert req.review_effort is None
+
+
+def test_scanner_trigger_request_rejects_invalid_effort():
+    """Geçersiz effort değeri 422 (ValidationError) fırlatmalı."""
+    import pytest
+    from pydantic import ValidationError
+    from backend.routers.internal_router import ScannerTriggerRequest
+    with pytest.raises(ValidationError):
+        ScannerTriggerRequest(scan_type="security", project_id="p1", scan_effort="ultra")
+
+
+def test_backlog_execute_request_effort_field():
+    """BacklogExecuteRequest 'effort' alanını kabul edip whitelist'lemeli."""
+    from backend.routers.internal_router import BacklogExecuteRequest
+    req = BacklogExecuteRequest(project_id="p1", effort="max")
+    assert req.effort == "max"
+
+    req2 = BacklogExecuteRequest(project_id="p1", effort="off")
+    assert req2.effort is None
+
+
+def test_validate_effort_helper_accepts_whitelist():
+    """_validate_effort: whitelist + off/None handling."""
+    from backend.routers.internal_router import _validate_effort
+    assert _validate_effort("high") == "high"
+    assert _validate_effort("LOW") == "low"  # case-insensitive
+    assert _validate_effort("off") is None
+    assert _validate_effort("") is None
+    assert _validate_effort(None) is None
+    import pytest
+    with pytest.raises(ValueError):
+        _validate_effort("turbo")
+
+
+def test_scanner_trigger_request_thinking_defaults_false():
+    """scan_thinking / review_thinking default False."""
+    from backend.routers.internal_router import ScannerTriggerRequest
+    req = ScannerTriggerRequest(scan_type="security", project_id="p1")
+    assert req.scan_thinking is False
+    assert req.review_thinking is False
+
+
+def test_scanner_trigger_request_accepts_thinking_true():
+    from backend.routers.internal_router import ScannerTriggerRequest
+    req = ScannerTriggerRequest(
+        scan_type="security", project_id="p1",
+        scan_thinking=True, review_thinking=True,
+    )
+    assert req.scan_thinking is True
+    assert req.review_thinking is True
+
+
+def test_backlog_execute_request_thinking_field():
+    from backend.routers.internal_router import BacklogExecuteRequest
+    req_default = BacklogExecuteRequest(project_id="p1")
+    assert req_default.thinking is False
+    req_on = BacklogExecuteRequest(project_id="p1", thinking=True)
+    assert req_on.thinking is True

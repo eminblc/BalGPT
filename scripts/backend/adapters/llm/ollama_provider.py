@@ -39,10 +39,12 @@ class OllamaProvider:
         messages: list[dict],
         model: str | None = None,
         max_tokens: int = 4096,
+        cache_system: bool = False,  # noqa: ARG002 — Ollama prompt caching desteklemez, no-op
     ) -> CompletionResult:
         """Ollama /api/chat endpoint'ine istek gönderir, CompletionResult döndürür.
 
         Ollama, OpenAI uyumlu mesaj formatını destekler (system/user/assistant).
+        cache_system parametresi LSP uyumluluğu için kabul edilir, yok sayılır.
         """
         resolved_model = model or self._default_model
         url = f"{self._base_url}/api/chat"

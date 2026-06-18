@@ -11,6 +11,10 @@ class ScanConfig(TypedDict):
     reviewer_prompt: str         # Reviewer agent prompt şablonu
     backlog_prefix: str          # 'SEC' | 'BUG' | 'HT'
     max_findings_per_agent: int  # Token limiti için
+    max_chars_per_file: int      # Dosya başına maksimum karakter (varsayılan: 8000)
+    max_output_tokens: int       # LLM çıktı token bütçesi (varsayılan: 2048)
+    chunk_size: int              # Chunk başına dosya sayısı (varsayılan: 5)
+    concurrency: int             # Eş zamanlı chunk sayısı (varsayılan: 5)
 
 
 class ScanFinding(TypedDict, total=False):

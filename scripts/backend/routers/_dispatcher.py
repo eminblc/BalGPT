@@ -356,6 +356,7 @@ async def _handle_nl_schedule_reply(sender: str, reply_id: str, session: dict) -
                 "max_items":  params.get("max_items", 3),
                 "parallel":   2,
                 "dry_run":    params.get("dry_run", False),
+                "model":      params.get("model"),
             }
 
         task = await db.task_create(
@@ -441,16 +442,12 @@ async def _route_interactive(sender: str, reply_id: str, session: dict) -> None:
             await command.execute(sender, "" if scope == "essential" else scope, session)
         return
 
-    # /backlog run butonları
-    if reply_id.startswith("backlog_"):
-        sub = reply_id[len("backlog_"):]
+    # /backlog status butonu — diğer backlog_* callback'leri (run_*, cancel, file_*)
+    # menu handler'a düşer ki dosya seçim ekranı vb. çalışsın.
+    if reply_id == "backlog_status":
         command = cmd_registry.get("/backlog")
         if command:
-            if sub == "status":
-                await command.execute(sender, "durum", session)
-            elif sub.startswith("run_"):
-                project_id = sub[len("run_"):]
-                await command.execute(sender, f"çalıştır {project_id}", session)
+            await command.execute(sender, "durum", session)
         return
 
     # /scan tip seçim butonları

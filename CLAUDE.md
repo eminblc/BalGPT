@@ -346,7 +346,9 @@ To add a new restriction: `capability_guard.register_capability_rule()` + bool f
 | `/root-exit` | `root_exit_cmd.py` | Exit root project context, return to 99-root directory |
 | `/cancel` | `cancel_cmd.py` | Cancel active TOTP / verification flow or pending operation |
 | `/lang` | `lang_cmd.py` | Change UI language (tr / en) |
-| `/model` | `model_cmd.py` | Change LLM model at runtime (global, persists until restart) |
+| `/model` | `model_cmd.py` | Change LLM model at runtime (global, persists until restart). Anthropic aliases: `sonnet` → claude-sonnet-4-6, `haiku` → claude-haiku-4-5, `opus` → claude-opus-4-8, `fable` → claude-fable-5 (GA, June 9 2026). |
+| `/effort` | `effort_cmd.py` | Pick reasoning effort **level** (low/medium/high/max). Meaningful on Sonnet 4.6 / Opus 4.6 / Opus 4.7 / Opus 4.8 — Haiku 4.5, Fable 5, Mythos 5 don't support effort levels (menu UI skips for these). Note: Opus 4.8 defaults to `high` effort — set explicitly to change. Scan & backlog flows ask per-run via `scaneffort_*` / `revieweffort_*` / `backlogeffort_*` buttons. |
+| `/thinking` | `thinking_cmd.py` | Extended Thinking **on/off toggle** — independent of effort. Per-model behavior (per Anthropic docs, June 2026): **Sonnet 4.6 / Opus 4.6** support manual `thinking.enabled+budget_tokens` payload (mapped from effort level); **Opus 4.7 / Opus 4.8 / Fable 5 / Mythos 5 + Haiku 4.5** require `thinking.adaptive` (no budget_tokens; effort silently ignored — model decides dynamically); **Haiku 3.5 / older** have no thinking support. Bridge path emits `--effort` CLI flag only when both `thinking=true` AND model is Sonnet 4.6 / Opus 4.6 / Opus 4.7 / Opus 4.8. |
 | `/lock` | `lock_cmd.py` | Lock the application (TOTP required); only `/unlock` works while locked |
 | `/unlock` | `unlock_cmd.py` | Unlock the application (TOTP required); automatically locked at service start |
 | `/terminal` | `terminal_cmd.py` | Run a shell command via WhatsApp (owner TOTP required for dangerous commands) |
@@ -592,8 +594,18 @@ Cloud deployment: `render.yaml` (Render.com) and `railway.json` (Railway) ready 
 
 **BACKLOG.md rule:**
 
+> ⚠️ **Backlog Executor uyumluluğu zorunlu.** Tüm BACKLOG.md dosyaları
+> [`docs/developer/backlog-format.md`](docs/developer/backlog-format.md)
+> spec'ine uymak zorundadır. Spec'e aykırı satırlar `/backlog-execute`
+> tarafından sessizce atlanır. Yeni BACKLOG.md oluştururken veya item
+> eklerken oradaki **Item ID kuralı**, **format seçimi** (checkbox VEYA
+> tablo — karıştırma) ve **section sırası** kurallarına uy.
+
 - **Structure (in this order):** 🔴 Critical → 🟠 High → 🟡 Medium → 🟢 Low → Requires User Action → Deferred → ✅ Completed
+  Parser, `Kullanıcı / Ertelenmiş / Deferred / Tamamlandı / ✅` içeren ilk `##` başlığından sonraki tüm item'ları yok sayar — bu yüzden tamamlanan/ertelenen bölümler her zaman aktif görevlerin **altında** olmalı.
 - Each priority level appears as **a single section**; do not open multiple sections at the same level.
+- **ID format:** `[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+` + en az bir rakam. Örnek geçerli: `SEC-001`, `BUG-BE-007`, `SCAN-DEPTH-1`. Geçersiz: `SEC`, `abc-001`, `BUG_042`.
+- **Tek dosya, tek format:** Checkbox (`- [ ] ID …`) VEYA Markdown tablo (`| ID | … |`) — ikisini aynı dosyada kullanmak parser'ın bir formatı görmezden gelmesine yol açar.
 - **No code blocks:** SQL schemas, Python class definitions, function signatures are not written in backlog lines. Keep task descriptions brief; spec details go in the relevant file or reports.
 - **Completed items** are always at the bottom of the file and kept compact (single line). New completed items are added to the bottom of the "Completed" section; this section is never moved up.
 

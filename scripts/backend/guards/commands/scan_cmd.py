@@ -34,12 +34,13 @@ def _load_scan_configs() -> dict[str, dict]:
 
 
 def _get_root_project() -> dict | None:
-    """active_context.json'dan aktif root project bilgisini döndürür."""
-    try:
-        ctx = json.loads(_CTX_FILE.read_text(encoding="utf-8"))
-        return ctx.get("active_root_project")
-    except Exception:  # noqa: BLE001
-        return None
+    """active_context.json'dan aktif root project bilgisini döndürür.
+
+    Tek doğruluk kaynağı: _root_project_helpers.get_active_root_project()
+    cascading lookup yapar (active_root_project → active_project fallback).
+    """
+    from ._root_project_helpers import get_active_root_project
+    return get_active_root_project()
 
 
 class ScanCommand:
@@ -100,6 +101,25 @@ class ScanCommand:
         # /scan cancel
         if arg == "cancel":
             await self._handle_cancel(sender, lang, messenger)
+            return
+
+        # /scan pause [run_id]
+        if arg.startswith("pause"):
+            parts = arg.split(maxsplit=1)
+            run_id_hint = parts[1] if len(parts) > 1 else None
+            await self._handle_pause(sender, lang, messenger, run_id_hint)
+            return
+
+        # /scan resume [run_id]
+        if arg.startswith("resume"):
+            parts = arg.split(maxsplit=1)
+            run_id_hint = parts[1] if len(parts) > 1 else None
+            await self._handle_resume(sender, lang, messenger, run_id_hint)
+            return
+
+        # /scan list
+        if arg == "list":
+            await self._handle_list(sender, lang, messenger)
             return
 
         # /scan all [--dry] → tüm taramaları sırayla başlat
@@ -240,40 +260,74 @@ class ScanCommand:
         except Exception as _exc:
             log.warning("scan_cmd: status endpoint erişilemedi — %s", _exc)
 
-        is_running = bool(data.get("running_agent_run"))
-        completed  = data.get("findings_count", 0)
-        total      = data.get("total_chunks", 0)
-        stype      = data.get("scan_type") or "?"
-        started_at = data.get("started_at")
-        cancelled  = data.get("cancel_requested", False)
+        is_running     = bool(data.get("running_agent_run"))
+        completed      = data.get("findings_count", 0)
+        total          = data.get("total_chunks", 0)
+        stype          = data.get("scan_type") or "?"
+        started_at     = data.get("started_at")
+        cancelled      = data.get("cancel_requested", False)
+        paused         = data.get("pause_requested", False)
+        phase          = data.get("phase") or "scanner"
+        done_chunks    = data.get("completed_chunks", completed)
+        done_batches   = data.get("completed_batches", 0)
+        total_batches  = int(data.get("total_batches", 0) or 0)
 
-        if is_running:
-            pct     = int(completed / total * 100) if total else 0
-            filled  = pct // 10
-            bar     = "▓" * filled + "░" * (10 - filled)
+        if is_running or paused:
             elapsed = int((time.time() - started_at) / 60) if started_at else 0
-            eta_str = ""
-            if completed and started_at:
-                rate    = (time.time() - started_at) / completed
-                eta_sec = int(rate * (total - completed))
-                eta_str = t("scan.status_eta", lang, minutes=max(1, eta_sec // 60))
-            cancel_note = t("scan.status_cancelling", lang) if cancelled else ""
-            lines = [
-                t("scan.status_running_header", lang, scan_type=stype),
-                f"[{bar}] {completed}/{total} chunk (%{pct})",
-                t("scan.status_elapsed", lang, minutes=elapsed) + eta_str,
-            ]
-            if cancel_note:
-                lines.append(cancel_note)
+
+            if phase == "reviewer":
+                header = t("scan.status_reviewer_header", lang, scan_type=stype)
+                # Reviewer fazı progress bar — total_batches state.json'a yazılıyor
+                # (reviewer_agent.py batches hesaplandıktan sonra). Eski run'lar
+                # için total=0 olabilir → fallback olarak yalnızca count gösterilir.
+                if total_batches > 0:
+                    pct    = int(done_batches / total_batches * 100)
+                    filled = pct // 10
+                    bar    = "▓" * filled + "░" * (10 - filled)
+                    progress_line = f"[{bar}] {done_batches}/{total_batches} batch (%{pct})"
+                    eta_str = ""
+                    if done_batches and started_at:
+                        rate    = (time.time() - started_at) / done_batches
+                        eta_sec = int(rate * (total_batches - done_batches))
+                        eta_str = t("scan.status_eta", lang, minutes=max(1, eta_sec // 60))
+                else:
+                    progress_line = t("scan.status_reviewer_progress", lang, done=done_batches)
+                    eta_str = ""
+            else:
+                pct    = int(done_chunks / total * 100) if total else 0
+                filled = pct // 10
+                bar    = "▓" * filled + "░" * (10 - filled)
+                header = t("scan.status_scanner_header", lang, scan_type=stype)
+                progress_line = f"[{bar}] {done_chunks}/{total} chunk (%{pct})"
+                eta_str = ""
+                if done_chunks and started_at:
+                    rate    = (time.time() - started_at) / done_chunks
+                    eta_sec = int(rate * (total - done_chunks))
+                    eta_str = t("scan.status_eta", lang, minutes=max(1, eta_sec // 60))
+
+            lines = [header, progress_line]
+            if eta_str:
+                lines.append(t("scan.status_elapsed", lang, minutes=elapsed) + eta_str)
+            else:
+                lines.append(t("scan.status_elapsed", lang, minutes=elapsed))
+
+            if cancelled:
+                lines.append(t("scan.status_cancelling", lang))
+            elif paused:
+                lines.append(t("scan.status_paused", lang))
+
             text = "\n".join(lines)
-            if not cancelled:
+            if cancelled or paused:
+                await messenger.send_text(sender, text)
+            else:
                 await messenger.send_buttons(
                     sender,
                     text,
-                    [{"id": "scan_cancel", "title": t("scan.btn_cancel", lang)}],
+                    [
+                        {"id": "scan_pause",  "title": t("scan.btn_pause",  lang)},
+                        {"id": "scan_cancel", "title": t("scan.btn_cancel", lang)},
+                    ],
                 )
-            else:
-                await messenger.send_text(sender, text)
             return
 
         # Aktif scan yok — son tamamlanan run'ları scan_runs dizininden oku
@@ -328,21 +382,120 @@ class ScanCommand:
         await messenger.send_text(sender, _t("scan.cancel_fail", lang))
 
     @staticmethod
+    async def _handle_pause(
+        sender: str, lang: str, messenger, run_id_hint: str | None
+    ) -> None:
+        """Pause isteğini /internal/scanner/pause endpoint'ine iletir."""
+        import httpx as _httpx
+        from ...i18n import t as _t
+        from ...guards.runtime_state import get_active_scan_run_id, is_scan_running
+
+        # run_id_hint belirtilmişse ama aktif run_id farklıysa uyar — minimal MVP
+        if not is_scan_running():
+            await messenger.send_text(sender, _t("scan.pause_none", lang))
+            return
+
+        try:
+            async with _httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.post("http://localhost:8010/internal/scanner/pause")
+                if resp.status_code == 200:
+                    await messenger.send_text(sender, _t("scan.pause_ok", lang))
+                    return
+        except Exception as _exc:
+            log.warning("scan_cmd: pause endpoint erişilemedi — %s", _exc)
+        await messenger.send_text(sender, _t("scan.pause_fail", lang))
+
+    @staticmethod
+    async def _handle_resume(
+        sender: str, lang: str, messenger, run_id_hint: str | None
+    ) -> None:
+        """Resume isteğini /internal/scanner/resume endpoint'ine iletir.
+
+        run_id_hint verilmişse o run_id'nin ScanPauseStore'unu da temizler
+        (process restart sonrası manuel resume için).
+        """
+        import httpx as _httpx
+        from ...i18n import t as _t
+        from ...guards.runtime_state import is_scan_pause_requested
+
+        if not is_scan_pause_requested():
+            await messenger.send_text(sender, _t("scan.resume_none", lang))
+            return
+
+        # İsteğe bağlı: belirtilen run_id için ScanPauseStore'u da temizle
+        if run_id_hint:
+            try:
+                from ...features.scan_pipeline.scan_pause_store import ScanPauseStore
+                ScanPauseStore.request_resume(run_id_hint)
+            except Exception as _exc:  # noqa: BLE001
+                log.warning("scan_cmd: ScanPauseStore resume hatası — %s", _exc)
+
+        try:
+            async with _httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.post("http://localhost:8010/internal/scanner/resume")
+                if resp.status_code == 200:
+                    await messenger.send_text(sender, _t("scan.resume_ok", lang))
+                    return
+        except Exception as _exc:
+            log.warning("scan_cmd: resume endpoint erişilemedi — %s", _exc)
+        await messenger.send_text(sender, _t("scan.resume_fail", lang))
+
+    async def _handle_list(self, sender: str, lang: str, messenger) -> None:
+        """Son 10 scan run_id'sini faz ve verdict özetiyle gösterir."""
+        from ...i18n import t as _t
+
+        runs = self._load_recent_runs(limit=10)
+        if not runs:
+            await messenger.send_text(sender, _t("scan.list_empty", lang))
+            return
+
+        lines = [_t("scan.list_header", lang)]
+        for run in runs:
+            run_id   = run.get("run_id", "?")
+            stype    = run.get("scan_type", "?")
+            status   = run.get("status", "?")
+            # Kısa run_id (ilk 8 karakter)
+            short_id = run_id[:8] if len(run_id) > 8 else run_id
+
+            # state.json'dan faz bilgisi
+            phase = "?"
+            try:
+                from ...features.scan_pipeline.scan_pause_store import ScanPauseStore
+                state = ScanPauseStore.get_state(run_id)
+                phase = state.get("phase") or status
+            except Exception:  # noqa: BLE001
+                pass
+
+            lines.append(
+                _t("scan.list_row", lang,
+                   run_id=short_id, scan_type=stype, phase=phase, status=status)
+            )
+        await messenger.send_text(sender, "\n".join(lines))
+
+    @staticmethod
     def _load_recent_runs(limit: int) -> list[dict]:
-        """Son scan run'larını scan_runs/ dizinindeki meta.json dosyalarından döndürür."""
+        """Son scan run'larını scan_runs/ dizinindeki meta.json dosyalarından döndürür.
+
+        Hem düz (`scan_runs/<run_id>/`) hem nested (`scan_runs/<project_id>/<run_id>/`)
+        yerleşimini destekler.
+        """
+        from ...features.scan_pipeline.pipeline import iter_run_dirs  # noqa: PLC0415
+
         runs_dir = _SCAN_CONFIGS_DIR.parent / "scan_runs"
         if not runs_dir.exists():
             return []
         runs: list[dict] = []
         try:
-            for d in sorted(runs_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-                meta_file = d / "meta.json"
-                if meta_file.exists():
-                    try:
-                        meta = json.loads(meta_file.read_text(encoding="utf-8"))
-                        runs.append(meta)
-                    except Exception:  # noqa: BLE001
-                        pass
+            for d in sorted(
+                iter_run_dirs(runs_dir),
+                key=lambda x: x.stat().st_mtime,
+                reverse=True,
+            ):
+                try:
+                    meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
+                    runs.append(meta)
+                except Exception:  # noqa: BLE001
+                    pass
                 if len(runs) >= limit:
                     break
         except Exception:  # noqa: BLE001

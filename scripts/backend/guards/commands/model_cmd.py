@@ -3,7 +3,8 @@
 Desteklenen alias'lar (Anthropic backend):
     sonnet → claude-sonnet-4-6
     haiku  → claude-haiku-4-5-20251001
-    opus   → claude-opus-4-6
+    opus   → claude-opus-4-8
+    fable  → claude-fable-5
 
 Tam model adı da kabul edilir (ör. /model claude-sonnet-4-6).
 Ollama / Gemini backend'lerinde herhangi bir model adı kabul edilir.
@@ -17,7 +18,8 @@ from ..permission import Perm
 _ANTHROPIC_ALIASES: dict[str, str] = {
     "sonnet": "claude-sonnet-4-6",
     "haiku":  "claude-haiku-4-5-20251001",
-    "opus":   "claude-opus-4-7",
+    "opus":   "claude-opus-4-8",
+    "fable":  "claude-fable-5",
 }
 
 # Anthropic backend için desteklenen tam model adları (alias hedefleri)

@@ -73,6 +73,7 @@ def mock_pipeline(tmp_path):
     p.build_scanner_prompts.return_value = (MagicMock(), [], run_dir)
     p.collect_and_build_reviewer_prompt.return_value = ([], "")
     p.finalize.return_value = {"accepted": 2, "rejected": 1, "duplicate": 0}
+    p.finalize_from_reviewed.return_value = {"accepted": 2, "rejected": 1, "duplicate": 0}
     return p, run_dir
 
 
@@ -148,7 +149,7 @@ class TestScannerAgentRun:
 
         agent = self._make_agent(pipeline)
 
-        async def _fake_chunks(chunk_prompts, llm, run_dir, parallel=3):
+        async def _fake_chunks(chunk_prompts, llm, run_dir, parallel=3, **kwargs):
             pass  # chunk çalıştırmayı taklit et
 
         agent._run_scanner_chunks = _fake_chunks
@@ -184,7 +185,7 @@ class TestScannerAgentRun:
         agent = self._make_agent(pipeline)
 
         # _run_scanner_chunks'u no-op stub yap
-        async def _noop_chunks(chunk_prompts, llm, run_dir, parallel=3):
+        async def _noop_chunks(chunk_prompts, llm, run_dir, parallel=3, **kwargs):
             pass
 
         agent._run_scanner_chunks = _noop_chunks
@@ -192,7 +193,7 @@ class TestScannerAgentRun:
         reviewer_run_calls: list = []
 
         class FakeReviewerAgent:
-            async def run(self, run_id, dry_run=False):
+            async def run(self, run_id, dry_run=False, **kwargs):
                 reviewer_run_calls.append(run_id)
                 return {"accepted": 0, "rejected": 0, "duplicate": 0, "run_id": run_id}
 
@@ -204,6 +205,68 @@ class TestScannerAgentRun:
 
         assert len(reviewer_run_calls) == 1
         assert reviewer_run_calls[0] == run_id
+
+    @pytest.mark.asyncio
+    async def test_run_passes_scan_effort_and_thinking_to_get_scan_llm(self, mock_lifecycle, mock_llm, mock_pipeline):
+        """ScannerAgent.run(scan_effort='high', scan_thinking=True) → get_scan_llm'e iletilmeli."""
+        pipeline, run_dir = mock_pipeline
+        pipeline.build_scanner_prompts.return_value = (MagicMock(), [], run_dir)
+
+        agent = self._make_agent(pipeline)
+
+        captured: list = []
+
+        def _capture_get_scan_llm(model=None, effort=None, thinking=False):
+            captured.append((model, effort, thinking))
+            return mock_llm
+
+        with patch(_PROJECT_GET_SCANNER, new=AsyncMock(return_value=_PROJECT)), \
+             patch(_LIFECYCLE_SCANNER, return_value=mock_lifecycle), \
+             patch(_GET_LLM_SCANNER, side_effect=_capture_get_scan_llm):
+            await agent.run(
+                _SCAN_TYPE, _PROJECT_ID, auto_review=False,
+                scan_model="sonnet", scan_effort="high", scan_thinking=True,
+            )
+
+        assert captured == [("sonnet", "high", True)]
+
+    @pytest.mark.asyncio
+    async def test_run_passes_review_effort_to_reviewer(self, mock_lifecycle, mock_llm, mock_pipeline):
+        """auto_review=True ile review_effort verilirse ReviewerAgent.run'a iletilmeli."""
+        pipeline, run_dir = mock_pipeline
+        chunk = {
+            "chunk_index": 0,
+            "files": [],
+            "prompt": "test",
+            "output_file": str(run_dir / "findings" / "c0.jsonl"),
+        }
+        pipeline.build_scanner_prompts.return_value = (MagicMock(), [chunk], run_dir)
+
+        agent = self._make_agent(pipeline)
+
+        async def _noop_chunks(chunk_prompts, llm, run_dir, parallel=3, **kwargs):
+            pass
+        agent._run_scanner_chunks = _noop_chunks
+
+        captured_kwargs: dict = {}
+
+        class FakeReviewerAgent:
+            async def run(self, run_id, **kwargs):
+                captured_kwargs.update(kwargs)
+                return {"accepted": 0, "rejected": 0, "duplicate": 0, "run_id": run_id}
+
+        with patch(_PROJECT_GET_SCANNER, new=AsyncMock(return_value=_PROJECT)), \
+             patch(_LIFECYCLE_SCANNER, return_value=mock_lifecycle), \
+             patch(_GET_LLM_SCANNER, return_value=mock_llm), \
+             patch("backend.features.scan_pipeline.reviewer_agent.ReviewerAgent", FakeReviewerAgent):
+            await agent.run(
+                _SCAN_TYPE, _PROJECT_ID, auto_review=True,
+                review_model="opus", review_effort="max", review_thinking=True,
+            )
+
+        assert captured_kwargs.get("review_model") == "opus"
+        assert captured_kwargs.get("review_effort") == "max"
+        assert captured_kwargs.get("review_thinking") is True
 
     @pytest.mark.asyncio
     async def test_run_auto_review_false_does_not_call_reviewer(self, mock_lifecycle, mock_llm, mock_pipeline):
@@ -295,7 +358,7 @@ class TestScannerAgentSingleChunk:
 
         call_count = 0
 
-        async def flaky_chunk(chunk, llm):
+        async def flaky_chunk(chunk, llm, **kwargs):
             nonlocal call_count
             call_count += 1
             if chunk["chunk_index"] == 0:
@@ -326,25 +389,26 @@ class TestReadFilesSync:
     """_read_files_sync() için birim testleri."""
 
     def test_truncates_long_content(self, tmp_path):
-        """4000 karakterden uzun dosya içeriği 4000'de kesilmeli."""
-        from backend.features.scan_pipeline.scanner_agent import ScannerAgent, _MAX_CHARS_PER_FILE
+        """Varsayılan max_chars_per_file (8000) aşan dosya içeriği kesilmeli."""
+        from backend.features.scan_pipeline.scanner_agent import ScannerAgent
 
+        max_chars = 8_000
         long_file = tmp_path / "big.py"
-        content = "x" * (_MAX_CHARS_PER_FILE + 500)
+        content = "x" * (max_chars + 500)
         long_file.write_text(content, encoding="utf-8")
 
-        result = ScannerAgent._read_files_sync([str(long_file)])
+        result = ScannerAgent()._read_files_sync([str(long_file)])
 
         # Kesilme işareti olmalı
         assert "kesildi" in result
         # Tam içerik olmamalı
-        assert "x" * (_MAX_CHARS_PER_FILE + 1) not in result
+        assert "x" * (max_chars + 1) not in result
 
     def test_nonexistent_file_returns_error_message(self, tmp_path):
         """Var olmayan dosya için hata mesajı dönmeli (exception yok)."""
         from backend.features.scan_pipeline.scanner_agent import ScannerAgent
 
-        result = ScannerAgent._read_files_sync([str(tmp_path / "ghost.py")])
+        result = ScannerAgent()._read_files_sync([str(tmp_path / "ghost.py")])
 
         assert "ghost.py" in result
         assert "bulunamadı" in result
@@ -356,7 +420,7 @@ class TestReadFilesSync:
         f = tmp_path / "hello.py"
         f.write_text("print('hello')\n", encoding="utf-8")
 
-        result = ScannerAgent._read_files_sync([str(f)])
+        result = ScannerAgent()._read_files_sync([str(f)])
 
         assert "print('hello')" in result
 
@@ -473,6 +537,7 @@ class TestReviewerAgentRun:
         mock_config_loader = MagicMock()
         mock_pipeline.collect_and_build_reviewer_prompt.return_value = (findings, "reviewer prompt text")
         mock_pipeline.finalize.return_value = {"accepted": 2, "rejected": 1, "duplicate": 0}
+        mock_pipeline.finalize_from_reviewed.return_value = {"accepted": 2, "rejected": 1, "duplicate": 0}
         agent = ReviewerAgent()
         agent._pipeline = mock_pipeline
         agent._config_loader = mock_config_loader
@@ -508,6 +573,7 @@ class TestReviewerAgentRun:
         mock_config_loader = MagicMock()
         mock_pipeline.collect_and_build_reviewer_prompt.return_value = (findings, "prompt")
         mock_pipeline.finalize.return_value = {"accepted": 1, "rejected": 0, "duplicate": 0}
+        mock_pipeline.finalize_from_reviewed.return_value = {"accepted": 1, "rejected": 0, "duplicate": 0}
 
         agent = ReviewerAgent()
         agent._pipeline = mock_pipeline

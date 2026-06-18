@@ -90,6 +90,87 @@ require_python3() {
 
 # ── _resolve_requirements ────────────────────────────────────────────────────
 
+# ── _gen_totp ────────────────────────────────────────────────────────────────
+
+# Helper: create a fake python that succeeds except for "import pyotp".
+_stub_py_no_pyotp() {
+  local name="$1"
+  cat > "$STUB_BIN/$name" <<'EOF'
+#!/usr/bin/env bash
+# Fake python: fail only on "import pyotp"
+cmd="$*"
+if [[ "$cmd" == *"import pyotp"* ]]; then exit 1; fi
+exit 0
+EOF
+  chmod +x "$STUB_BIN/$name"
+}
+
+@test "_gen_totp: pyotp path returns 32-char base32 string" {
+  command -v python3 >/dev/null 2>&1 || skip "python3 not available"
+  python3 -c "import pyotp" 2>/dev/null  || skip "pyotp not installed"
+  PY="$(command -v python3)"
+  BACKEND_DIR="$BATS_TEST_TMPDIR/no_venv"
+  result="$(_gen_totp)"
+  [ "${#result}" -eq 32 ]
+  [[ "$result" =~ ^[A-Z2-7]+$ ]]
+}
+
+@test "_gen_totp: openssl fallback returns 32-char base32 string when pyotp missing" {
+  STUB_BIN="${STUB_BIN:-$BATS_TEST_TMPDIR/stub_bin}"
+  mkdir -p "$STUB_BIN"
+  export PATH="$STUB_BIN:$PATH"
+
+  # Python stub that rejects "import pyotp"
+  _stub_py_no_pyotp "python3"
+  PY="$STUB_BIN/python3"
+
+  # Ensure openssl is available (real or stub)
+  if ! command -v openssl &>/dev/null; then
+    # Stub openssl rand -base64 to emit chars from the base32 alphabet
+    cat > "$STUB_BIN/openssl" <<'EOF'
+#!/usr/bin/env bash
+printf 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567ABCDEFGHIJKLMNOPQRSTUVWXYZ2345678\n'
+EOF
+    chmod +x "$STUB_BIN/openssl"
+  fi
+
+  BACKEND_DIR="$BATS_TEST_TMPDIR/no_venv"
+  result="$(_gen_totp)"
+  [ "${#result}" -eq 32 ]
+  [[ "$result" =~ ^[A-Z2-7]+$ ]]
+}
+
+@test "_gen_totp: date+sha256 fallback returns 32-char base32 string when pyotp and openssl missing" {
+  STUB_BIN="${STUB_BIN:-$BATS_TEST_TMPDIR/stub_bin}"
+  mkdir -p "$STUB_BIN"
+  export PATH="$STUB_BIN:$PATH"
+
+  # Python stub that rejects "import pyotp"
+  _stub_py_no_pyotp "python3"
+  PY="$STUB_BIN/python3"
+
+  # Hide openssl so the date+sha256 branch is taken
+  cat > "$STUB_BIN/openssl" <<'EOF'
+#!/usr/bin/env bash
+exit 127
+EOF
+  chmod +x "$STUB_BIN/openssl"
+  # Make command -v openssl return false by wrapping it; instead shadow with a
+  # script that is not executable so command -v finds nothing useful — simplest
+  # approach: rename the stub to a non-executable file.
+  chmod -x "$STUB_BIN/openssl"
+
+  # sha256sum must be available for the fallback; skip if not.
+  command -v sha256sum >/dev/null 2>&1 || skip "sha256sum not available"
+
+  BACKEND_DIR="$BATS_TEST_TMPDIR/no_venv"
+  result="$(_gen_totp)"
+  [ "${#result}" -eq 32 ]
+  [[ "$result" =~ ^[A-Z2-7]+$ ]]
+}
+
+# ── _resolve_requirements ────────────────────────────────────────────────────
+
 @test "_resolve_requirements: with no .env returns all capability files" {
   # Point BACKEND_DIR at a temp scratch with empty (but existing) env file
   fake_backend="$BATS_TEST_TMPDIR/fake_backend"

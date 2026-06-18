@@ -16,7 +16,14 @@ class ScanConfigLoader:
         if not path.exists():
             raise FileNotFoundError(f"Scan config bulunamadı: {scan_type}")
         with path.open(encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        # Eski config dosyaları için geriye dönük uyumluluk
+        data.setdefault("max_chars_per_file", 8_000)
+        data.setdefault("max_output_tokens", 2_048)
+        data.setdefault("chunk_size", 5)
+        data.setdefault("concurrency", 5)
+        data.setdefault("max_findings_per_chunk", 50)
+        return data
 
     def list_available(self) -> list[str]:
         """Mevcut scan tiplerini listele."""

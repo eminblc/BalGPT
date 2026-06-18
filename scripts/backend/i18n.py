@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import json
 import logging
-from functools import lru_cache
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -26,16 +25,22 @@ _LOCALE_DIR = Path(__file__).parent / "locales"
 _SUPPORTED   = frozenset({"tr", "en"})
 _FALLBACK    = "tr"
 
-
-@lru_cache(maxsize=10)
-def _load(lang: str) -> dict:
-    """Locale JSON'ını yükler ve cache'e alır (uygulama ömrü boyunca tek seferlik)."""
-    path = _LOCALE_DIR / f"{lang}.json"
+# Locale verileri modül yüklendiğinde (import time) belleğe alınır.
+# lru_cache kullanılmıyor: servis ayaktayken locale dosyası değiştirildiğinde
+# cache eski veriyi tutardı; restart sonrası her zaman güncel dosya okunur.
+_LOCALES: dict[str, dict] = {}
+for _lang in _SUPPORTED:
+    _path = _LOCALE_DIR / f"{_lang}.json"
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception as exc:  # pragma: no cover
-        logger.error("i18n: locale yüklenemedi lang=%s exc=%s", lang, exc)
-        return {}
+        _LOCALES[_lang] = json.loads(_path.read_text(encoding="utf-8"))
+    except Exception as _exc:  # pragma: no cover
+        logger.error("i18n: locale yüklenemedi lang=%s exc=%s", _lang, _exc)
+        _LOCALES[_lang] = {}
+
+
+def _load(lang: str) -> dict:
+    """Belleğe alınmış locale verisini döndürür."""
+    return _LOCALES.get(lang, {})
 
 
 def _lookup(key: str, lang: str) -> str | None:

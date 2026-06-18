@@ -25,6 +25,8 @@ from . import root_project_cmd      # noqa: F401, E402
 from . import root_exit_cmd         # noqa: F401, E402
 from . import lang_cmd              # noqa: F401, E402
 from . import model_cmd             # noqa: F401, E402
+from . import effort_cmd            # noqa: F401, E402
+from . import thinking_cmd          # noqa: F401, E402
 from . import lock_cmd              # noqa: F401, E402
 from . import unlock_cmd            # noqa: F401, E402
 from . import terminal_cmd          # noqa: F401, E402
@@ -36,5 +38,6 @@ from . import import_cmd            # noqa: F401, E402
 from . import agents_cmd            # noqa: F401, E402
 from . import scan_cmd              # noqa: F401, E402
 from . import backlog_cmd           # noqa: F401, E402
+from . import dashboard_cmd         # noqa: F401, E402
 
 __all__ = ["registry", "Command"]

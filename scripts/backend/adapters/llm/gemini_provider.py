@@ -56,12 +56,14 @@ class GeminiProvider:
         messages: list[dict],
         model: str | None = None,
         max_tokens: int = 4096,
+        cache_system: bool = False,  # noqa: ARG002 — Gemini implicit caching, no-op
     ) -> CompletionResult:
         """Gemini generateContent API'ye istek gönderir, CompletionResult döndürür.
 
         OpenAI uyumlu mesaj listesini Gemini formatına dönüştürür:
           - "system" role → systemInstruction
           - "user" / "assistant" → contents (role: user / model)
+        cache_system parametresi LSP uyumluluğu için kabul edilir, yok sayılır.
         """
         if not self._api_key:
             raise RuntimeError(

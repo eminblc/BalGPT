@@ -430,8 +430,11 @@ class ReviewerAgent:
                     idx, len(batches), len(reviewed_batch),
                 )
             except Exception as exc:
+                # httpx.ReadTimeout vb. bazı exception'ların str() değeri boş;
+                # tip adını ekleyerek log'da boş "— " görünmesini engelle.
                 logger.error(
-                    "ReviewerAgent: batch %d/%d başarısız — %s", idx, len(batches), exc
+                    "ReviewerAgent: batch %d/%d başarısız — %s: %s",
+                    idx, len(batches), type(exc).__name__, exc,
                 )
 
             # Pause kontrolü — batch sonrasında; duraklatıldığında kısmi sonuçları kaydet

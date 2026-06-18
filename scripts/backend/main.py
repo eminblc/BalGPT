@@ -70,6 +70,28 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("Model tercihi yüklenemedi: %s", exc)
 
+    # Kalıcı effort tercihini yükle — Claude Code CLI --effort flag'i için
+    try:
+        from .store.repositories.settings_repo import _sync_user_setting_get
+        from .guards.runtime_state import set_active_effort
+        saved_effort = _sync_user_setting_get(settings.owner_id, "effort")
+        if saved_effort:
+            set_active_effort(saved_effort)
+            logger.info("Kullanıcı effort tercihi yüklendi: %s", saved_effort)
+    except Exception as exc:
+        logger.warning("Effort tercihi yüklenemedi: %s", exc)
+
+    # Kalıcı Extended Thinking toggle tercihini yükle
+    try:
+        from .store.repositories.settings_repo import _sync_user_setting_get
+        from .guards.runtime_state import set_active_thinking
+        saved_thinking = _sync_user_setting_get(settings.owner_id, "thinking")
+        if saved_thinking is not None:
+            set_active_thinking(saved_thinking == "1")
+            logger.info("Kullanıcı thinking tercihi yüklendi: %s", saved_thinking == "1")
+    except Exception as exc:
+        logger.warning("Thinking tercihi yüklenemedi: %s", exc)
+
     # Stale "running" agent run'larını temizle — önceki servis çökmesinden kalabilir
     try:
         from .store._connection import _conn as _db_conn

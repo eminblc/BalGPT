@@ -534,3 +534,103 @@ _totp_send_via_messenger "OWNSECRET32CHARS0000000000000000" "{env}" || true
         result = _bash(fragment)
         assert "messages" in result.stderr  # WhatsApp messages endpoint
         assert "OWNSECRET" in result.stderr
+
+
+# ── IMP-INST-8: capability flag cross-verify ──────────────────────────────────
+
+
+class TestCapabilityFlagCrossVerify:
+    """Verify that cap_envs in lib/capabilities.sh stays in sync with
+    restrict_* fields in config.py and env_key values in capability_guard._RULES.
+
+    A drift between these three sources means the installer writes an env var
+    that the backend never reads, or the backend exposes a flag the installer
+    never sets — both are silent bugs.
+    """
+
+    _CAPS_SH = _REPO_ROOT / "lib" / "capabilities.sh"
+
+    # ── parsing helpers ──────────────────────────────────────────────
+
+    def _parse_cap_envs(self) -> list[str]:
+        """Return the RESTRICT_* entries from the cap_envs array in _write_capabilities."""
+        text = self._CAPS_SH.read_text()
+        # Locate the cap_envs=( ... ) block inside _write_capabilities.
+        # The array may span multiple lines; capture up to the closing ')'.
+        m = re.search(
+            r"local\s+-a\s+cap_envs=\(\s*([\s\S]*?)\s*\)",
+            text,
+        )
+        assert m, f"cap_envs array not found in {self._CAPS_SH}"
+        return re.findall(r'"(RESTRICT_[A-Z0-9_]+)"', m.group(1))
+
+    @staticmethod
+    def _config_restrict_fields() -> set[str]:
+        """Return all restrict_* field names declared on config.Settings."""
+        from backend.config import Settings  # type: ignore[import]
+
+        try:
+            # Pydantic v2
+            return {f for f in Settings.model_fields if f.startswith("restrict_")}
+        except AttributeError:
+            # Pydantic v1
+            return {f for f in Settings.__fields__ if f.startswith("restrict_")}
+
+    @staticmethod
+    def _guard_rule_env_keys() -> set[str]:
+        """Return env_key values registered in capability_guard._RULES."""
+        from backend.guards.capability_guard import _RULES  # type: ignore[import]
+
+        return {rule.env_key for rule in _RULES}
+
+    # ── tests ────────────────────────────────────────────────────────
+
+    def test_cap_envs_parsed_non_empty(self):
+        """Sanity: at least one RESTRICT_* entry was found in capabilities.sh."""
+        assert len(self._parse_cap_envs()) > 0
+
+    def test_cap_envs_have_matching_config_field(self):
+        """Every RESTRICT_* in cap_envs maps to a restrict_* field in config.py.
+
+        Conversion: RESTRICT_FOO_BAR → restrict_foo_bar (lowercase).
+        """
+        config_fields = self._config_restrict_fields()
+        missing = [
+            env_var
+            for env_var in self._parse_cap_envs()
+            if env_var.lower() not in config_fields
+        ]
+        assert not missing, (
+            f"cap_envs entries in lib/capabilities.sh have no matching "
+            f"restrict_* field in config.py Settings: {missing}\n"
+            "Add the field to config.py or remove it from cap_envs."
+        )
+
+    def test_config_restrict_fields_have_matching_cap_env(self):
+        """Every restrict_* field in config.py has a matching RESTRICT_* in cap_envs.
+
+        Ensures the installer sets every flag the backend exposes.
+        """
+        cap_envs_lower = {e.lower() for e in self._parse_cap_envs()}
+        config_fields = self._config_restrict_fields()
+        missing = sorted(config_fields - cap_envs_lower)
+        assert not missing, (
+            f"config.py restrict_* fields have no matching cap_envs entry in "
+            f"lib/capabilities.sh: {missing}\n"
+            "Add the RESTRICT_* var to cap_keys/cap_envs in lib/capabilities.sh."
+        )
+
+    def test_guard_rule_env_keys_exist_in_config(self):
+        """Every CapabilityRule.env_key registered in _RULES exists in config.py.
+
+        A rule referencing a non-existent config field always reads None/False
+        and silently never fires when it should.
+        """
+        rule_keys = self._guard_rule_env_keys()
+        config_fields = self._config_restrict_fields()
+        missing = sorted(rule_keys - config_fields)
+        assert not missing, (
+            f"CapabilityRule env_keys in _RULES have no matching field in "
+            f"config.py Settings: {missing}\n"
+            "Add restrict_* fields to config.py or fix the env_key spelling."
+        )

@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING, Awaitable, Callable
 if TYPE_CHECKING:
     from .desktop_router import DesktopRequest
 
+from ..i18n import t as _t
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,16 +24,18 @@ logger = logging.getLogger(__name__)
 
 async def _handle_ocr(body: DesktopRequest) -> dict:
     from ..features.desktop import ocr_screen
+    lang = getattr(body, "lang", "tr")
     text = await ocr_screen()
     ok = not text.startswith("❌")
     logger.info("desktop/ocr: %d karakter okundu", len(text))
-    return {"ok": ok, "message": "OCR tamamlandı." if ok else text, "text": text}
+    return {"ok": ok, "message": _t("desktop.ocr_done", lang) if ok else text, "text": text}
 
 
 async def _handle_screenshot(body: DesktopRequest) -> dict:
     from ..features.desktop import capture_screen
     from ..features.desktop import capture_all_monitors
 
+    lang = getattr(body, "lang", "tr")
     region = tuple(body.region) if body.region else None  # type: ignore[arg-type]
 
     # region belirtilmişse → tek bölge yakalama (eski davranış)
@@ -40,20 +44,15 @@ async def _handle_screenshot(body: DesktopRequest) -> dict:
         screenshot = await capture_screen(out_path, region=region)
 
         if screenshot is None:
-            msg = (
-                "❌ Ekran görüntüsü alınamadı. "
-                "X11 oturumu açık mı? DISPLAY ayarlı mı? "
-                "`sudo apt install scrot` kurulu mu?"
-            )
             logger.warning("desktop/screenshot: başarısız (region=%s)", region)
-            return {"ok": False, "message": msg}
+            return {"ok": False, "message": _t("desktop.screenshot_failed", lang)}
 
-        result: dict = {"ok": True, "message": "Ekran görüntüsü alındı.", "path": str(screenshot)}
+        result: dict = {"ok": True, "message": _t("desktop.screenshot_ok", lang), "path": str(screenshot)}
         if body.ocr:
             from ..features.desktop import run_tesseract_on_file
             text = await run_tesseract_on_file(str(screenshot))
             result["text"] = text
-            result["message"] = "Ekran görüntüsü alındı ve OCR uygulandı."
+            result["message"] = _t("desktop.screenshot_ocr_ok", lang)
         logger.info("desktop/screenshot (region): %s ocr=%s", screenshot, body.ocr)
         return result
 
@@ -61,23 +60,18 @@ async def _handle_screenshot(body: DesktopRequest) -> dict:
     shots = await capture_all_monitors(output_dir="/tmp")
 
     if not shots:
-        msg = (
-            "❌ Ekran görüntüsü alınamadı. "
-            "X11 oturumu açık mı? DISPLAY ayarlı mı? "
-            "`sudo apt install scrot` kurulu mu?"
-        )
         logger.warning("desktop/screenshot: capture_all_monitors başarısız")
-        return {"ok": False, "message": msg}
+        return {"ok": False, "message": _t("desktop.screenshot_failed", lang)}
 
     if len(shots) == 1:
         # Tek monitör — geriye dönük uyumlu tekil yanıt
         mon_name, screenshot = shots[0]
-        result = {"ok": True, "message": "Ekran görüntüsü alındı.", "path": str(screenshot)}
+        result = {"ok": True, "message": _t("desktop.screenshot_ok", lang), "path": str(screenshot)}
         if body.ocr:
             from ..features.desktop import run_tesseract_on_file
             text = await run_tesseract_on_file(str(screenshot))
             result["text"] = text
-            result["message"] = "Ekran görüntüsü alındı ve OCR uygulandı."
+            result["message"] = _t("desktop.screenshot_ocr_ok", lang)
         logger.info("desktop/screenshot (single-mon %s): %s ocr=%s", mon_name, screenshot, body.ocr)
         return result
 
@@ -86,7 +80,7 @@ async def _handle_screenshot(body: DesktopRequest) -> dict:
     monitor_names = [n for n, _ in shots]
     result = {
         "ok": True,
-        "message": f"{len(shots)} monitörden ekran görüntüsü alındı: {', '.join(monitor_names)}",
+        "message": _t("desktop.multi_screenshot_ok", lang, count=len(shots), monitors=", ".join(monitor_names)),
         "paths": paths,
         "path": paths[0],  # geriye dönük uyumluluk için
         "monitor_count": len(shots),
@@ -98,7 +92,7 @@ async def _handle_screenshot(body: DesktopRequest) -> dict:
             text = await run_tesseract_on_file(str(shot_path))
             ocr_texts.append(f"[{mon_name}]\n{text}")
         result["text"] = "\n\n".join(ocr_texts)
-        result["message"] = f"{len(shots)} monitörden ekran görüntüsü alındı ve OCR uygulandı."
+        result["message"] = _t("desktop.multi_screenshot_ocr_ok", lang, count=len(shots))
     logger.info(
         "desktop/screenshot (multi-mon %d): %s ocr=%s",
         len(shots), monitor_names, body.ocr,
@@ -117,14 +111,10 @@ async def _handle_record_screen(body: DesktopRequest) -> dict:
     """
     from ..config import settings
 
+    lang = getattr(body, "lang", "tr")
+
     if not settings.desktop_recording:
-        return {
-            "ok": False,
-            "message": (
-                "❌ Ekran video kaydı devre dışı. "
-                "Etkinleştirmek için: DESKTOP_RECORDING=true (.env)"
-            ),
-        }
+        return {"ok": False, "message": _t("desktop.recording_disabled", lang)}
 
     from ..features.desktop import (
         record_screen, record_all_monitors, check_size_mb,
@@ -146,14 +136,7 @@ async def _handle_record_screen(body: DesktopRequest) -> dict:
 
         if rec is None:
             logger.warning("desktop/record_screen: kayıt başarısız (region=%s)", region)
-            return {
-                "ok": False,
-                "message": (
-                    "❌ Ekran kaydı başarısız. "
-                    "ffmpeg kurulu mu? X11 oturumu açık mı? "
-                    "`sudo apt install ffmpeg` gerekiyor."
-                ),
-            }
+            return {"ok": False, "message": _t("desktop.recording_failed", lang)}
 
         size_mb = check_size_mb(rec)
         within_limit = size_mb <= max_mb
@@ -163,7 +146,7 @@ async def _handle_record_screen(body: DesktopRequest) -> dict:
         )
         return {
             "ok": True,
-            "message": f"Ekran kaydı tamamlandı ({size_mb:.1f} MB, {body.duration}s).",
+            "message": _t("desktop.recording_ok", lang, size_mb=f"{size_mb:.1f}", duration=body.duration),
             "path": str(rec),
             "size_mb": round(size_mb, 2),
             "within_limit": within_limit,
@@ -174,14 +157,7 @@ async def _handle_record_screen(body: DesktopRequest) -> dict:
 
     if not recs:
         logger.warning("desktop/record_screen: record_all_monitors başarısız")
-        return {
-            "ok": False,
-            "message": (
-                "❌ Ekran kaydı başarısız. "
-                "ffmpeg kurulu mu? X11 oturumu açık mı? "
-                "`sudo apt install ffmpeg` gerekiyor."
-            ),
-        }
+        return {"ok": False, "message": _t("desktop.recording_failed", lang)}
 
     if len(recs) == 1:
         mon_name, rec = recs[0]
@@ -193,7 +169,7 @@ async def _handle_record_screen(body: DesktopRequest) -> dict:
         )
         return {
             "ok": True,
-            "message": f"Ekran kaydı tamamlandı ({size_mb:.1f} MB, {body.duration}s).",
+            "message": _t("desktop.recording_ok", lang, size_mb=f"{size_mb:.1f}", duration=body.duration),
             "path": str(rec),
             "size_mb": round(size_mb, 2),
             "within_limit": within_limit,
@@ -218,7 +194,7 @@ async def _handle_record_screen(body: DesktopRequest) -> dict:
     )
     return {
         "ok": True,
-        "message": f"{len(entries)} monitör kaydedildi: {', '.join(monitor_names)}",
+        "message": _t("desktop.multi_recording_ok", lang, count=len(entries), monitors=", ".join(monitor_names)),
         "paths": [e["path"] for e in entries],
         "path": entries[0]["path"],
         "recordings": entries,

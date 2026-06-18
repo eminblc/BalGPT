@@ -138,8 +138,11 @@ async def receive_webhook(
                                 sender,
                                 t("msg.error", lang),
                             )
-                        except Exception:
-                            pass
+                        except Exception as _send_err:
+                            logger.warning(
+                                "Hata mesajı gönderilemedi: sender=%s err=%s",
+                                _mask_phone(sender), _send_err,
+                            )
 
     return {"status": "ok"}
 

@@ -205,6 +205,8 @@ async def test_anthropic_provider_system_message_extraction():
     real_provider = AnthropicProvider.__new__(AnthropicProvider)
     real_provider._api_key = "test-key"
     real_provider._default_model = "claude-haiku-4-5-20251001"
+    real_provider._default_effort = None
+    real_provider._default_thinking = False
     real_provider._timeout = 60.0
 
     with patch("backend.adapters.llm.anthropic_provider.httpx.AsyncClient", return_value=mock_client):
@@ -227,6 +229,8 @@ async def test_anthropic_provider_no_api_key_raises():
     provider = AnthropicProvider.__new__(AnthropicProvider)
     provider._api_key = ""
     provider._default_model = "test"
+    provider._default_effort = None
+    provider._default_thinking = False
     provider._timeout = 60.0
 
     with pytest.raises(RuntimeError, match="API anahtarı"):
@@ -253,6 +257,8 @@ async def test_anthropic_provider_http_error_raises():
     provider = AnthropicProvider.__new__(AnthropicProvider)
     provider._api_key = "test-key"
     provider._default_model = "test"
+    provider._default_effort = None
+    provider._default_thinking = False
     provider._timeout = 60.0
 
     with patch("backend.adapters.llm.anthropic_provider.httpx.AsyncClient", return_value=mock_client):
@@ -602,3 +608,325 @@ def test_gemini_known_models_have_friendly_names():
     from backend.adapters.llm.gemini_provider import _MODEL_NAMES
     assert _MODEL_NAMES["gemini-2.0-flash"] == "Gemini 2.0 Flash"
     assert _MODEL_NAMES["gemini-2.5-flash-latest"] == "Gemini 2.5 Flash"
+
+
+# ── Effort / Extended Thinking entegrasyonu ──────────────────────────
+
+
+def _make_anthropic_provider_with_capture(
+    default_effort: str | None = None,
+    default_thinking: bool = False,
+):
+    """AnthropicProvider örneği + post payload yakalayan client tuple döner."""
+    from backend.adapters.llm.anthropic_provider import AnthropicProvider
+
+    provider = AnthropicProvider.__new__(AnthropicProvider)
+    provider._api_key = "test-key"
+    provider._default_model = "claude-sonnet-4-6"
+    provider._default_effort = default_effort
+    provider._default_thinking = default_thinking
+    provider._timeout = 60.0
+
+    mock_response = MagicMock()
+    mock_response.is_success = True
+    mock_response.json.return_value = {"content": [{"type": "text", "text": "ok"}]}
+
+    captured: dict = {}
+
+    async def fake_post(url, headers, json):
+        captured.update(json)
+        return mock_response
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = AsyncMock(side_effect=fake_post)
+
+    return provider, mock_client, captured
+
+
+@pytest.mark.asyncio
+async def test_anthropic_effort_injects_thinking_payload():
+    """thinking=True + effort='high' → payload['thinking'] budget_tokens ile dolu olmalı."""
+    provider, mock_client, captured = _make_anthropic_provider_with_capture()
+    with patch("backend.adapters.llm.anthropic_provider.httpx.AsyncClient", return_value=mock_client):
+        await provider.complete([{"role": "user", "content": "test"}], effort="high", thinking=True)
+
+    assert captured.get("thinking") == {"type": "enabled", "budget_tokens": 16000}
+    assert captured.get("temperature") == 1.0
+    # max_tokens budget'tan büyük olmalı (auto-bump)
+    assert captured["max_tokens"] >= 16000 + 1024
+
+
+@pytest.mark.asyncio
+async def test_anthropic_thinking_off_skips_effort():
+    """thinking=False (varsayılan) → effort seçili olsa bile thinking eklenmemeli."""
+    provider, mock_client, captured = _make_anthropic_provider_with_capture()
+    with patch("backend.adapters.llm.anthropic_provider.httpx.AsyncClient", return_value=mock_client):
+        await provider.complete([{"role": "user", "content": "test"}], effort="high")
+
+    assert "thinking" not in captured
+
+
+@pytest.mark.asyncio
+async def test_anthropic_default_thinking_used_when_no_override():
+    """thinking=None + ctor default_thinking=True → thinking aktif."""
+    provider, mock_client, captured = _make_anthropic_provider_with_capture(
+        default_effort="medium", default_thinking=True,
+    )
+    with patch("backend.adapters.llm.anthropic_provider.httpx.AsyncClient", return_value=mock_client):
+        await provider.complete([{"role": "user", "content": "test"}])
+
+    assert captured.get("thinking", {}).get("budget_tokens") == 4000
+
+
+@pytest.mark.asyncio
+async def test_anthropic_haiku_uses_adaptive_thinking_no_budget():
+    """Haiku 4.5 manual thinking desteklemez ama adaptive destekler.
+
+    Anthropic docs (Mayıs 2026): Haiku 4.5'te `thinking.enabled+budget_tokens`
+    payload'u 400 döner. Onun yerine `thinking.adaptive` kullanılmalı; effort
+    seviyesi adaptive modda silently ignored.
+    """
+    provider, mock_client, captured = _make_anthropic_provider_with_capture()
+    provider._default_model = "claude-haiku-4-5-20251001"
+    with patch("backend.adapters.llm.anthropic_provider.httpx.AsyncClient", return_value=mock_client):
+        await provider.complete([{"role": "user", "content": "test"}], effort="max", thinking=True)
+
+    # Adaptive thinking aktif — budget_tokens YOK, temperature manuel set EDİLMEZ
+    assert captured.get("thinking") == {"type": "adaptive"}
+    assert "budget_tokens" not in captured.get("thinking", {})
+
+
+@pytest.mark.asyncio
+async def test_anthropic_opus_47_uses_adaptive_thinking():
+    """Opus 4.7 da manual thinking kabul etmez — adaptive payload kullanılmalı."""
+    provider, mock_client, captured = _make_anthropic_provider_with_capture()
+    provider._default_model = "claude-opus-4-7"
+    with patch("backend.adapters.llm.anthropic_provider.httpx.AsyncClient", return_value=mock_client):
+        await provider.complete([{"role": "user", "content": "test"}], effort="high", thinking=True)
+
+    assert captured.get("thinking") == {"type": "adaptive"}
+
+
+@pytest.mark.asyncio
+async def test_anthropic_invalid_effort_falls_back_to_adaptive_on_supported_models():
+    """thinking=True + geçersiz effort + adaptive destekleyen model → adaptive aktif olur.
+
+    Sonnet 4.6 hem manual hem adaptive destekler; effort geçersizse manual koşul
+    sağlanmaz ama adaptive fallback devreye girer (model kendisi karar verir).
+    """
+    provider, mock_client, captured = _make_anthropic_provider_with_capture()
+    with patch("backend.adapters.llm.anthropic_provider.httpx.AsyncClient", return_value=mock_client):
+        await provider.complete([{"role": "user", "content": "test"}], effort="ultra", thinking=True)
+
+    assert captured.get("thinking") == {"type": "adaptive"}
+
+
+@pytest.mark.asyncio
+async def test_anthropic_old_haiku_skips_thinking_entirely():
+    """Haiku 3.5 thinking desteklemez (manual veya adaptive) → payload'da hiç yok."""
+    provider, mock_client, captured = _make_anthropic_provider_with_capture()
+    provider._default_model = "claude-3-5-haiku-20241022"
+    with patch("backend.adapters.llm.anthropic_provider.httpx.AsyncClient", return_value=mock_client):
+        await provider.complete([{"role": "user", "content": "test"}], effort="high", thinking=True)
+
+    assert "thinking" not in captured
+
+
+@pytest.mark.asyncio
+async def test_bridge_provider_effort_in_body():
+    """thinking=True + effort='high' → body['effort'] + body['thinking']."""
+    from backend.adapters.llm.bridge_provider import BridgeLLMProvider
+
+    provider = BridgeLLMProvider(
+        default_model="claude-sonnet-4-6", default_effort="medium", default_thinking=True,
+    )
+
+    mock_settings = MagicMock()
+    mock_settings.claude_bridge_url = "http://localhost:8013"
+    mock_settings.api_key.get_secret_value.return_value = "k"
+
+    captured: dict = {}
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"answer": "ok"}
+    mock_response.raise_for_status = MagicMock()
+
+    async def fake_post(url, headers, json):
+        captured.update(json)
+        return mock_response
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = AsyncMock(side_effect=fake_post)
+
+    with patch("backend.adapters.llm.bridge_provider.settings", mock_settings), \
+         patch("backend.adapters.llm.bridge_provider.httpx.AsyncClient", return_value=mock_client):
+        # Per-call override > default (thinking=True implicit via default)
+        await provider.complete([{"role": "user", "content": "t"}], effort="high", thinking=True)
+    assert captured.get("effort") == "high"
+    assert captured.get("thinking") is True
+
+    # Per-call yoksa default kullanılmalı (default_effort=medium, default_thinking=True)
+    captured.clear()
+    with patch("backend.adapters.llm.bridge_provider.settings", mock_settings), \
+         patch("backend.adapters.llm.bridge_provider.httpx.AsyncClient", return_value=mock_client):
+        await provider.complete([{"role": "user", "content": "t"}])
+    assert captured.get("effort") == "medium"
+    assert captured.get("thinking") is True
+
+
+@pytest.mark.asyncio
+async def test_bridge_provider_haiku_skips_effort_flag():
+    """Haiku 4.5 CLI --effort flag'i desteklemez → body'ye effort yazılmamalı.
+
+    thinking=True olsa bile, model Haiku ise Bridge effort göndermez (CLI
+    bunu sessiz fallback yapar ama yine de göndermeyiz — gereksiz token).
+    """
+    from backend.adapters.llm.bridge_provider import BridgeLLMProvider
+    provider = BridgeLLMProvider(
+        default_model="claude-haiku-4-5-20251001",
+        default_effort="high",
+        default_thinking=True,
+    )
+
+    mock_settings = MagicMock()
+    mock_settings.claude_bridge_url = "http://localhost:8013"
+    mock_settings.api_key.get_secret_value.return_value = "k"
+
+    captured: dict = {}
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"answer": "ok"}
+    mock_response.raise_for_status = MagicMock()
+
+    async def fake_post(url, headers, json):
+        captured.update(json)
+        return mock_response
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = AsyncMock(side_effect=fake_post)
+
+    with patch("backend.adapters.llm.bridge_provider.settings", mock_settings), \
+         patch("backend.adapters.llm.bridge_provider.httpx.AsyncClient", return_value=mock_client):
+        await provider.complete([{"role": "user", "content": "t"}])
+    assert "effort" not in captured
+    assert "thinking" not in captured
+
+
+@pytest.mark.asyncio
+async def test_bridge_provider_thinking_off_omits_effort():
+    """thinking=False ise effort body'ye yazılmamalı."""
+    from backend.adapters.llm.bridge_provider import BridgeLLMProvider
+    provider = BridgeLLMProvider(default_model="m", default_effort="high", default_thinking=False)
+
+    mock_settings = MagicMock()
+    mock_settings.claude_bridge_url = "http://localhost:8013"
+    mock_settings.api_key.get_secret_value.return_value = "k"
+
+    captured: dict = {}
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"answer": "ok"}
+    mock_response.raise_for_status = MagicMock()
+
+    async def fake_post(url, headers, json):
+        captured.update(json)
+        return mock_response
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = AsyncMock(side_effect=fake_post)
+
+    with patch("backend.adapters.llm.bridge_provider.settings", mock_settings), \
+         patch("backend.adapters.llm.bridge_provider.httpx.AsyncClient", return_value=mock_client):
+        await provider.complete([{"role": "user", "content": "t"}])  # default_thinking=False
+    assert "effort" not in captured
+    assert "thinking" not in captured
+
+
+@pytest.mark.asyncio
+async def test_bridge_provider_invalid_effort_omitted():
+    """Geçersiz effort body'ye yazılmamalı."""
+    from backend.adapters.llm.bridge_provider import BridgeLLMProvider
+
+    provider = BridgeLLMProvider(default_model=None, default_effort=None)
+
+    mock_settings = MagicMock()
+    mock_settings.claude_bridge_url = "http://localhost:8013"
+    mock_settings.api_key.get_secret_value.return_value = "k"
+
+    captured: dict = {}
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"answer": "ok"}
+    mock_response.raise_for_status = MagicMock()
+
+    async def fake_post(url, headers, json):
+        captured.update(json)
+        return mock_response
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = AsyncMock(side_effect=fake_post)
+
+    with patch("backend.adapters.llm.bridge_provider.settings", mock_settings), \
+         patch("backend.adapters.llm.bridge_provider.httpx.AsyncClient", return_value=mock_client):
+        await provider.complete([{"role": "user", "content": "t"}], effort="invalid")
+    assert "effort" not in captured
+
+
+def test_get_scan_llm_passes_effort_and_thinking_to_anthropic():
+    """get_scan_llm(effort='max', thinking=True) → provider'a iletilmeli."""
+    mock_settings = MagicMock()
+    mock_settings.llm_backend = "anthropic"
+    mock_settings.anthropic_api_key.get_secret_value.return_value = "k"
+
+    with patch("backend.adapters.llm.llm_factory.settings", mock_settings):
+        from backend.adapters.llm.llm_factory import get_scan_llm
+        llm = get_scan_llm(model="sonnet", effort="max", thinking=True)
+
+    from backend.adapters.llm.anthropic_provider import AnthropicProvider
+    assert isinstance(llm, AnthropicProvider)
+    assert llm._default_effort == "max"
+    assert llm._default_thinking is True
+
+
+def test_get_scan_llm_passes_effort_and_thinking_to_bridge():
+    """get_scan_llm(effort='low', thinking=True, backend=bridge) → BridgeLLMProvider."""
+    mock_settings = MagicMock()
+    mock_settings.llm_backend = "bridge"
+
+    with patch("backend.adapters.llm.llm_factory.settings", mock_settings):
+        from backend.adapters.llm.llm_factory import get_scan_llm
+        llm = get_scan_llm(model="opus", effort="low", thinking=True)
+
+    from backend.adapters.llm.bridge_provider import BridgeLLMProvider
+    assert isinstance(llm, BridgeLLMProvider)
+    assert llm._default_effort == "low"
+    assert llm._default_thinking is True
+
+
+def test_get_scan_llm_thinking_defaults_to_false():
+    """thinking parametresi verilmezse default_thinking=False olmalı."""
+    mock_settings = MagicMock()
+    mock_settings.llm_backend = "bridge"
+
+    with patch("backend.adapters.llm.llm_factory.settings", mock_settings):
+        from backend.adapters.llm.llm_factory import get_scan_llm
+        llm = get_scan_llm(model="sonnet", effort="high")
+    assert llm._default_thinking is False
+
+
+def test_get_scan_llm_off_effort_resolves_to_none():
+    """get_scan_llm(effort='off' veya geçersiz) → default_effort=None."""
+    mock_settings = MagicMock()
+    mock_settings.llm_backend = "bridge"
+
+    with patch("backend.adapters.llm.llm_factory.settings", mock_settings):
+        from backend.adapters.llm.llm_factory import get_scan_llm
+        llm = get_scan_llm(model=None, effort="off")
+    assert llm._default_effort is None
+

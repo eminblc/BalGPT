@@ -418,7 +418,8 @@
     "select_prompt": "🤖 Aktif model: {model} (backend: {backend})\n\nBir model seç:",
     "btn_sonnet": "Sonnet",
     "btn_haiku": "Haiku",
-    "btn_opus": "Opus"
+    "btn_opus": "Opus",
+    "btn_fable": "Fable 5"
   },
   "effort": {
     "select_prompt": "🎚️ Aktif effort seviyesi: {level}\n\nBir seviye seç:",
