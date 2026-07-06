@@ -347,14 +347,19 @@ class TableFormat:
         return items
 
     def mark_in_progress(self, path: Path, item_id: str) -> bool:
-        """ID hücresine 🔄 prefiksi ekle: | ITEM-001 | → | 🔄ITEM-001 |."""
+        """ID hücresine 🔄 prefiksi ekle: | ITEM-001 | → | 🔄ITEM-001 |.
+
+        Marker, regex eşleşmesindeki ID başlangıç ofsetine eklenir —
+        `str.replace` ile "| ITEM" kalıbı aramak `|ITEM` / `|  ITEM` gibi
+        boşluk varyasyonlarında sessiz no-op yapıp sahte True döndürüyordu.
+        """
         lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
         for i, line in enumerate(lines):
             m = _TABLE_ROW_RE.match(line)
             if not m or m.group(2) != item_id or m.group(1):
                 # Yanlış satır, farklı ID, veya zaten in_progress
                 continue
-            lines[i] = line.replace(f"| {item_id}", f"| {_IN_PROGRESS_MARKER}{item_id}", 1)
+            lines[i] = line[: m.start(2)] + _IN_PROGRESS_MARKER + line[m.start(2):]
             _atomic_write(path, lines)
             logger.debug("TableFormat.mark_in_progress: %s işaretlendi.", item_id)
             return True
@@ -376,18 +381,18 @@ class TableFormat:
         return False
 
     def mark_failed(self, path: Path, item_id: str) -> bool:
-        """🔄 prefiksini kaldır → satır tekrar pending görünür."""
+        """🔄 prefiksini kaldır → satır tekrar pending görünür.
+
+        Marker, regex eşleşme ofsetleri üzerinden silinir (boşluk varyasyonlarına
+        dayanıklı — mark_in_progress ile simetrik).
+        """
         lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
         for i, line in enumerate(lines):
             m = _TABLE_ROW_RE.match(line)
             if not m or m.group(2) != item_id or not m.group(1):
                 # Yanlış satır, farklı ID, veya in_progress değil
                 continue
-            lines[i] = line.replace(
-                f"| {_IN_PROGRESS_MARKER}{item_id}",
-                f"| {item_id}",
-                1,
-            )
+            lines[i] = line[: m.start(1)] + line[m.end(1):]
             _atomic_write(path, lines)
             logger.debug("TableFormat.mark_failed: %s pending'e döndü.", item_id)
             return True
@@ -413,12 +418,7 @@ class TableFormat:
             m = _TABLE_ROW_RE.match(line)
             if not m or not m.group(1):
                 continue
-            item_id = m.group(2)
-            lines[i] = line.replace(
-                f"| {_IN_PROGRESS_MARKER}{item_id}",
-                f"| {item_id}",
-                1,
-            )
+            lines[i] = line[: m.start(1)] + line[m.end(1):]
             changed += 1
         if changed:
             _atomic_write(path, lines)

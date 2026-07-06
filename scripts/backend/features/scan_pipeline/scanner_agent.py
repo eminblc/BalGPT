@@ -93,7 +93,7 @@ class ScannerAgent:
         project_id: str,
         auto_review: bool = True,
         dry_run: bool = False,
-        parallel: int = 3,
+        parallel: int | None = None,
         include_third_party: bool = False,
         notify_on_review: bool = True,
         scan_model: str | None = None,
@@ -111,13 +111,15 @@ class ScannerAgent:
             project_id:           DB'deki proje ID'si; project_root yolu buradan alınır.
             auto_review:          True ise scanner bittikten sonra ReviewerAgent otomatik tetiklenir.
             dry_run:              True ise BACKLOG.md'ye yazma — ReviewerAgent'a iletilir.
+            parallel:             Eş zamanlı LLM chunk çağrısı (kullanıcı seçimi).
+                                  None → config'deki concurrency, o da yoksa 3.
             include_third_party:  True ise node_modules/venv/.venv/vendor exclude edilmez.
             notify_on_review:     False ise ReviewerAgent tamamlanma bildirimi göndermez.
                                   AllScansRunner gibi orchestrator'lar False geçer; özeti
                                   kendileri gönderir.
-            scan_model:           Opsiyonel model alias ("haiku", "sonnet", "opus") veya tam ad.
-                                  Verilmezse get_scan_llm() varsayılan modeli kullanır.
-            review_model:         Opsiyonel reviewer model alias ("haiku", "sonnet", "opus").
+            scan_model:           Opsiyonel model alias ("haiku", "sonnet", "sonnet5", "opus", "fable")
+                                  veya tam ad. Verilmezse get_scan_llm() varsayılan modeli kullanır.
+            review_model:         Opsiyonel reviewer model alias ("haiku", "sonnet", "sonnet5", "opus", "fable").
                                   Verilmezse ReviewerAgent varsayılan modeli kullanır.
             scan_effort:          Opsiyonel scanner effort seviyesi
                                   ("low" | "medium" | "high" | "max").
@@ -243,9 +245,15 @@ class ScannerAgent:
                 return run_id
 
             # Phase 1 — chunk'ları paralel LLM çağrısıyla çalıştır
-            # Config'deki concurrency değeri parallel parametresine göre önceliklidir;
-            # parallel yalnızca config'de tanımlı değilse fallback olarak kullanılır.
-            concurrency = config.get("concurrency", parallel)
+            # Kullanıcının seçtiği parallel değeri (UI'daki 1/2/4/8/... seçimi)
+            # config'deki concurrency'yi ezer; parallel verilmemişse (None)
+            # config değeri, o da yoksa modül varsayılanı kullanılır.
+            # (Önceki davranış tersti: tüm config'lerde concurrency=5 tanımlı
+            # olduğu için kullanıcı seçimi hiçbir zaman etkili olmuyordu.)
+            concurrency = (
+                parallel if parallel is not None
+                else config.get("concurrency", _BRIDGE_CONCURRENCY)
+            )
             await self._run_scanner_chunks(
                 chunk_prompts, llm, run_dir, concurrency,
                 max_chars_per_file=config.get("max_chars_per_file", 8_000),
@@ -281,8 +289,6 @@ class ScannerAgent:
                     agent_run_id, output=f"scanner tamamlandı run_id={run_id}"
                 )
 
-            set_active_scan_run_id(None)
-
             if auto_review:
                 # Lazy import — circular import riski yok (ayrı modül)
                 from .reviewer_agent import ReviewerAgent  # noqa: PLC0415
@@ -292,6 +298,11 @@ class ScannerAgent:
                     review_effort=review_effort,
                     review_thinking=review_thinking,
                 )
+
+            # Aktif run_id review fazı da bittikten sonra temizlenir — daha erken
+            # temizlenirse /scan pause reviewer fazında ScanPauseStore'a run_id
+            # iletemez ve pause sessizce etkisiz kalır.
+            set_active_scan_run_id(None)
 
             return run_id
 

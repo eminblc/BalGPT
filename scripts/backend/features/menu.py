@@ -374,12 +374,6 @@ async def _hp_backlog_button(sender: str, suffix: str, session: dict) -> None:
         pid = suffix[4:]
         backlog_files = await _scan_backlog_files(pid)
 
-        import logging as _dbg_log
-        _dbg_log.getLogger(__name__).warning(
-            "DBG-BACKLOG: pid=%s files=%d list=%s",
-            pid, len(backlog_files), backlog_files,
-        )
-
         if len(backlog_files) == 0:
             # Hiç BACKLOG dosyası bulunamadı
             await _get_messenger().send_text(sender, t("backlog.no_file_found", lang))
@@ -562,27 +556,31 @@ async def _hp_parallel_select(sender: str, n_str: str, session: dict) -> None:
     if cmd_type == "backlog":
         # Backlog: paraleli kaydet, model sorusuna geç (scan akışı ile simetrik)
         pending["params"]["parallel"] = n
-        await _get_messenger().send_buttons(
-            sender,
-            _t("scan_model.ask_backlog", lang),
-            [
-                {"id": "backlogmodel_haiku",  "title": _t("scan_model.btn_haiku",  lang)},
-                {"id": "backlogmodel_sonnet", "title": _t("scan_model.btn_sonnet", lang)},
-                {"id": "backlogmodel_opus",   "title": _t("scan_model.btn_opus",   lang)},
-            ],
-        )
+        await _send_model_picker(sender, "backlogmodel_", "scan_model.ask_backlog", lang)
         return
 
     # scan / all_scans → paraleli kaydet, model sorusuna geç
     pending["params"]["parallel"] = n
-    await _get_messenger().send_buttons(
+    await _send_model_picker(sender, "scanmodel_", "scan_model.ask", lang)
+
+
+async def _send_model_picker(sender: str, prefix: str, ask_key: str, lang: str) -> None:
+    """Model seçim listesi (send_list — 5 satır: haiku/sonnet/sonnet5/opus/fable).
+
+    prefix: "scanmodel_" | "reviewmodel_" | "backlogmodel_"
+    WhatsApp send_buttons en fazla 3 buton kabul ettiği için send_list kullanılır.
+    """
+    rows = [
+        {"id": f"{prefix}haiku",   "title": t("scan_model.btn_haiku",   lang)},
+        {"id": f"{prefix}sonnet",  "title": t("scan_model.btn_sonnet",  lang)},
+        {"id": f"{prefix}sonnet5", "title": t("scan_model.btn_sonnet5", lang)},
+        {"id": f"{prefix}opus",    "title": t("scan_model.btn_opus",    lang)},
+        {"id": f"{prefix}fable",   "title": t("scan_model.btn_fable",   lang)},
+    ]
+    await _get_messenger().send_list(
         sender,
-        _t("scan_model.ask", lang),
-        [
-            {"id": "scanmodel_haiku",  "title": _t("scan_model.btn_haiku",  lang)},
-            {"id": "scanmodel_sonnet", "title": _t("scan_model.btn_sonnet", lang)},
-            {"id": "scanmodel_opus",   "title": _t("scan_model.btn_opus",   lang)},
-        ],
+        t(ask_key, lang),
+        [{"title": t("scan_model.section_title", lang), "rows": rows}],
     )
 
 
@@ -627,9 +625,12 @@ async def _send_thinking_picker(sender: str, prefix: str, lang: str, phase: str)
 def _model_alias_supports_effort(alias: str) -> bool:
     """Telegram buton akışındaki model alias'ı effort seviyesi seçimini destekliyor mu?
 
-    Anthropic docs (Mayıs 2026): `--effort` flag'i ve manual thinking budget_tokens
-    yalnızca Sonnet/Opus ailelerinde geçerli. Haiku 4.5 yalnızca adaptive thinking
-    destekler — effort seviyesi seçimi anlamsız (silent ignore).
+    Anthropic docs (Haziran 2026): `--effort` flag'i ve manual thinking budget_tokens
+    yalnızca Sonnet 4.6 / Opus 4.6–4.8 ailelerinde geçerli. Haiku 4.5, Sonnet 5 ve
+    Fable 5 yalnızca adaptive thinking destekler — effort seviyesi seçimi anlamsız
+    (menü bu modellerde effort adımını atlar, doğrudan thinking toggle'a geçer).
+    Not: "sonnet5" alias'ı bilinçli olarak listede YOK — Sonnet 5 API tarafında
+    output_config.effort kabul etse de bu projenin provider'ları onu göndermiyor.
     """
     return (alias or "").strip().lower() in {"sonnet", "opus"}
 
@@ -637,8 +638,8 @@ def _model_alias_supports_effort(alias: str) -> bool:
 async def _hp_scan_model_select(sender: str, alias: str, session: dict) -> None:
     """scanmodel_<alias> butonu: scan modeli kaydedilir, sonraki adım modele bağlı.
 
-    - Sonnet/Opus: effort seviyesi → thinking toggle
-    - Haiku:       effort atlanır → doğrudan thinking toggle
+    - Sonnet/Opus:  effort seviyesi → thinking toggle
+    - Haiku/Fable:  effort atlanır → doğrudan thinking toggle (adaptive-only)
     """
     from ..i18n import t as _t
 
@@ -648,12 +649,12 @@ async def _hp_scan_model_select(sender: str, alias: str, session: dict) -> None:
         await _get_messenger().send_text(sender, _t("parallel.no_pending", lang))
         return
 
-    pending["params"]["scan_model"] = alias  # "haiku" | "sonnet" | "opus"
+    pending["params"]["scan_model"] = alias  # "haiku" | "sonnet" | "opus" | "fable"
 
     if _model_alias_supports_effort(alias):
         await _send_effort_picker(sender, "scaneffort_", lang, phase="scanner")
     else:
-        # Haiku: effort seçimi yok; scan_effort None bırakılır, thinking toggle'a geç.
+        # Haiku/Fable: effort seçimi yok; scan_effort None bırakılır, thinking toggle'a geç.
         pending["params"]["scan_effort"] = None
         await _send_thinking_picker(sender, "scanthinking_", lang, phase="scanner")
 
@@ -661,8 +662,8 @@ async def _hp_scan_model_select(sender: str, alias: str, session: dict) -> None:
 async def _hp_backlog_model_select(sender: str, alias: str, session: dict) -> None:
     """backlogmodel_<alias>: model kaydedilir, modele bağlı bir sonraki adım.
 
-    - Sonnet/Opus: effort seviyesi → thinking toggle
-    - Haiku:       effort atlanır → doğrudan thinking toggle (Haiku effort'u desteklemiyor)
+    - Sonnet/Opus:  effort seviyesi → thinking toggle
+    - Haiku/Fable:  effort atlanır → doğrudan thinking toggle (adaptive-only, effort yok)
     """
     from ..i18n import t as _t
 
@@ -672,7 +673,7 @@ async def _hp_backlog_model_select(sender: str, alias: str, session: dict) -> No
         await _get_messenger().send_text(sender, _t("parallel.no_pending", lang))
         return
 
-    pending["params"]["model"] = alias  # "haiku" | "sonnet" | "opus"
+    pending["params"]["model"] = alias  # "haiku" | "sonnet" | "opus" | "fable"
 
     if _model_alias_supports_effort(alias):
         await _send_effort_picker(sender, "backlogeffort_", lang, phase="backlog")
@@ -738,8 +739,8 @@ async def _trigger_backlog_executor(sender: str, session: dict) -> None:
 async def _hp_review_model_select(sender: str, alias: str, session: dict) -> None:
     """reviewmodel_<alias>: reviewer modeli kaydedilir, modele bağlı bir sonraki adım.
 
-    - Sonnet/Opus: reviewer effort → reviewer thinking → trigger
-    - Haiku:       effort atlanır → reviewer thinking → trigger
+    - Sonnet/Opus:  reviewer effort → reviewer thinking → trigger
+    - Haiku/Fable:  effort atlanır → reviewer thinking → trigger (adaptive-only)
     """
     from ..i18n import t as _t
 
@@ -749,7 +750,7 @@ async def _hp_review_model_select(sender: str, alias: str, session: dict) -> Non
         await _get_messenger().send_text(sender, _t("parallel.no_pending", lang))
         return
 
-    pending["params"]["review_model"] = alias  # "haiku" | "sonnet" | "opus"
+    pending["params"]["review_model"] = alias  # "haiku" | "sonnet" | "opus" | "fable"
 
     if _model_alias_supports_effort(alias):
         await _send_effort_picker(sender, "revieweffort_", lang, phase="reviewer")
@@ -863,15 +864,7 @@ async def _hp_scan_thinking_select(sender: str, suffix: str, session: dict) -> N
 
     pending["params"]["scan_thinking"] = _normalize_thinking_suffix(suffix)
 
-    await _get_messenger().send_buttons(
-        sender,
-        _t("scan_model.ask_review", lang),
-        [
-            {"id": "reviewmodel_haiku",  "title": _t("scan_model.btn_haiku",  lang)},
-            {"id": "reviewmodel_sonnet", "title": _t("scan_model.btn_sonnet", lang)},
-            {"id": "reviewmodel_opus",   "title": _t("scan_model.btn_opus",   lang)},
-        ],
-    )
+    await _send_model_picker(sender, "reviewmodel_", "scan_model.ask_review", lang)
 
 
 async def _hp_review_effort_select(sender: str, suffix: str, session: dict) -> None:
@@ -968,19 +961,11 @@ def is_handled_locally(reply_id: str) -> bool:
 
 async def handle_menu_reply(sender: str, reply_id: str, session: dict) -> None:
     """Buton/liste cevabını işle."""
-    import logging as _dbg_log
-    _dbg_log.getLogger(__name__).warning(
-        "DBG-REPLY: reply_id=%r sender=%s", reply_id, sender,
-    )
     if reply_id in _EXACT:
-        _dbg_log.getLogger(__name__).warning("DBG-REPLY: exact match → %s", reply_id)
         await _EXACT[reply_id](sender, session)
         return
     for prefix, handler in _PREFIX:
         if reply_id.startswith(prefix):
-            _dbg_log.getLogger(__name__).warning(
-                "DBG-REPLY: prefix=%r handler=%s", prefix, handler.__name__,
-            )
             await handler(sender, reply_id[len(prefix):], session)
             return
     await _get_messenger().send_text(sender, t("menu.unknown_reply", session.get("lang", "tr"), id=reply_id))

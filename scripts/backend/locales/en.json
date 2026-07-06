@@ -417,6 +417,7 @@
     "options_other": "Any model name supported by the backend",
     "select_prompt": "🤖 Active model: {model} (backend: {backend})\n\nSelect a model:",
     "btn_sonnet": "Sonnet",
+    "btn_sonnet5": "Sonnet 5",
     "btn_haiku": "Haiku",
     "btn_opus": "Opus",
     "btn_fable": "Fable 5"
@@ -739,12 +740,15 @@
     "create_error": "❌ Could not create schedule. Please try again."
   },
   "scan_model": {
-    "ask": "🤖 Which model should scan?\n\n⚡ Haiku — fast and cheap\n⚖️ Sonnet — balanced (recommended)\n🔬 Opus — deep analysis, slower",
-    "ask_review": "🔍 Which model should review findings?\n\n⚡ Haiku — fast\n⚖️ Sonnet — balanced (recommended)\n🔬 Opus — deep analysis",
-    "ask_backlog": "🤖 Which model should implement backlog items?\n\n⚡ Haiku — fast and cheap\n⚖️ Sonnet — balanced (recommended)\n🔬 Opus — deep analysis, slower",
+    "ask": "🤖 Which model should scan?\n\n⚡ Haiku — fast and cheap\n⚖️ Sonnet — balanced (recommended)\n🚀 Sonnet 5 — new generation, near-Opus quality\n🔬 Opus — deep analysis, slower\n🧠 Fable — most capable, most expensive",
+    "ask_review": "🔍 Which model should review findings?\n\n⚡ Haiku — fast\n⚖️ Sonnet — balanced (recommended)\n🚀 Sonnet 5 — new generation, near-Opus quality\n🔬 Opus — deep analysis\n🧠 Fable — most capable, most expensive",
+    "ask_backlog": "🤖 Which model should implement backlog items?\n\n⚡ Haiku — fast and cheap\n⚖️ Sonnet — balanced (recommended)\n🚀 Sonnet 5 — new generation, near-Opus quality\n🔬 Opus — deep analysis, slower\n🧠 Fable — most capable, most expensive",
     "btn_haiku": "⚡ Haiku (Fast)",
     "btn_sonnet": "⚖️ Sonnet (Balanced) ★",
-    "btn_opus": "🔬 Opus (Deep)"
+    "btn_sonnet5": "🚀 Sonnet 5 (New)",
+    "btn_opus": "🔬 Opus (Deep)",
+    "btn_fable": "🧠 Fable (Most Capable)",
+    "section_title": "Model selection"
   },
   "parallel": {
     "scan_ask": "🔍 *{name}* scan\n*Project:* {project}{dry}\n\nHow many parallel agents?\n\n💡 1=safe, 4=recommended, 16=fast (rate-limit risk)",

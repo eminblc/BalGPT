@@ -347,6 +347,12 @@ class ReviewerAgent:
             total, len(batches), batch_size,
         )
 
+        # System prompt (kriterler + BACKLOG özeti) batch'ler arasında sabit —
+        # bir kez üretilir, cache_system=True ile ephemeral cache'e yazılır.
+        # BACKLOG özeti 60K karaktere kadar çıkabildiği için sonraki batch'ler
+        # bu bloğu %10 input fiyatıyla okur (kalite kaybı yok).
+        system_prompt = reviewer_obj.build_reviewer_system_prompt(config)
+
         for batch_idx, batch in enumerate(batches):
             # Resume: tamamlanmış batch'leri atla (0-indexed batch_idx)
             if batch_idx in completed_batches:
@@ -359,15 +365,22 @@ class ReviewerAgent:
                 idx, len(batches), len(batch),
             )
             try:
-                prompt = reviewer_obj.build_reviewer_prompt(
-                    config, batch,
+                user_prompt = reviewer_obj.build_reviewer_user_prompt(
+                    batch,
                     already_accepted=seen_accepted if seen_accepted else None,
                 )
-                # Her 50 bulgu için ~50×25=1250 token output yeterli; 2048 güvenli üst sınır
+                # max_tokens=4096: 50 bulgu × (id + verdict + ≤120ch reason)
+                # ≈ 2500-3000 output token'a çıkabiliyor — 2048'de JSON ortadan
+                # kesilip parse fail → markdown fallback → sahte "needs_review"
+                # verdict'leri üretiyordu.
                 result = await llm.complete(
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
                     model=None,
-                    max_tokens=2048,
+                    max_tokens=4096,
+                    cache_system=True,
                 )
                 # Diagnostik: raw LLM çıktısını diske yaz — parse fail durumunda geriye dönük inceleme için
                 if run_dir:

@@ -30,7 +30,7 @@ class AllScansRunner:
     async def run(
         self,
         project_id: str,
-        parallel: int = 3,
+        parallel: int | None = None,
         dry_run: bool = False,
         include_third_party: bool = False,
         scan_model: str | None = None,
@@ -44,11 +44,12 @@ class AllScansRunner:
 
         Args:
             project_id:          DB'deki proje ID'si.
-            parallel:            Her scanner için eş zamanlı Bridge chunk sayısı.
+            parallel:            Her scanner için eş zamanlı chunk çağrısı (kullanıcı
+                                 seçimi). None → scan config'indeki concurrency.
             dry_run:             True ise BACKLOG.md'ye yazma.
             include_third_party: True ise node_modules/venv/.venv/vendor taramaya dahil edilir.
-            scan_model:          Opsiyonel model alias ("haiku", "sonnet", "opus") veya tam ad.
-            review_model:        Opsiyonel reviewer model alias ("haiku", "sonnet", "opus").
+            scan_model:          Opsiyonel model alias ("haiku", "sonnet", "sonnet5", "opus", "fable") veya tam ad.
+            review_model:        Opsiyonel reviewer model alias ("haiku", "sonnet", "sonnet5", "opus", "fable").
             scan_effort:         Opsiyonel scanner effort seviyesi.
             review_effort:       Opsiyonel reviewer effort seviyesi.
             scan_thinking:       Scanner için Extended Thinking on/off toggle.

@@ -1,10 +1,11 @@
 """/model komutu — çalışma zamanında LLM modelini değiştir (FEAT-5).
 
 Desteklenen alias'lar (Anthropic backend):
-    sonnet → claude-sonnet-4-6
-    haiku  → claude-haiku-4-5-20251001
-    opus   → claude-opus-4-8
-    fable  → claude-fable-5
+    sonnet  → claude-sonnet-4-6
+    sonnet5 → claude-sonnet-5   (adaptive-only thinking; effort API'de var, bu projede manual budget yok)
+    haiku   → claude-haiku-4-5-20251001
+    opus    → claude-opus-4-8
+    fable   → claude-fable-5
 
 Tam model adı da kabul edilir (ör. /model claude-sonnet-4-6).
 Ollama / Gemini backend'lerinde herhangi bir model adı kabul edilir.
@@ -16,10 +17,11 @@ from ..permission import Perm
 
 # Anthropic model alias → tam model adı
 _ANTHROPIC_ALIASES: dict[str, str] = {
-    "sonnet": "claude-sonnet-4-6",
-    "haiku":  "claude-haiku-4-5-20251001",
-    "opus":   "claude-opus-4-8",
-    "fable":  "claude-fable-5",
+    "sonnet":  "claude-sonnet-4-6",
+    "sonnet5": "claude-sonnet-5",
+    "haiku":   "claude-haiku-4-5-20251001",
+    "opus":    "claude-opus-4-8",
+    "fable":   "claude-fable-5",
 }
 
 # Anthropic backend için desteklenen tam model adları (alias hedefleri)

@@ -417,6 +417,7 @@
     "options_other": "Backend desteklenen herhangi bir model adı",
     "select_prompt": "🤖 Aktif model: {model} (backend: {backend})\n\nBir model seç:",
     "btn_sonnet": "Sonnet",
+    "btn_sonnet5": "Sonnet 5",
     "btn_haiku": "Haiku",
     "btn_opus": "Opus",
     "btn_fable": "Fable 5"
@@ -739,12 +740,15 @@
     "create_error": "❌ Zamanlama oluşturulamadı. Lütfen tekrar dene."
   },
   "scan_model": {
-    "ask": "🤖 Hangi modelle taransın?\n\n⚡ Haiku — hızlı ve ucuz\n⚖️ Sonnet — dengeli (önerilen)\n🔬 Opus — derin analiz, yavaş",
-    "ask_review": "🔍 Reviewer için hangi model kullanılsın?\n\n⚡ Haiku — hızlı\n⚖️ Sonnet — dengeli (önerilen)\n🔬 Opus — derin analiz",
-    "ask_backlog": "🤖 Backlog item'larını hangi modelle implement edelim?\n\n⚡ Haiku — hızlı ve ucuz\n⚖️ Sonnet — dengeli (önerilen)\n🔬 Opus — derin analiz, yavaş",
+    "ask": "🤖 Hangi modelle taransın?\n\n⚡ Haiku — hızlı ve ucuz\n⚖️ Sonnet — dengeli (önerilen)\n🚀 Sonnet 5 — yeni nesil, Opus'a yakın kalite\n🔬 Opus — derin analiz, yavaş\n🧠 Fable — en güçlü, en pahalı",
+    "ask_review": "🔍 Reviewer için hangi model kullanılsın?\n\n⚡ Haiku — hızlı\n⚖️ Sonnet — dengeli (önerilen)\n🚀 Sonnet 5 — yeni nesil, Opus'a yakın kalite\n🔬 Opus — derin analiz\n🧠 Fable — en güçlü, en pahalı",
+    "ask_backlog": "🤖 Backlog item'larını hangi modelle implement edelim?\n\n⚡ Haiku — hızlı ve ucuz\n⚖️ Sonnet — dengeli (önerilen)\n🚀 Sonnet 5 — yeni nesil, Opus'a yakın kalite\n🔬 Opus — derin analiz, yavaş\n🧠 Fable — en güçlü, en pahalı",
     "btn_haiku": "⚡ Haiku (Hızlı)",
     "btn_sonnet": "⚖️ Sonnet (Dengeli) ★",
-    "btn_opus": "🔬 Opus (Derin)"
+    "btn_sonnet5": "🚀 Sonnet 5 (Yeni)",
+    "btn_opus": "🔬 Opus (Derin)",
+    "btn_fable": "🧠 Fable (En Güçlü)",
+    "section_title": "Model seçimi"
   },
   "parallel": {
     "scan_ask": "🔍 *{name}* taraması\n*Proje:* {project}{dry}\n\nKaç paralel agent ile taransın?\n\n💡 1=güvenli, 4=önerilen, 16=hızlı (rate-limit riski)",

@@ -37,20 +37,35 @@ _MIN_ANSWER_LEN = 40
 # getirir: ilk run bitmeden ikincisi başlamaz.
 _RUN_LOCK = asyncio.Lock()
 
-# Model alias → tam Claude Code CLI model ID'si (llm_factory._SCAN_MODEL_ALIASES ile senkron)
-_MODEL_ALIASES: dict[str, str] = {
-    "haiku":  "claude-haiku-4-5-20251001",
-    "sonnet": "claude-sonnet-4-6",
-    "opus":   "claude-opus-4-8",
-    "fable":  "claude-fable-5",
-}
-
 
 def _resolve_model(model: str | None) -> str:
-    """Alias'ı tam model ID'sine çevir; alias değilse olduğu gibi döndür; boşsa "" döndür."""
-    if not model:
+    """Alias'ı ("haiku"|"sonnet"|"sonnet5"|"opus"|"fable") tam model ID'sine çevir.
+
+    Tek doğruluk kaynağı llm_factory.resolve_model_alias — alias listesi
+    iki yerde ayrı ayrı bakım gerektirmez.
+    """
+    from ...adapters.llm.llm_factory import resolve_model_alias
+    return resolve_model_alias(model)
+
+
+def _extract_status(answer: str) -> str:
+    """Cevabın son boş olmayan satırındaki STATUS sözleşme değerini döndürür.
+
+    Dönüş: "ok" | "failed" | "" (STATUS satırı yok/uyumsuz).
+    Model satırı `**STATUS: ok**` gibi markdown ile sarabildiği için
+    baş/son süsleme karakterleri toleranslı soyulur.
+    """
+    for line in reversed(answer.splitlines()):
+        stripped = line.strip().strip("*_`").strip()
+        if not stripped:
+            continue
+        upper = stripped.upper()
+        if upper == "STATUS: OK":
+            return "ok"
+        if upper == "STATUS: FAILED":
+            return "failed"
         return ""
-    return _MODEL_ALIASES.get(model.lower().strip(), model.strip())
+    return ""
 
 
 class ExecutorResult(TypedDict):
@@ -90,8 +105,8 @@ class BacklogExecutorAgent:
             max_items:    Tek çalışmada işlenecek maksimum item sayısı (0 = tümü).
             parallel:     Eşzamanlı Bridge istekleri (Semaphore büyüklüğü).
             dry_run:      True ise Bridge'e istek atmadan item'ları done olarak işaretle.
-            model:        Opsiyonel model alias ("haiku" | "sonnet" | "opus") veya tam ad.
-                          Verilmezse Claude Code CLI varsayılan modeli kullanır.
+            model:        Opsiyonel model alias ("haiku" | "sonnet" | "sonnet5" | "opus" | "fable")
+                          veya tam ad. Verilmezse Claude Code CLI varsayılan modeli kullanır.
             backlog_path: Belirli BACKLOG.md dosyasının tam yolu. None → proje kökündeki BACKLOG.md.
             effort:       Opsiyonel Claude Code CLI effort seviyesi
                           ("low" | "medium" | "high" | "max").
@@ -333,7 +348,7 @@ class BacklogExecutorAgent:
         effort: str = "",
         thinking: bool = False,
         run_id: str = "",
-    ) -> bool:
+    ) -> bool | None:
         """Tek bir BACKLOG item'ını işle.
 
         Args:
@@ -350,7 +365,8 @@ class BacklogExecutorAgent:
                            Boş string → Bridge default'unu kullanır.
 
         Returns:
-            True → başarı, False → hata.
+            True → başarı, False → hata, None → iptal nedeniyle atlandı
+            (failed sayılmaz; BACKLOG satırı pending kalır).
         """
         async with sem:
             from ...guards.runtime_state import is_backlog_cancel_requested
@@ -359,7 +375,7 @@ class BacklogExecutorAgent:
                     "BacklogExecutorAgent._execute_item: %s — iptal nedeniyle atlandı",
                     item["item_id"],
                 )
-                return False
+                return None
 
             parser = BacklogParser()
             async with file_lock:
@@ -447,11 +463,12 @@ class BacklogExecutorAgent:
                 # EXEC-PROMPT-001: Prompt sözleşmesi modelden son satırda
                 # `STATUS: ok` veya `STATUS: failed` ister. Bu satır mevcutsa
                 # mekanik olarak okunur; yoksa eski davranış (uzunluk eşiği)
-                # geriye-uyumluluk için korunur.
-                status_line = answer.splitlines()[-1].strip().upper() if answer else ""
-                status_failed = status_line == "STATUS: FAILED"
-                status_ok = status_line == "STATUS: OK"
-                if cancelled or len(answer) < _MIN_ANSWER_LEN or status_failed:
+                # geriye-uyumluluk için korunur. Açık `STATUS: ok` varken kısa
+                # ama geçerli bir özet uzunluk eşiğine takılmaz.
+                status = _extract_status(answer)
+                status_failed = status == "failed"
+                status_ok = status == "ok"
+                if cancelled or status_failed or (not status_ok and len(answer) < _MIN_ANSWER_LEN):
                     logger.error(
                         "BacklogExecutorAgent._execute_item: %s — Bridge boş/eksik yanıt "
                         "veya STATUS: failed döndü (cancelled=%s, answer_len=%d, "

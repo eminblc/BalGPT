@@ -39,14 +39,16 @@ class BridgeLLMProvider:
     _VALID_EFFORTS: frozenset[str] = frozenset({"low", "medium", "high", "max"})
     # Claude Code CLI `--effort` flag'i SADECE şu modellerde geçerli (Haziran 2026 docs):
     # Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6. Haiku 4.5 effort desteklemez —
-    # Fable 5 / Mythos 5 adaptive-only (effort yok). CLI sessiz fallback yapsa
-    # bile Bridge tarafında hiç göndermeyiz.
+    # Fable 5 / Mythos 5 / Sonnet 5 adaptive-only; Sonnet 5 API tarafında
+    # output_config.effort kabul etse de CLI `--effort` doğrulanmadığı için
+    # bilinçli olarak whitelist dışında (menü zaten bu modellerde effort sormaz).
+    # CLI sessiz fallback yapsa bile Bridge tarafında hiç göndermeyiz.
     @staticmethod
     def _supports_cli_effort(model_id: str) -> bool:
         m = (model_id or "").lower()
         if "haiku" in m:
             return False
-        if any(k in m for k in ("fable-5", "mythos-5")):
+        if any(k in m for k in ("sonnet-5", "fable-5", "mythos-5")):
             return False
         return "sonnet-4-6" in m or "opus-4-6" in m or "opus-4-7" in m or "opus-4-8" in m
 

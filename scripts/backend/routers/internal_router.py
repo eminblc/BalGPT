@@ -407,10 +407,11 @@ class ScannerTriggerRequest(BaseModel):
     project_id: str
     auto_review: bool = True
     dry_run: bool = False
-    parallel: int = Field(default=3, ge=1, le=64)
+    # None → scan config'indeki concurrency kullanılır; UI her zaman açık değer gönderir.
+    parallel: int | None = Field(default=None, ge=1, le=64)
     include_third_party: bool = False
-    scan_model: str | None = None    # "haiku" | "sonnet" | "opus" | tam model adı
-    review_model: str | None = None  # "haiku" | "sonnet" | "opus" | tam model adı
+    scan_model: str | None = None    # "haiku" | "sonnet" | "sonnet5" | "opus" | "fable" | tam model adı
+    review_model: str | None = None  # "haiku" | "sonnet" | "sonnet5" | "opus" | "fable" | tam model adı
     scan_effort: str | None = None    # "low" | "medium" | "high" | "max" | "off" / None
     review_effort: str | None = None  # aynı whitelist
     scan_thinking: bool = False       # Extended Thinking on/off (effort'tan bağımsız)
@@ -433,7 +434,7 @@ class BacklogExecuteRequest(BaseModel):
     max_items: int = Field(default=0, ge=0, le=100)  # 0 = tüm pending item'lar
     parallel: int = Field(default=2, ge=1, le=64)
     dry_run: bool = False
-    model: str | None = None  # "haiku" | "sonnet" | "opus" | tam Claude Code model adı
+    model: str | None = None  # "haiku" | "sonnet" | "sonnet5" | "opus" | "fable" | tam Claude Code model adı
     effort: str | None = None  # "low" | "medium" | "high" | "max" | "off" / None
     thinking: bool = False    # Extended Thinking on/off (effort'tan bağımsız)
     backlog_path: str | None = None  # Belirli BACKLOG.md dosyası; None → proje kökündeki BACKLOG.md
@@ -575,11 +576,12 @@ async def trigger_scanner(
 
 class AllScansTriggerRequest(BaseModel):
     project_id: str
-    parallel: int = Field(default=3, ge=1, le=64)
+    # None → scan config'indeki concurrency kullanılır; UI her zaman açık değer gönderir.
+    parallel: int | None = Field(default=None, ge=1, le=64)
     dry_run: bool = False
     include_third_party: bool = False
-    scan_model: str | None = None    # "haiku" | "sonnet" | "opus" | tam model adı
-    review_model: str | None = None  # "haiku" | "sonnet" | "opus" | tam model adı
+    scan_model: str | None = None    # "haiku" | "sonnet" | "sonnet5" | "opus" | "fable" | tam model adı
+    review_model: str | None = None  # "haiku" | "sonnet" | "sonnet5" | "opus" | "fable" | tam model adı
     scan_effort: str | None = None    # "low" | "medium" | "high" | "max" | "off" / None
     review_effort: str | None = None
     scan_thinking: bool = False       # Extended Thinking on/off

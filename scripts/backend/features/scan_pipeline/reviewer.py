@@ -4,7 +4,6 @@ import fcntl
 import json
 import logging
 import re
-import uuid
 from pathlib import Path
 
 from .models import ScanConfig, ScanFinding, ReviewedFinding
@@ -36,16 +35,18 @@ _FENCE_RE = re.compile(r"```(?:json|JSON)?\s*\n?(.*?)```", re.DOTALL)
 # Parse hatası log dosyası: outputs/logs/reviewer_parse_errors.log
 _PARSE_ERROR_LOG = Path(__file__).parents[4] / "outputs" / "logs" / "reviewer_parse_errors.log"
 
-_REVIEWER_PROMPT = """\
+# Batch'ler arasında DEĞİŞMEYEN kısım — system role'e taşınır ve
+# cache_system=True ile ephemeral prompt cache'ten yararlanır (ilk batch cache
+# yazar, sonraki batch'ler %10 input fiyatı öder). BACKLOG özeti 60K karaktere
+# kadar çıkabildiği için bu ayrım batch başına ciddi token tasarrufu sağlar.
+_REVIEWER_SYSTEM_PROMPT = """\
 Tarama bulgularını incele. Kriterler:
 {reviewer_prompt}
 
 BACKLOG (duplicate kontrolü):
 {backlog_summary}
-{already_accepted_section}
-Bulgular:
-{findings_json}
 
+Kullanıcı mesajında bulgular JSON array olarak gelir.
 Sadece JSON array dön (markdown/fence/açıklama yok). Her bulguya karar ver:
 [{{"id":"...","verdict":"accepted|rejected|duplicate","reason":"≤120ch","backlog_id":null}}]
 
@@ -53,6 +54,12 @@ Kurallar:
 - accepted: gerçek sorun, BACKLOG'da yok. low/info dahil tüm şiddetler — düşük şiddet ≠ false positive.
 - rejected: false positive, scope dışı, kod zaten doğru.
 - duplicate: BACKLOG'da veya bu batch'te aynı sorun var (prefix: {prefix}).
+"""
+
+# Batch başına DEĞİŞEN kısım — user role'de kalır, cache'i kırmaz.
+_REVIEWER_USER_PROMPT = """\
+{already_accepted_section}Bulgular:
+{findings_json}
 """
 
 
@@ -63,31 +70,40 @@ class FindingReviewer:
         self._output_dir = output_dir
         self._backlog_path = backlog_path
 
-    def build_reviewer_prompt(
-        self,
-        config: ScanConfig,
+    def build_reviewer_system_prompt(self, config: ScanConfig) -> str:
+        """Batch'ler arasında sabit kalan system prompt'u üret.
+
+        Kriterler + BACKLOG özeti + karar kuralları içerir. Aynı run içinde
+        her batch için byte-byte aynı döner (BACKLOG finalize'a kadar
+        değişmez) → cache_system=True ile prompt cache hit garantilenir.
+        Caller (ReviewerAgent) bunu döngü öncesi bir kez üretip yeniden kullanır.
+        """
+        backlog_summary = self._extract_backlog_summary(config["backlog_prefix"])
+        return _REVIEWER_SYSTEM_PROMPT.format(
+            reviewer_prompt=config["reviewer_prompt"],
+            backlog_summary=backlog_summary,
+            prefix=config["backlog_prefix"],
+        )
+
+    @staticmethod
+    def build_reviewer_user_prompt(
         findings: list[ScanFinding],
         already_accepted: list[tuple[str, str]] | None = None,
     ) -> str:
-        """Reviewer agent için minimal prompt üret.
+        """Batch'e özgü user prompt'u üret (önceki kabul listesi + bulgular JSON).
 
         Args:
-            config:           Scan konfigürasyonu.
             findings:         Bu batch'teki bulgular.
             already_accepted: Önceki batch'lerde kabul edilen (file, title) çiftleri.
                               Aynı (file, title) bulgu bu batch'te "duplicate" olarak işaretlenmeli.
         """
-        # BACKLOG'dan ilgili satırları çek (ilk 100 satır yeterli — tam dosya değil)
-        backlog_summary = self._extract_backlog_summary(config["backlog_prefix"])
-
-        # Önceki batch'lerde kabul edilenler prompt'a eklenir
         if already_accepted:
             lines = "\n".join(
                 f"  - file: {f}, title: {t}" for f, t in already_accepted
             )
             already_accepted_section = (
-                f"\n## Bu Taramada Önceki Batch'lerde Kabul Edilenler "
-                f"(aynı file+title → duplicate)\n{lines}\n"
+                f"## Bu Taramada Önceki Batch'lerde Kabul Edilenler "
+                f"(aynı file+title → duplicate)\n{lines}\n\n"
             )
         else:
             already_accepted_section = ""
@@ -97,12 +113,26 @@ class FindingReviewer:
             {k: v for k, v in f.items() if k != "snippet"}
             for f in findings
         ]
-        return _REVIEWER_PROMPT.format(
-            reviewer_prompt=config["reviewer_prompt"],
-            backlog_summary=backlog_summary,
+        return _REVIEWER_USER_PROMPT.format(
             already_accepted_section=already_accepted_section,
             findings_json=json.dumps(compact_findings, ensure_ascii=False, indent=2),
-            prefix=config["backlog_prefix"],
+        )
+
+    def build_reviewer_prompt(
+        self,
+        config: ScanConfig,
+        findings: list[ScanFinding],
+        already_accepted: list[tuple[str, str]] | None = None,
+    ) -> str:
+        """Tek parça reviewer prompt (system + user birleşik).
+
+        Legacy tek-çağrı akışı (ScanRunner / pipeline.collect_and_build_reviewer_prompt)
+        için korunur; batch akışı system/user parçalarını ayrı kullanır.
+        """
+        return (
+            self.build_reviewer_system_prompt(config)
+            + "\n"
+            + self.build_reviewer_user_prompt(findings, already_accepted)
         )
 
     def _extract_backlog_summary(self, prefix: str) -> str:

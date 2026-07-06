@@ -92,11 +92,24 @@ def _accepts_default_effort(cls: type) -> bool:
 
 # Scan için model alias → tam model adı (model_cmd.py ile senkron)
 _SCAN_MODEL_ALIASES: dict[str, str] = {
-    "haiku":  "claude-haiku-4-5-20251001",
-    "sonnet": "claude-sonnet-4-6",
-    "opus":   "claude-opus-4-8",
-    "fable":  "claude-fable-5",
+    "haiku":   "claude-haiku-4-5-20251001",
+    "sonnet":  "claude-sonnet-4-6",
+    "sonnet5": "claude-sonnet-5",
+    "opus":    "claude-opus-4-8",
+    "fable":   "claude-fable-5",
 }
+
+
+def resolve_model_alias(model: str | None) -> str:
+    """Model alias'ını ("haiku" | "sonnet" | "sonnet5" | "opus" | "fable") tam model ID'sine çevirir.
+
+    Alias değilse (tam model adı verilmişse) olduğu gibi döndürür; boş/None → "".
+    Scan pipeline ve backlog executor bu tek kaynağı kullanır — alias listesi
+    yalnızca burada güncellenir.
+    """
+    if not model:
+        return ""
+    return _SCAN_MODEL_ALIASES.get(model.lower().strip(), model.strip())
 
 
 def get_scan_llm(
@@ -128,7 +141,7 @@ def get_scan_llm(
     resolved = settings.llm_backend.lower().strip()
 
     # Alias → tam model adı (Anthropic ve Bridge için ortak)
-    resolved_model = _SCAN_MODEL_ALIASES.get(model or "", model) if model else None
+    resolved_model = resolve_model_alias(model) or None
     # Effort sanitize: "off" / boş / geçersiz → None (provider'lar zaten None'ı handle ediyor)
     resolved_effort = effort if effort in {"low", "medium", "high", "max"} else None
 

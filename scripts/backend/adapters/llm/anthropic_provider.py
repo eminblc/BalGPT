@@ -30,6 +30,7 @@ _MODEL_NAMES: dict[str, str] = {
     "claude-haiku-4-5-20251001": "Haiku 4.5",
     "claude-3-5-sonnet-20241022": "Sonnet 4.6",
     "claude-sonnet-4-6": "Sonnet 4.6",
+    "claude-sonnet-5": "Sonnet 5",
     "claude-opus-4-6": "Opus 4.6",
     "claude-opus-4-7": "Opus 4.7",
     "claude-opus-4-8": "Opus 4.8",
@@ -63,18 +64,19 @@ def _is_opus_4_7(model_id: str) -> bool:
 def _is_adaptive_only(model_id: str) -> bool:
     """Yalnızca adaptive thinking destekleyen model mi?
 
-    Anthropic docs (Haziran 2026): Opus 4.7, Opus 4.8, Fable 5, Mythos 5
-    manual thinking'i KABUL ETMEZ — yalnızca adaptive.
+    Anthropic docs (Haziran 2026): Opus 4.7, Opus 4.8, Sonnet 5, Fable 5,
+    Mythos 5 manual thinking'i KABUL ETMEZ — `budget_tokens` payload'u 400
+    döndürür; yalnızca adaptive.
     """
     m = (model_id or "").lower()
-    return any(k in m for k in ("opus-4-7", "opus-4-8", "fable-5", "mythos-5"))
+    return any(k in m for k in ("opus-4-7", "opus-4-8", "sonnet-5", "fable-5", "mythos-5"))
 
 
 def _supports_manual_thinking(model_id: str) -> bool:
     """Model `thinking: {type:"enabled", budget_tokens:N}` payload'unu destekliyor mu?
 
     Anthropic docs (Haziran 2026):
-    - Desteklemez (400 error): Opus 4.7, Opus 4.8, Fable 5, Mythos 5, Haiku ailesi
+    - Desteklemez (400 error): Opus 4.7, Opus 4.8, Sonnet 5, Fable 5, Mythos 5, Haiku ailesi
     - Destekler: Sonnet 4.6, Opus 4.6, Sonnet 4.5 ve önceki sürümler
     Haiku 3.5 ve eski tüm Haiku'lar thinking desteklemez.
     """

@@ -1,0 +1,48 @@
+# Pyrefly (VS Code type checker) yapılandırması.
+#
+# Amaç: Bu repo bazı makinelerde venv'siz açılıyor (örn. macOS'ta uzaktan
+# geliştirme); Pyrefly o durumda sistem Python'unun site-packages'ına düşüyor
+# ve httpx/fastapi gibi her üçüncü-parti import'u "missing-import" olarak
+# işaretliyordu. Buradaki ayarlar:
+#
+#   - python-version: CI ve deployment ile aynı (3.11) — IDE'nin bulduğu eski
+#     sistem yorumlayıcısının (3.9) sürüm semantiği kullanılmasın.
+#   - search-path: `backend.*` ve `tests.*` mutlak import'ları scripts/ altından
+#     çözülsün.
+#   - ignore-missing-imports: SADECE bulunamayan modül Any sayılır. Venv'in
+#     kurulu olduğu makinede bu paketler normal şekilde çözümlenip denetlenir;
+#     liste yalnızca bağımlılıkların kurulu olmadığı ortamlarda devreye girer.
+#     Proje-içi (backend.*) import yazım hataları raporlanmaya devam eder.
+#
+# Yeni bir üçüncü-parti bağımlılık eklerken (requirements.txt) buradaki listeye
+# de modül adını ekle (hem "paket" hem "paket.*" biçiminde).
+
+python-version = "3.11"
+search-path = ["scripts"]
+project-includes = ["scripts/backend/**/*.py", "scripts/tests/**/*.py"]
+
+ignore-missing-imports = [
+    "PIL", "PIL.*",
+    "Xlib", "Xlib.*",
+    "apscheduler", "apscheduler.*",
+    "cryptography", "cryptography.*",
+    "dateparser", "dateparser.*",
+    "dotenv", "dotenv.*",
+    "fastapi", "fastapi.*",
+    "fitz", "fitz.*",
+    "httpx", "httpx.*",
+    "msgpack", "msgpack.*",
+    "mss", "mss.*",
+    "playwright", "playwright.*",
+    "pydantic", "pydantic.*",
+    "pydantic_settings", "pydantic_settings.*",
+    "pyngrok", "pyngrok.*",
+    "pyotp", "pyotp.*",
+    "pytest", "pytest.*",
+    "pythonjsonlogger", "pythonjsonlogger.*",
+    "qrcode", "qrcode.*",
+    "sqlalchemy", "sqlalchemy.*",
+    "starlette", "starlette.*",
+    "tenacity", "tenacity.*",
+    "uvicorn", "uvicorn.*",
+]
